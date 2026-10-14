@@ -76,11 +76,10 @@ try {
           WHERE id = ?"
     )->execute([$userid]);
 
-    // Reset lock_status ke 1 dan perbarui lastping ke sekarang agar stale-check
-    // tidak langsung memblokir ulang sebelum siswa sempat login kembali.
+    // Hapus record appstatus agar siswa tidak muncul sebagai 'aktif di aplikasi'
+    // sebelum ia benar-benar membuka aplikasi dan login kembali.
     $pdo->prepare(
-        "UPDATE {$prefix}local_dosman_ujian_appstatus
-            SET lock_status = 1, lastping = UNIX_TIMESTAMP()
+        "DELETE FROM {$prefix}local_dosman_ujian_appstatus
           WHERE userid = ?"
     )->execute([$userid]);
 
