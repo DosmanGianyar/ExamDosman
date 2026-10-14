@@ -65,10 +65,16 @@ try {
                    u.email,
                    u.idnumber,
                    u.department,
-                   GROUP_CONCAT(DISTINCT c.name SEPARATOR ', ') AS cohort_names
+                   GROUP_CONCAT(DISTINCT c.name SEPARATOR ', ') AS cohort_names,
+                   IFNULL(sc.plain_password, '') AS plain_password,
+                   IFNULL(sc.no_peserta, '') AS no_peserta,
+                   IFNULL(sc.ruang, '') AS ruang,
+                   IFNULL(sc.sesi, '') AS sesi,
+                   IFNULL(sc.meja, '') AS meja
               FROM {$prefix}user u
               JOIN {$prefix}cohort_members cm ON cm.userid = u.id
               JOIN {$prefix}cohort c ON c.id = cm.cohortid
+              LEFT JOIN {$prefix}local_dosman_student_cards sc ON sc.username COLLATE utf8mb4_general_ci = u.username COLLATE utf8mb4_general_ci
              WHERE u.deleted = 0 
                AND u.suspended = 0 
                AND (c.name LIKE 'Kelas%' OR u.lastname LIKE '| X%' OR u.lastname LIKE '| XI%')
@@ -140,6 +146,11 @@ try {
             'department'  => $r->department ?? '',
             'grade'       => $grade ?: 'Kelas X',
             'cohort_names'=> $cnames,
+            'password'    => (string)($r->plain_password ?? ''),
+            'no_peserta'  => (string)($r->no_peserta ?? ''),
+            'ruang'       => (string)($r->ruang ?? ''),
+            'sesi'        => (string)($r->sesi ?? ''),
+            'meja'        => (string)($r->meja ?? ''),
         ];
     }
 

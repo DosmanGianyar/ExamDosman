@@ -7,12 +7,13 @@
   <link rel="icon" type="image/png" href="assets/logo_sekolah.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
   <script src="js/qrcode.min.js"></script>
 
   <style>
     /* ==========================================================================
-       CSS STYLING: KARTU PESERTA UJIAN CBT SMAN 1 GIANYAR
+       CSS STYLING: KARTU PESERTA UJIAN CBT MODERN — SMAN 1 GIANYAR
+       Desain Modern, Berkarakter, Bersih, Presisi Cetak A4
        ========================================================================== */
     :root {
       --bg-dark: #090d16;
@@ -45,11 +46,11 @@
       position: sticky;
       top: 0;
       z-index: 999;
-      background: rgba(17, 24, 39, 0.95);
-      backdrop-filter: blur(12px);
+      background: rgba(17, 24, 39, 0.96);
+      backdrop-filter: blur(14px);
       border-bottom: 1px solid var(--border-dark);
       padding: 14px 24px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 4px 25px rgba(0, 0, 0, 0.45);
     }
 
     .toolbar-top {
@@ -67,13 +68,13 @@
     }
 
     .brand-logo {
-      width: 38px;
-      height: 38px;
+      width: 40px;
+      height: 40px;
       object-fit: contain;
     }
 
     .brand-title {
-      font-size: 1.05rem;
+      font-size: 1.1rem;
       font-weight: 800;
       letter-spacing: -0.3px;
       color: #fff;
@@ -126,17 +127,19 @@
     .btn-success {
       background: #059669;
       color: #fff;
+      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.35);
     }
     .btn-success:hover {
       background: #047857;
+      transform: translateY(-1px);
     }
 
     /* ─── KONTROL INPUT DINAMIS ─── */
     .controls-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 12px;
-      background: rgba(15, 23, 42, 0.6);
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.65);
       padding: 12px 16px;
       border-radius: 10px;
       border: 1px solid #1e293b;
@@ -175,24 +178,24 @@
 
     /* ─── PREVIEW CONTAINER ─── */
     .preview-container {
-      padding: 30px 20px 60px;
+      padding: 24px 20px 60px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 24px;
+      gap: 20px;
     }
 
     .preview-notice {
-      background: rgba(37, 99, 235, 0.1);
-      border: 1px solid rgba(37, 99, 235, 0.3);
+      background: rgba(37, 99, 235, 0.12);
+      border: 1px solid rgba(37, 99, 235, 0.35);
       color: #93c5fd;
       padding: 10px 18px;
       border-radius: 8px;
       font-size: 0.825rem;
       display: flex;
       align-items: center;
-      gap: 8px;
-      max-width: 900px;
+      justify-content: space-between;
+      max-width: 920px;
       width: 100%;
     }
 
@@ -202,35 +205,35 @@
       min-height: 297mm;
       background: #ffffff;
       color: #0f172a;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-      margin: 0 auto 30px;
-      padding: 10mm 9mm;
+      box-shadow: 0 12px 35px rgba(0, 0, 0, 0.55);
+      margin: 0 auto 28px;
+      padding: 8mm 8mm;
       box-sizing: border-box;
       position: relative;
       page-break-after: always;
     }
 
-    /* Grid Layout: 2 Kolom x 4 Baris = 8 Kartu per A4 */
+    /* Grid Layout Standar: 6 Kartu (2 Kolom x 3 Baris) — Proporsional & Modern */
     .cards-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      grid-auto-rows: 66mm;
-      gap: 4mm 5mm;
+      grid-auto-rows: 90mm;
+      gap: 5mm 5mm;
       width: 100%;
       height: 100%;
     }
 
-    /* Grid Layout 6 Kartu (2 x 3) */
-    .cards-grid.layout-6 {
-      grid-auto-rows: 88mm;
-      gap: 6mm 6mm;
+    /* Grid Layout 8 Kartu (2 Kolom x 4 Baris) — Format Kompak */
+    .cards-grid.layout-8 {
+      grid-auto-rows: 67mm;
+      gap: 3.5mm 4mm;
     }
 
-    /* ─── CARD ITEM DESIGN (KARTU PESERTA) ─── */
+    /* ─── CARD ITEM DESIGN (KARTU PESERTA MODERN) ─── */
     .exam-card {
       border: 1.5px dashed #475569;
-      border-radius: 6px;
-      padding: 7px 9px 6px;
+      border-radius: 10px;
+      padding: 10px 12px 8px;
       background: #ffffff;
       color: #0f172a;
       display: flex;
@@ -239,26 +242,26 @@
       position: relative;
       overflow: hidden;
       box-sizing: border-box;
-      font-family: Arial, sans-serif;
+      font-family: 'Plus Jakarta Sans', Arial, sans-serif;
     }
 
-    /* Decorative Watermark Sekolah */
+    /* Decorative Watermark Logo Sekolah */
     .exam-card::after {
       content: '';
       position: absolute;
       top: 50%;
-      left: 50%;
+      left: 36%;
       transform: translate(-50%, -50%);
-      width: 130px;
-      height: 130px;
+      width: 140px;
+      height: 140px;
       background: url('assets/logo_sekolah.png') no-repeat center;
       background-size: contain;
-      opacity: 0.045;
+      opacity: 0.04;
       pointer-events: none;
       z-index: 0;
     }
 
-    /* Ikon gunting potong */
+    /* Ikon gunting potong tepi kartu */
     .exam-card::before {
       content: '✂';
       position: absolute;
@@ -270,181 +273,121 @@
       background: #fff;
       padding: 0 4px;
       line-height: 1;
+      z-index: 2;
     }
 
-    /* Header / Kop Kartu */
-    .card-header-kop {
+    /* Top Row: Info Siswa & Big QR Barcode */
+    .card-top-row {
       display: flex;
-      align-items: center;
-      gap: 7px;
-      padding-bottom: 4px;
-      border-bottom: 1.8px double #0f172a;
-      margin-bottom: 5px;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
       position: relative;
       z-index: 1;
     }
 
-    .card-kop-logo {
-      width: 32px;
-      height: 32px;
-      object-fit: contain;
-      flex-shrink: 0;
-    }
-
-    .card-kop-text {
-      flex: 1;
-      text-align: center;
-    }
-
-    .kop-prov {
-      font-size: 6.5px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-      color: #334155;
-      line-height: 1.1;
-    }
-
-    .kop-school {
-      font-size: 9.5px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      color: #0f172a;
-      line-height: 1.15;
-    }
-
-    .kop-title {
-      font-size: 8px;
-      font-weight: 700;
-      color: #1e3a8a;
-      text-transform: uppercase;
-      margin-top: 1px;
-      line-height: 1.1;
-    }
-
-    .kop-ta {
-      font-size: 6.5px;
-      font-weight: 600;
-      color: #475569;
-      line-height: 1.1;
-    }
-
-    /* Body Kartu (Data Siswa & QR Code) */
-    .card-body-content {
-      display: flex;
-      gap: 8px;
-      align-items: stretch;
-      flex: 1;
-      position: relative;
-      z-index: 1;
-    }
-
-    .student-info-col {
+    .card-meta-brand {
       flex: 1;
       display: flex;
       flex-direction: column;
-      justify-content: space-around;
-      font-size: 7.5px;
-      line-height: 1.35;
+      gap: 3px;
     }
 
-    .info-row {
-      display: flex;
-      align-items: baseline;
+    /* Brand Header Pill */
+    .brand-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 2px;
     }
 
-    .info-label {
-      width: 65px;
-      flex-shrink: 0;
-      color: #475569;
-      font-weight: 600;
+    .brand-pill-logo {
+      width: 22px;
+      height: 22px;
+      object-fit: contain;
     }
 
-    .info-colon {
-      width: 8px;
-      flex-shrink: 0;
-      text-align: center;
-      color: #475569;
-    }
-
-    .info-value {
-      flex: 1;
-      font-weight: 700;
+    .brand-pill-text {
+      font-size: 9.5px;
+      font-weight: 800;
+      letter-spacing: 0.3px;
       color: #0f172a;
-      word-break: break-word;
     }
 
-    .info-value.student-name-val {
+    .brand-pill-badge {
+      display: inline-block;
+      background: #1e3a8a;
+      color: #ffffff;
+      font-size: 7px;
+      font-weight: 800;
+      padding: 1.5px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    .exam-title-text {
       font-size: 8.5px;
       font-weight: 800;
-      color: #0f172a;
+      color: #1e40af;
+      text-transform: uppercase;
       line-height: 1.2;
     }
 
-    .info-value.badge-class {
-      display: inline-block;
-      background: #e0f2fe;
-      color: #0369a1;
-      padding: 1px 5px;
-      border-radius: 3px;
-      font-size: 7.5px;
-      font-weight: 800;
-      border: 0.5px solid #bae6fd;
-    }
-
-    .login-box {
-      margin-top: 2px;
-      background: #f8fafc;
-      border: 1px solid #cbd5e1;
-      border-radius: 4px;
-      padding: 3px 5px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .login-item {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .login-label {
-      font-size: 5.5px;
-      color: #64748b;
+    .exam-ta-text {
+      font-size: 7px;
       font-weight: 600;
-      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 4px;
     }
 
-    .login-cred {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 7.5px;
+    /* Student Name Box */
+    .student-name-box {
+      margin-top: 2px;
+    }
+
+    .student-name-label {
+      display: block;
+      font-size: 6.5px;
       font-weight: 700;
-      color: #0f172a;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
     }
 
-    /* Kolom QR Code */
-    .qr-col {
-      width: 64px;
-      flex-shrink: 0;
+    .student-name-text {
+      font-size: 11px;
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1.25;
+      word-break: break-word;
+    }
+
+    /* ─── POJOK KANAN ATAS: BIG QR BARCODE (2.5x - 3x LIPAT) ─── */
+    .qr-top-right-box {
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      padding-left: 4px;
-      border-left: 1px dashed #cbd5e1;
+      flex-shrink: 0;
+      background: #f8fafc;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 5px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
 
+    /* Ukuran Barcode Besar (110px di Layout 6, 88px di Layout 8) */
     .qr-code-box {
-      width: 58px;
-      height: 58px;
-      background: #fff;
+      width: 108px;
+      height: 108px;
+      background: #ffffff;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 2px;
-      border: 1px solid #e2e8f0;
-      border-radius: 4px;
+    }
+
+    .layout-8 .qr-code-box {
+      width: 82px;
+      height: 82px;
     }
 
     .qr-code-box img, .qr-code-box canvas {
@@ -453,59 +396,206 @@
       display: block;
     }
 
-    .qr-caption {
-      font-size: 5.5px;
-      font-weight: 700;
-      color: #2563eb;
-      text-transform: uppercase;
-      margin-top: 2px;
+    .qr-scan-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 6.5px;
+      font-weight: 800;
+      color: #1e3a8a;
       letter-spacing: 0.3px;
-      text-align: center;
+      margin-top: 3px;
+      text-transform: uppercase;
     }
 
-    /* Footer Kartu & Tanda Tangan */
-    .card-footer-sign {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-      padding-top: 3px;
-      border-top: 0.5px solid #e2e8f0;
-      margin-top: 4px;
-      font-size: 6px;
-      color: #475569;
+    .qr-scan-dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: #10b981;
+    }
+
+    /* ─── CHIPS METADATA (ABSEN, KELAS, RUANG/SESI, NO PESERTA) ─── */
+    .meta-chips-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+      margin: 6px 0;
       position: relative;
       z-index: 1;
     }
 
-    .card-note {
-      font-size: 5.5px;
-      font-style: italic;
-      color: #64748b;
-      max-width: 55%;
-      line-height: 1.1;
+    .meta-chip {
+      background: #f1f5f9;
+      border: 0.8px solid #cbd5e1;
+      border-radius: 5px;
+      padding: 3px 5px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
     }
 
-    .card-sign-box {
+    .chip-label {
+      font-size: 5.5px;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .chip-val {
+      font-size: 8px;
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
+    .chip-val.highlight {
+      color: #1e40af;
+      font-size: 9px;
+    }
+
+    .chip-val.class-val {
+      color: #0369a1;
+    }
+
+    .chip-val.mono {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 7.5px;
+    }
+
+    /* ─── KOTAK KREDENSIAL LOGIN (USERNAME & PASSWORD) ─── */
+    .login-cred-container {
+      background: #0f172a;
+      color: #ffffff;
+      border-radius: 6px;
+      padding: 4px 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 4px 0 5px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .cred-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .cred-label {
+      font-size: 5.5px;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .cred-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8.5px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: 0.3px;
+    }
+
+    .cred-pass .cred-val {
+      color: #fde047; /* Password kuning cerah agar mudah dibaca */
+    }
+
+    /* ─── FOOTER & TANDA TANGAN ─── */
+    .card-bottom-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-top: 0.8px solid #e2e8f0;
+      padding-top: 3px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .card-rules-note {
+      font-size: 5.5px;
+      color: #64748b;
+      font-style: italic;
+      max-width: 58%;
+      line-height: 1.2;
+    }
+
+    .card-signature {
       text-align: right;
+      font-size: 6px;
+      color: #334155;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
       line-height: 1.15;
     }
 
-    .card-sign-role {
-      font-weight: 700;
+    .sign-name {
+      font-weight: 800;
       color: #0f172a;
+      text-decoration: underline;
+      margin-top: 2px;
     }
 
-    .card-sign-name {
-      font-weight: 800;
-      text-decoration: underline;
-      color: #0f172a;
-      margin-top: 8px;
+    /* ─── MODAL UPLOAD CSV ─── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      width: 90%;
+      max-width: 650px;
+      padding: 24px;
+      color: #fff;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 12px;
+    }
+
+    .dropzone-box {
+      border: 2px dashed #3b82f6;
+      border-radius: 12px;
+      padding: 30px 20px;
+      text-align: center;
+      background: rgba(59, 130, 246, 0.05);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .dropzone-box:hover {
+      background: rgba(59, 130, 246, 0.12);
+      border-color: #60a5fa;
     }
 
     /* ─── MEDIA PRINT (PRESISI A4) ─── */
     @page {
       size: A4 portrait;
-      margin: 8mm 8mm 8mm 8mm;
+      margin: 7mm 7mm 7mm 7mm;
     }
 
     @media print {
@@ -516,7 +606,7 @@
         margin: 0 !important;
       }
 
-      .no-print, .admin-toolbar, .preview-notice {
+      .no-print, .admin-toolbar, .preview-notice, .modal-overlay {
         display: none !important;
       }
 
@@ -537,6 +627,12 @@
       .exam-card {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
+        border: 1px dashed #64748b !important;
+      }
+
+      .login-cred-container {
+        background: #0f172a !important;
+        color: #ffffff !important;
       }
     }
   </style>
@@ -552,7 +648,7 @@
         <img src="assets/logo_sekolah.png" alt="Logo SMAN 1 Gianyar" class="brand-logo">
         <div>
           <h1 class="brand-title">Pencetakan Kartu Peserta Ujian CBT</h1>
-          <span class="brand-subtitle">SMAN 1 Gianyar &bull; Format Standar Kertas A4 &amp; Barcode Login Otomatis</span>
+          <span class="brand-subtitle">SMAN 1 Gianyar &bull; Format Modern Lembar A4 &amp; Barcode Login Besar</span>
         </div>
       </div>
 
@@ -560,11 +656,14 @@
         <a href="index.html" class="btn btn-secondary">
           <span>&larr; Dashboard</span>
         </a>
+        <button class="btn btn-success" onclick="openUploadCsvModal()" title="Unggah file CSV untuk mengisi password asli & nomor ruang/sesi">
+          <span>📂 Unggah CSV Password</span>
+        </button>
         <button class="btn btn-secondary" onclick="loadStudentData()" title="Muat ulang seluruh data siswa dari Moodle">
-          <span>&#x1F504; Reload Data</span>
+          <span>🔄 Reload</span>
         </button>
         <button class="btn btn-primary" onclick="window.print()" title="Cetak atau Simpan ke PDF">
-          <span>&#x1F5A8;&#xFE0F; Cetak Kartu (A4)</span>
+          <span>🖨️ Cetak Kartu (A4)</span>
         </button>
       </div>
     </div>
@@ -572,7 +671,7 @@
     <!-- Parameter yang bisa diubah-ubah oleh admin sesuai kebutuhan ujian -->
     <div class="controls-grid">
       <div class="form-group" style="grid-column: span 2;">
-        <label class="form-label" for="input-card-title">&#x1F4DD; Judul Kartu Ujian (Dapat Diganti)</label>
+        <label class="form-label" for="input-card-title">📝 Judul Kartu Ujian (Dapat Diganti)</label>
         <input type="text" id="input-card-title" class="form-input" 
                value="KARTU PESERTA ASESMEN SUMATIF (CBT)" 
                placeholder="Contoh: KARTU PESERTA ASESMEN SUMATIF AKHIR SEMESTER" 
@@ -580,7 +679,7 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label" for="input-card-ta">&#x1F4C5; Tahun Pelajaran / Semester</label>
+        <label class="form-label" for="input-card-ta">📅 Tahun Ajaran / Semester</label>
         <input type="text" id="input-card-ta" class="form-input" 
                value="TAHUN AJARAN 2025/2026" 
                placeholder="Contoh: TAHUN AJARAN 2025/2026" 
@@ -588,23 +687,23 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label" for="input-default-pass">&#x1F511; Default Password QR &amp; Login</label>
+        <label class="form-label" for="input-default-pass">🔑 Default Password Siswa</label>
         <input type="text" id="input-default-pass" class="form-input" 
                value="siswa123" 
-               placeholder="Password default login" 
+               placeholder="Digunakan jika belum upload password CSV" 
                oninput="regenerateAllCards()">
       </div>
 
       <div class="form-group">
-        <label class="form-label" for="input-sign-role">&#x270D;&#xFE0F; Jabatan Penandatangan</label>
+        <label class="form-label" for="input-sign-role">✍️ Jabatan Penandatangan</label>
         <input type="text" id="input-sign-role" class="form-input" 
                value="Kepala SMAN 1 Gianyar" 
-               placeholder="Contoh: Kepala Sekolah / Proktor Utama" 
+               placeholder="Contoh: Kepala Sekolah / Panitia Ujian" 
                oninput="updateCardTitles()">
       </div>
 
       <div class="form-group">
-        <label class="form-label" for="input-sign-name">&#x1F464; Nama Pejabat &amp; NIP</label>
+        <label class="form-label" for="input-sign-name">👤 Nama Pejabat Penandatangan</label>
         <input type="text" id="input-sign-name" class="form-input" 
                value="I Wayan Sueta, S.Pd., M.Pd." 
                placeholder="Nama Pejabat Penandatangan" 
@@ -612,7 +711,7 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label" for="select-grade">&#x1F393; Filter Tingkat (Grade)</label>
+        <label class="form-label" for="select-grade">🎓 Filter Tingkat (Grade)</label>
         <select id="select-grade" class="form-select" onchange="onGradeFilterChange()">
           <option value="">Semua Tingkat</option>
           <option value="Kelas X">Kelas X (Grade 10)</option>
@@ -622,28 +721,28 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label" for="select-class">&#x1F3EB; Filter Kelas (Cohort)</label>
+        <label class="form-label" for="select-class">🏫 Filter Kelas (Cohort)</label>
         <select id="select-class" class="form-select" onchange="renderCards()">
           <option value="">Semua Kelas</option>
         </select>
       </div>
 
       <div class="form-group">
-        <label class="form-label" for="input-search">&#x1F50D; Cari Siswa / NIS</label>
+        <label class="form-label" for="input-search">🔍 Cari Siswa / NIS</label>
         <input type="text" id="input-search" class="form-input" 
                placeholder="Ketik nama atau NIS siswa..." 
                oninput="renderCards()">
       </div>
 
       <div class="form-group">
-        <label class="form-label" for="select-layout">&#x1F4D0; Tata Letak Lembar A4</label>
+        <label class="form-label" for="select-layout">📐 Tata Letak Kartu / A4</label>
         <select id="select-layout" class="form-select" onchange="updateLayoutGrid()">
-          <option value="8">8 Kartu / Lembar A4 (2 x 4 Grid) — Standar Saku</option>
-          <option value="6">6 Kartu / Lembar A4 (2 x 3 Grid) — Sedang</option>
+          <option value="6" selected>6 Kartu / A4 (2 x 3 Grid) — Sangat Proporsional &amp; Modern</option>
+          <option value="8">8 Kartu / A4 (2 x 4 Grid) — Format Kompak</option>
         </select>
       </div>
 
-      <div class="form-group" style="display:flex; justify-content:center; align-items:flex-start; margin-top:16px;">
+      <div class="form-group" style="display:flex; justify-content:center; align-items:flex-start; margin-top:14px;">
         <label style="font-size:0.75rem; color:#fff; display:flex; align-items:center; gap:6px; cursor:pointer;">
           <input type="checkbox" id="cb-show-pwd" checked onchange="togglePasswordVisibility()">
           <span>Cetak teks password di kartu</span>
@@ -657,8 +756,8 @@
        ══════════════════════════════════════════════════════════════════════ -->
   <main class="preview-container">
     <div class="preview-notice no-print">
-      <span>&#x1F4A1;</span>
       <span id="card-stats-text">Memuat data peserta dari LMS Moodle...</span>
+      <span style="font-size: 0.75rem; opacity: 0.85;">💡 Tips: Untuk hasil cetak terbaik, centang <strong>Background Graphics</strong> di dialog Print browser.</span>
     </div>
 
     <!-- Lembar A4 akan digenerate secara dinamis di sini -->
@@ -666,10 +765,51 @@
   </main>
 
   <!-- ══════════════════════════════════════════════════════════════════════
-       LOGIKA JAVASCRIPT: DATA LOADER & GENERATOR QR BARCODE
+       MODAL UNGGAH CSV DATA PESERTA & PASSWORD
+       ══════════════════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modal-upload-csv">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 800; display:flex; align-items:center; gap:8px;">
+          <span>📂</span> Unggah CSV Password &amp; Data Ujian
+        </h3>
+        <button type="button" onclick="closeUploadCsvModal()" style="background:none; border:none; color:#94a3b8; font-size:1.4rem; cursor:pointer;">&times;</button>
+      </div>
+
+      <div style="font-size:0.85rem; color:#cbd5e1; margin-bottom:14px; line-height:1.5;">
+        Unggah file CSV yang biasa Anda gunakan saat upload akun masal ke Moodle. Kolom yang didukung otomatis:
+        <code style="background:#1e293b; color:#38bdf8; padding:2px 6px; border-radius:4px;">username</code>,
+        <code style="background:#1e293b; color:#38bdf8; padding:2px 6px; border-radius:4px;">password</code>,
+        <code style="background:#1e293b; color:#38bdf8; padding:2px 6px; border-radius:4px;">no_peserta</code>,
+        <code style="background:#1e293b; color:#38bdf8; padding:2px 6px; border-radius:4px;">ruang</code>,
+        <code style="background:#1e293b; color:#38bdf8; padding:2px 6px; border-radius:4px;">sesi</code>,
+        <code style="background:#1e293b; color:#38bdf8; padding:2px 6px; border-radius:4px;">meja</code>.
+      </div>
+
+      <div class="dropzone-box" onclick="document.getElementById('csv-file-input').click()">
+        <input type="file" id="csv-file-input" accept=".csv,text/csv,text/plain" style="display:none;" onchange="handleCsvFileSelected(event)">
+        <div style="font-size:2rem; margin-bottom:8px;">📄</div>
+        <div style="font-weight:700; font-size:0.95rem; color:#fff;" id="csv-filename-text">Pilih atau Drag File CSV ke Sini</div>
+        <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">Mendukung pemisah koma (,), titik-koma (;), atau tab</div>
+      </div>
+
+      <div id="upload-status-text" style="margin-top:12px; font-size:0.825rem; display:none;"></div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+        <button type="button" class="btn btn-secondary" onclick="closeUploadCsvModal()">Batal</button>
+        <button type="button" class="btn btn-success" id="btn-submit-upload" onclick="submitUploadCsv()" disabled>
+          <span>🚀 Simpan ke Database Server</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       LOGIKA JAVASCRIPT: DATA LOADER & GENERATOR QR BARCODE MODERN
        ══════════════════════════════════════════════════════════════════════ -->
   <script>
     let allStudents = [];
+    let selectedCsvFile = null;
     const API_KEY = 'dosman-exam-sman1gianyar-2024';
 
     async function loadStudentData() {
@@ -687,7 +827,8 @@
         if (data.students && Array.isArray(data.students)) {
           allStudents = data.students;
           if (statsEl) {
-            statsEl.innerHTML = `<strong>${allStudents.length} siswa</strong> berhasil dimuat dari Moodle. Siap dicetak ke kertas A4.`;
+            const hasPassCount = allStudents.filter(s => s.password && s.password.trim() !== '').length;
+            statsEl.innerHTML = `<strong>${allStudents.length} siswa</strong> berhasil dimuat dari Moodle. (<strong>${hasPassCount}</strong> siswa memiliki password unik dari database). Siap dicetak ke kertas A4.`;
           }
           populateClassFilter();
           renderCards();
@@ -696,7 +837,6 @@
         }
       } catch (err) {
         console.warn('Gagal memuat data siswa via get_students_for_cards:', err);
-        // Fallback ke get_app_users.php jika endpoint kartu belum di-refresh
         loadFromAppUsersFallback(token);
       }
     }
@@ -706,7 +846,6 @@
         const res = await fetch(`../local/dosman_ujian/get_app_users.php?token=${encodeURIComponent(token)}&apikey=${encodeURIComponent(API_KEY)}`);
         const data = await res.json();
         if (data.users && Array.isArray(data.users)) {
-          // Filter hanya siswa (bukan guru)
           allStudents = data.users.filter(u => u.grade !== 'Guru / Staf').map(u => ({
             userid: u.userid,
             firstname: u.firstname,
@@ -718,46 +857,52 @@
             idnumber: u.idnumber,
             grade: u.grade,
             class_name: u.class_name,
-            tahun_masuk: u.tahun_masuk || '',
-            department: u.department,
+            password: '',
+            no_peserta: '',
+            ruang: '',
+            sesi: '',
+            meja: ''
           }));
+
           const statsEl = document.getElementById('card-stats-text');
-          if (statsEl) statsEl.innerHTML = `<strong>${allStudents.length} siswa</strong> dimuat dari Moodle CBT.`;
+          if (statsEl) {
+            statsEl.innerHTML = `<strong>${allStudents.length} siswa</strong> dimuat dari direktori CBT.`;
+          }
           populateClassFilter();
           renderCards();
         }
       } catch (e) {
         const statsEl = document.getElementById('card-stats-text');
-        if (statsEl) statsEl.textContent = 'Gagal memuat data: ' + e.message;
+        if (statsEl) statsEl.innerHTML = `<span style="color:#f87171;">Gagal memuat data: ${e.message}</span>`;
       }
     }
 
     function populateClassFilter() {
-      const classSelect = document.getElementById('select-class');
-      const gradeSelect = document.getElementById('select-grade');
-      if (!classSelect) return;
+      const selectClass = document.getElementById('select-class');
+      if (!selectClass) return;
 
-      const selectedGrade = gradeSelect ? gradeSelect.value : '';
-      const currentVal = classSelect.value;
-      const classes = new Set();
+      const currentVal = selectClass.value;
+      const selectedGrade = document.getElementById('select-grade')?.value || '';
 
+      const classSet = new Set();
       allStudents.forEach(s => {
-        if (selectedGrade && s.grade !== selectedGrade) return;
-        if (s.class_name && s.class_name !== 'Tidak Ada Kelas') {
-          classes.add(s.class_name);
+        if (!selectedGrade || s.grade === selectedGrade) {
+          if (s.class_name && s.class_name.trim() !== '') {
+            classSet.add(s.class_name.trim());
+          }
         }
       });
 
-      const sorted = Array.from(classes).sort((a, b) => a.localeCompare(b, 'id', { numeric: true }));
+      const sortedClasses = Array.from(classSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
       let html = '<option value="">Semua Kelas</option>';
-      sorted.forEach(c => {
-        html += `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`;
+      sortedClasses.forEach(cls => {
+        html += `<option value="${escapeHtml(cls)}">${escapeHtml(cls)}</option>`;
       });
+      selectClass.innerHTML = html;
 
-      classSelect.innerHTML = html;
-      if (currentVal && sorted.includes(currentVal)) {
-        classSelect.value = currentVal;
+      if (sortedClasses.includes(currentVal)) {
+        selectClass.value = currentVal;
       }
     }
 
@@ -767,146 +912,154 @@
     }
 
     function getFilteredStudents() {
-      const grade = (document.getElementById('select-grade')?.value || '').trim();
-      const cls = (document.getElementById('select-class')?.value || '').trim();
-      const q = (document.getElementById('input-search')?.value || '').trim().toLowerCase();
+      const selectedGrade = (document.getElementById('select-grade')?.value || '').toLowerCase();
+      const selectedClass = (document.getElementById('select-class')?.value || '').toLowerCase();
+      const searchKey = (document.getElementById('input-search')?.value || '').toLowerCase().trim();
 
       return allStudents.filter(s => {
-        if (grade && s.grade !== grade) return false;
-        if (cls && s.class_name !== cls) return false;
-        if (q) {
-          const name = (s.firstname || '').toLowerCase();
-          const cleanQ = q.replace(/[\s\-_.,]+/g, '');
-          const cleanName = name.replace(/[\s\-_.,]+/g, '');
-          const uname = (s.username || '').toLowerCase();
-          const nis = (s.idnumber || '').toLowerCase();
-          const cname = (s.class_name || '').toLowerCase();
-          if (!name.includes(q) && !cleanName.includes(cleanQ) && !uname.includes(q) && !nis.includes(q) && !cname.includes(q)) {
-            return false;
-          }
+        if (selectedGrade && (s.grade || '').toLowerCase() !== selectedGrade) {
+          return false;
+        }
+        if (selectedClass && (s.class_name || '').toLowerCase() !== selectedClass) {
+          return false;
+        }
+        if (searchKey) {
+          const matchName = (s.student_name || s.name || s.firstname || '').toLowerCase().includes(searchKey);
+          const matchUname = (s.username || '').toLowerCase().includes(searchKey);
+          const matchNis = (s.idnumber || '').toLowerCase().includes(searchKey);
+          const matchAbsen = (s.no_absen || '').toLowerCase().includes(searchKey);
+          if (!matchName && !matchUname && !matchNis && !matchAbsen) return false;
         }
         return true;
       });
     }
 
+    /* ─── RENDER KARTU PESERTA MODERN PADA LEMBAR A4 ─── */
     function renderCards() {
       const wrapper = document.getElementById('sheets-wrapper');
       if (!wrapper) return;
 
       const students = getFilteredStudents();
-      const statsEl = document.getElementById('card-stats-text');
-      const layoutSelect = document.getElementById('select-layout');
-      const cardsPerPage = parseInt(layoutSelect ? layoutSelect.value : '8', 10);
-      const isLayout6 = cardsPerPage === 6;
+      const defaultPass = document.getElementById('input-default-pass')?.value || 'siswa123';
+      const showPassword = document.getElementById('cb-show-pwd')?.checked ?? true;
+      const layoutType = document.getElementById('select-layout')?.value || '6';
+      const isLayout6 = layoutType === '6';
+      const cardsPerPage = isLayout6 ? 6 : 8;
 
-      const totalSheets = Math.ceil(students.length / cardsPerPage);
-      if (statsEl) {
-        statsEl.innerHTML = `Menampilkan <strong>${students.length} kartu siswa</strong> &bull; Total <strong>${totalSheets} lembar A4</strong> (Format ${cardsPerPage} kartu per lembar).`;
-      }
+      const cardTitle = document.getElementById('input-card-title')?.value || 'KARTU PESERTA ASESMEN SUMATIF (CBT)';
+      const cardTA = document.getElementById('input-card-ta')?.value || 'TAHUN AJARAN 2025/2026';
+      const signRole = document.getElementById('input-sign-role')?.value || 'Kepala SMAN 1 Gianyar';
+      const signName = document.getElementById('input-sign-name')?.value || 'I Wayan Sueta, S.Pd., M.Pd.';
+
+      const dateNow = new Date();
+      const months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+      const dateStr = `${dateNow.getDate()} ${months[dateNow.getMonth()]} ${dateNow.getFullYear()}`;
 
       if (students.length === 0) {
         wrapper.innerHTML = `
-          <div style="background:#1e293b; color:#94a3b8; padding:40px; border-radius:12px; text-align:center; max-width:600px; margin:0 auto;">
-            <div style="font-size:32px; margin-bottom:10px;">&#x1F4CB;</div>
-            <h3 style="color:#fff; margin-bottom:6px;">Tidak Ada Siswa Sesuai Filter</h3>
-            <p style="font-size:13px;">Silakan sesuaikan pilihan Tingkat, Kelas, atau kata kunci pencarian Anda.</p>
+          <div style="background:#1e293b; border-radius:12px; padding:40px 20px; text-align:center; color:#94a3b8; max-width:600px; margin:20px auto;">
+            <div style="font-size:2rem; margin-bottom:10px;">📋</div>
+            <div style="font-size:1.1rem; font-weight:700; color:#fff;">Tidak Ada Siswa Sesuai Filter</div>
+            <div style="font-size:0.85rem; margin-top:6px;">Silakan sesuaikan filter tingkat, kelas, atau kata kunci pencarian Anda.</div>
           </div>
         `;
         return;
       }
 
-      const cardTitle = document.getElementById('input-card-title')?.value || 'KARTU PESERTA ASESMEN SUMATIF (CBT)';
-      const cardTA = document.getElementById('input-card-ta')?.value || 'TAHUN AJARAN 2025/2026';
-      const defaultPass = document.getElementById('input-default-pass')?.value || 'siswa123';
-      const signRole = document.getElementById('input-sign-role')?.value || 'Kepala SMAN 1 Gianyar';
-      const signName = document.getElementById('input-sign-name')?.value || 'I Wayan Sueta, S.Pd., M.Pd.';
-      const showPassword = document.getElementById('cb-show-pwd')?.checked ?? true;
-
-      const today = new Date();
-      const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-      const dateStr = `${today.getDate()} ${months[today.getMonth()]} ${today.getFullYear()}`;
-
+      const totalPages = Math.ceil(students.length / cardsPerPage);
       let sheetsHtml = '';
 
-      for (let sheetIdx = 0; sheetIdx < totalSheets; sheetIdx++) {
-        const start = sheetIdx * cardsPerPage;
-        const pageStudents = students.slice(start, start + cardsPerPage);
-
+      for (let p = 0; p < totalPages; p++) {
+        const pageStudents = students.slice(p * cardsPerPage, (p + 1) * cardsPerPage);
         let cardsHtml = '';
-        pageStudents.forEach((s, idxInPage) => {
-          const globalIdx = start + idxInPage;
-          const qrId = `qr-box-${s.userid}-${globalIdx}`;
-          const passDisplay = showPassword ? escapeHtml(defaultPass) : '&bull;&bull;&bull;&bull;&bull;&bull;';
+
+        pageStudents.forEach((s, idx) => {
+          const cardIndex = p * cardsPerPage + idx;
+          const qrId = `qr-${cardIndex}`;
+          
+          // Password per siswa: gunakan dari database jika ada, atau default
+          const studentPass = (s.password && s.password.trim() !== '') ? s.password.trim() : defaultPass;
+          const passDisplay = showPassword ? studentPass : '••••••';
+
+          // Info Ruang, Sesi, Meja
+          const ruangSesiText = (s.ruang || s.sesi) 
+            ? `${s.ruang || 'R-01'} / ${s.sesi ? 'Sesi ' + s.sesi : 'Sesi 1'}`
+            : 'Ruang Ujian';
 
           cardsHtml += `
             <div class="exam-card">
-              <!-- Kop Kartu -->
-              <div class="card-header-kop">
-                <img src="assets/logo_sekolah.png" alt="Logo" class="card-kop-logo">
-                <div class="card-kop-text">
-                  <div class="kop-prov">Pemerintah Provinsi Bali &bull; Disdikpora</div>
-                  <div class="kop-school">SMA NEGERI 1 GIANYAR</div>
-                  <div class="kop-title dyn-card-title">${escapeHtml(cardTitle)}</div>
-                  <div class="kop-ta dyn-card-ta">${escapeHtml(cardTA)}</div>
+              <!-- Top Row: Brand & Big QR Barcode at Top Right -->
+              <div class="card-top-row">
+                <div class="card-meta-brand">
+                  <div class="brand-pill">
+                    <img src="assets/logo_sekolah.png" alt="Logo SMAN 1 Gianyar" class="brand-pill-logo">
+                    <span class="brand-pill-text">SMAN 1 GIANYAR</span>
+                    <span class="brand-pill-badge">CBT PASS</span>
+                  </div>
+                  <div class="exam-title-text dyn-card-title">${escapeHtml(cardTitle)}</div>
+                  <div class="exam-ta-text dyn-card-ta">${escapeHtml(cardTA)}</div>
+
+                  <!-- Nama Lengkap Siswa -->
+                  <div class="student-name-box">
+                    <span class="student-name-label">NAMA PESERTA UJIAN</span>
+                    <div class="student-name-text">${escapeHtml(s.student_name || s.name || s.firstname || 'Siswa')}</div>
+                  </div>
+                </div>
+
+                <!-- POJOK KANAN ATAS: QR Barcode Besar (2.5x - 3x Lipat) -->
+                <div class="qr-top-right-box">
+                  <div class="qr-code-box" id="${qrId}" 
+                       data-username="${escapeHtml(s.username)}" 
+                       data-password="${escapeHtml(studentPass)}" 
+                       data-name="${escapeHtml(s.student_name || s.name || s.firstname || '')}">
+                  </div>
+                  <div class="qr-scan-badge">
+                    <span class="qr-scan-dot"></span>
+                    <span>SCAN LOGIN</span>
+                  </div>
                 </div>
               </div>
 
-              <!-- Body Kartu -->
-              <div class="card-body-content">
-                <div class="student-info-col">
-                  <div class="info-row">
-                    <span class="info-label">Nama Peserta</span>
-                    <span class="info-colon">:</span>
-                    <span class="info-value student-name-val">${escapeHtml(s.student_name || s.name || s.firstname || 'Siswa')}</span>
-                  </div>
-                  <div class="info-row">
-                    <span class="info-label">No. Absen</span>
-                    <span class="info-colon">:</span>
-                    <span class="info-value" style="font-weight:700;">${escapeHtml(s.no_absen || '—')}</span>
-                  </div>
-                  <div class="info-row">
-                    <span class="info-label">NIS / NISN</span>
-                    <span class="info-colon">:</span>
-                    <span class="info-value">${escapeHtml(s.idnumber || '—')}</span>
-                  </div>
-                  <div class="info-row">
-                    <span class="info-label">Kelas / Rombel</span>
-                    <span class="info-colon">:</span>
-                    <span class="info-value">
-                      <span class="badge-class">${escapeHtml(s.class_name || s.grade || '—')}</span>
-                      ${s.tahun_masuk ? `<span style="font-size:9px; color:#64748b; margin-left:4px;">(Angkatan ${escapeHtml(s.tahun_masuk)})</span>` : ''}
-                    </span>
-                  </div>
-
-                  <!-- Kotak Kredensial Login -->
-                  <div class="login-box">
-                    <div class="login-item">
-                      <span class="login-label">Username CBT</span>
-                      <span class="login-cred">${escapeHtml(s.username)}</span>
-                    </div>
-                    <div class="login-item" style="text-align:right;">
-                      <span class="login-label">Password</span>
-                      <span class="login-cred dyn-pwd-text">${passDisplay}</span>
-                    </div>
-                  </div>
+              <!-- Mid Row: Metadata Chips Grid -->
+              <div class="meta-chips-grid">
+                <div class="meta-chip">
+                  <span class="chip-label">NO. ABSEN</span>
+                  <span class="chip-val highlight">${escapeHtml(s.no_absen || '—')}</span>
                 </div>
+                <div class="meta-chip">
+                  <span class="chip-label">KELAS / ROMBEL</span>
+                  <span class="chip-val class-val">${escapeHtml(s.class_name || s.grade || '—')}</span>
+                </div>
+                <div class="meta-chip">
+                  <span class="chip-label">RUANG / SESI</span>
+                  <span class="chip-val">${escapeHtml(ruangSesiText)}</span>
+                </div>
+                <div class="meta-chip">
+                  <span class="chip-label">NO. PESERTA / NIS</span>
+                  <span class="chip-val mono">${escapeHtml(s.no_peserta || s.idnumber || '—')}</span>
+                </div>
+              </div>
 
-                <!-- QR Barcode Scanner Area -->
-                <div class="qr-col">
-                  <div class="qr-code-box" id="${qrId}" data-username="${escapeHtml(s.username)}" data-name="${escapeHtml(s.student_name || s.name || s.firstname || '')}"></div>
-                  <span class="qr-caption">Scan Login</span>
+              <!-- Kotak Kredensial Login Siswa (Username & Password) -->
+              <div class="login-cred-container">
+                <div class="cred-item">
+                  <span class="cred-label">USERNAME CBT</span>
+                  <span class="cred-val mono">${escapeHtml(s.username)}</span>
+                </div>
+                <div class="cred-item cred-pass" style="text-align:right;">
+                  <span class="cred-label">PASSWORD UJIAN</span>
+                  <span class="cred-val mono dyn-pwd-text">${escapeHtml(passDisplay)}</span>
                 </div>
               </div>
 
               <!-- Footer & Tanda Tangan -->
-              <div class="card-footer-sign">
-                <div class="card-note">
+              <div class="card-bottom-bar">
+                <div class="card-rules-note">
                   *Wajib dibawa selama ujian. Dilarang meminjamkan kartu ke peserta lain.
                 </div>
-                <div class="card-sign-box">
+                <div class="card-signature">
                   <div>Gianyar, ${dateStr}</div>
-                  <div class="card-sign-role dyn-sign-role">${escapeHtml(signRole)}</div>
-                  <div class="card-sign-name dyn-sign-name">${escapeHtml(signName)}</div>
+                  <div class="sign-name dyn-sign-name">${escapeHtml(signName)}</div>
                 </div>
               </div>
             </div>
@@ -915,7 +1068,7 @@
 
         sheetsHtml += `
           <div class="a4-sheet">
-            <div class="cards-grid ${isLayout6 ? 'layout-6' : ''}">
+            <div class="cards-grid ${isLayout6 ? '' : 'layout-8'}">
               ${cardsHtml}
             </div>
           </div>
@@ -924,22 +1077,27 @@
 
       wrapper.innerHTML = sheetsHtml;
 
-      // Generate QR Code untuk setiap kartu secara offline
+      // Generate QR Code Besar untuk setiap kartu secara offline
       setTimeout(() => {
+        const qrSize = isLayout6 ? 106 : 82;
+
         document.querySelectorAll('.qr-code-box[data-username]').forEach(el => {
           const uname = el.getAttribute('data-username');
+          const pass = el.getAttribute('data-password') || defaultPass;
           const sname = el.getAttribute('data-name') || '';
           if (!uname) return;
 
           // Payload QR format kompatibel dengan Flutter QR Scanner
-          const payload = sname ? `DOSMAN_LOGIN:${uname}:${defaultPass}:${sname}` : `DOSMAN_LOGIN:${uname}:${defaultPass}`;
+          const payload = sname 
+            ? `DOSMAN_LOGIN:${uname}:${pass}:${sname}` 
+            : `DOSMAN_LOGIN:${uname}:${pass}`;
 
           el.innerHTML = '';
           try {
             new QRCode(el, {
               text: payload,
-              width: 58,
-              height: 58,
+              width: qrSize,
+              height: qrSize,
               colorDark: "#0f172a",
               colorLight: "#ffffff",
               correctLevel: QRCode.CorrectLevel.M
@@ -964,13 +1122,7 @@
     }
 
     function togglePasswordVisibility() {
-      const showPassword = document.getElementById('cb-show-pwd')?.checked ?? true;
-      const defaultPass = document.getElementById('input-default-pass')?.value || 'siswa123';
-      const passText = showPassword ? defaultPass : '••••••';
-
-      document.querySelectorAll('.dyn-pwd-text').forEach(el => {
-        el.textContent = passText;
-      });
+      renderCards();
     }
 
     function updateLayoutGrid() {
@@ -979,6 +1131,80 @@
 
     function regenerateAllCards() {
       renderCards();
+    }
+
+    /* ─── UPLOAD CSV CONTROLLER ─── */
+    function openUploadCsvModal() {
+      const modal = document.getElementById('modal-upload-csv');
+      if (modal) {
+        modal.style.display = 'flex';
+        selectedCsvFile = null;
+        document.getElementById('csv-filename-text').textContent = 'Pilih atau Drag File CSV ke Sini';
+        document.getElementById('btn-submit-upload').disabled = true;
+        document.getElementById('upload-status-text').style.display = 'none';
+      }
+    }
+
+    function closeUploadCsvModal() {
+      const modal = document.getElementById('modal-upload-csv');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function handleCsvFileSelected(event) {
+      const files = event.target.files;
+      if (files && files.length > 0) {
+        selectedCsvFile = files[0];
+        document.getElementById('csv-filename-text').textContent = `📄 ${selectedCsvFile.name} (${Math.round(selectedCsvFile.size / 1024)} KB)`;
+        document.getElementById('btn-submit-upload').disabled = false;
+        
+        const statusEl = document.getElementById('upload-status-text');
+        statusEl.style.display = 'block';
+        statusEl.style.color = '#38bdf8';
+        statusEl.textContent = 'File siap diunggah. Klik "Simpan ke Database Server" untuk memproses.';
+      }
+    }
+
+    async function submitUploadCsv() {
+      if (!selectedCsvFile) return;
+
+      const btnSubmit = document.getElementById('btn-submit-upload');
+      const statusEl = document.getElementById('upload-status-text');
+      
+      btnSubmit.disabled = true;
+      btnSubmit.textContent = 'Mengunggah & Menyimpan...';
+      statusEl.style.display = 'block';
+      statusEl.style.color = '#fbbf24';
+      statusEl.textContent = 'Sedang memproses CSV dan memperbarui password siswa di server...';
+
+      const token = localStorage.getItem('token') || '';
+      const formData = new FormData();
+      formData.append('csv_file', selectedCsvFile);
+      formData.append('token', token);
+      formData.append('apikey', API_KEY);
+
+      try {
+        const resp = await fetch('../local/dosman_ujian/upload_student_cards.php', {
+          method: 'POST',
+          body: formData
+        });
+
+        const resData = await resp.json();
+        if (resData.success) {
+          statusEl.style.color = '#4ade80';
+          statusEl.textContent = `✅ ${resData.message}`;
+          setTimeout(() => {
+            closeUploadCsvModal();
+            loadStudentData(); // Refresh data kartu otomatis
+          }, 1500);
+        } else {
+          throw new Error(resData.error || 'Gagal mengunggah file CSV');
+        }
+      } catch (err) {
+        statusEl.style.color = '#f87171';
+        statusEl.textContent = `❌ ${err.message}`;
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = 'Coba Lagi';
+      }
     }
 
     function escapeHtml(str) {
