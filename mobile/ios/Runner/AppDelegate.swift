@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import CFNetwork
+import AudioToolbox
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -171,6 +172,7 @@ import CFNetwork
         guard isLockdownActive else { return }
         if !UIAccessibility.isGuidedAccessEnabled {
             // Pengawas atau siswa menonaktifkan Guided Access saat ujian aktif
+            AudioServicesPlayAlertSound(SystemSoundID(1005))
             flutterChannel?.invokeMethod("onLockTaskLost", arguments: nil)
         }
     }

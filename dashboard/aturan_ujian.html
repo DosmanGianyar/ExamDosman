@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aturan & SOP Ujian Dosman Exam — SMAN 1 Gianyar</title>
+  <link rel="icon" type="image/png" href="assets/logo_sekolah.png">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --primary: #38bdf8;
+      --primary-dark: #0284c7;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --purple: #a855f7;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 0;
+      margin: 0;
+    }
+
+    /* Print Bar */
+    .action-bar {
+      background: #1e3a5f;
+      color: #fff;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .action-title { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .action-btns { display: flex; gap: 10px; }
+    .btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: var(--primary-dark); color: #fff; }
+    .btn-primary:hover { background: #0369a1; }
+    .btn-secondary { background: #334155; color: #fff; }
+    .btn-secondary:hover { background: #475569; }
+
+    /* Container */
+    .container {
+      max-width: 980px;
+      margin: 32px auto 60px;
+      padding: 0 20px;
+    }
+
+    /* Header Card */
+    .header-card {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 32px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 28px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    .school-logo { width: 72px; height: 72px; object-fit: contain; }
+    .header-text h1 { font-size: 24px; font-weight: 800; color: #fff; letter-spacing: -0.5px; margin-bottom: 4px; }
+    .header-text p { font-size: 14px; color: var(--text-muted); }
+    .header-badge {
+      margin-top: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--primary);
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* Section */
+    .section {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 24px 28px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    /* KPI Grid Preview */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .kpi-box {
+      background: #0f172a;
+      border-radius: 12px;
+      padding: 16px;
+      border-left: 4px solid var(--primary);
+    }
+    .kpi-box.blue { border-left-color: var(--primary); }
+    .kpi-box.green { border-left-color: var(--success); }
+    .kpi-box.yellow { border-left-color: var(--warning); }
+    .kpi-box.red { border-left-color: var(--danger); }
+    .kpi-box-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .kpi-box.blue .kpi-box-title { color: var(--primary); }
+    .kpi-box.green .kpi-box-title { color: var(--success); }
+    .kpi-box.yellow .kpi-box-title { color: var(--warning); }
+    .kpi-box.red .kpi-box-title { color: var(--danger); }
+    .kpi-box-desc { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+
+    /* Table */
+    .table-responsive { width: 100%; overflow-x: auto; margin: 16px 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    th, td { padding: 12px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--card-border); }
+    th { background: #0f172a; color: var(--text-muted); font-size: 12px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* Badge */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 700;
+    }
+    .badge-success { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .badge-warning { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    .badge-danger  { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+    .badge-info    { background: rgba(56, 189, 248, 0.15); color: #38bdf8; }
+
+    /* Numbered Rule Items */
+    .rule-item {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 16px;
+      background: #0f172a;
+      padding: 16px;
+      border-radius: 10px;
+      border-left: 3px solid var(--primary);
+    }
+    .rule-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--primary-dark);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    .rule-content h3 { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .rule-content p { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+
+    /* Callout */
+    .callout {
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin: 16px 0;
+      display: flex;
+      gap: 14px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .callout-info { background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); color: #bae6fd; }
+    .callout-warning { background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); color: #fde68a; }
+    .callout-success { background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); color: #a7f3d0; }
+
+    /* Print Styles */
+    @media print {
+      .action-bar { display: none; }
+      body { background: #fff; color: #111; font-size: 12px; }
+      .container { max-width: 100%; margin: 0; padding: 0; }
+      .header-card, .section { background: #fff; border: 1px solid #ccc; box-shadow: none; color: #111; page-break-inside: avoid; margin-bottom: 16px; padding: 16px; }
+      .header-text h1 { color: #111; }
+      .header-text p, .section-title, .rule-content p, .kpi-box-desc { color: #333; }
+      .section-title { color: #000; border-bottom: 2px solid #ddd; }
+      .kpi-box, .rule-item { background: #f8fafc; border: 1px solid #ddd; color: #111; }
+      .rule-content h3 { color: #111; }
+      th { background: #eee; color: #000; }
+      td { border-bottom: 1px solid #ddd; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Action Bar -->
+  <div class="action-bar">
+    <div class="action-title">
+      <span>📖</span> Aturan & Standar Operasional Prosedur (SOP) Ujian — Dosman Exam
+    </div>
+    <div class="action-btns">
+      <a href="index.html" class="btn btn-secondary">
+        <span>⬅️</span> Kembali ke Dashboard
+      </a>
+      <button onclick="window.print()" class="btn btn-primary">
+        <span>🖨️</span> Cetak / Simpan PDF
+      </button>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- Header Card -->
+    <div class="header-card">
+      <img src="assets/logo_sekolah.png" alt="Logo SMAN 1 Gianyar" class="school-logo" onerror="this.style.display='none'">
+      <div class="header-text">
+        <h1>ATURAN & STANDAR OPERASIONAL UJIAN</h1>
+        <p>Sistem Pengawasan & Proctoring Ujian Online — SMA Negeri 1 Gianyar</p>
+        <div class="header-badge">
+          <span>🛡️</span> Resmi untuk Proktor, Pengawas Ruang, dan Peserta Didik
+        </div>
+      </div>
+    </div>
+
+    <!-- 1. ARTI 4 KARTU MONITOR -->
+    <div class="section">
+      <div class="section-title">
+        <span>📊</span> 1. Penjelasan Status pada Dashboard Monitor Real-Time
+      </div>
+      <p style="color:var(--text-muted); font-size:13.5px; margin-bottom:16px;">
+        Dashboard proctoring menampilkan 4 kartu indikator utama secara live setiap 10 detik:
+      </p>
+
+      <div class="kpi-grid">
+        <div class="kpi-box blue">
+          <div class="kpi-box-title">📱 Siswa Terhubung</div>
+          <div class="kpi-box-desc">
+            Jumlah total seluruh siswa yang saat ini sedang membuka aplikasi Dosman Exam di HP dan terhubung aktif ke server.
+          </div>
+        </div>
+
+        <div class="kpi-box green">
+          <div class="kpi-box-title">✍️ Sedang Mengerjakan</div>
+          <div class="kpi-box-desc">
+            Siswa yang sudah menekan <em>"Attempt / Mulai Ujian"</em> dan saat ini sedang aktif membaca atau menjawab soal kuis.
+          </div>
+        </div>
+
+        <div class="kpi-box yellow">
+          <div class="kpi-box-title">💤 Standby di Beranda</div>
+          <div class="kpi-box-desc">
+            Siswa yang sudah login ke aplikasi, namun masih berada di halaman daftar kursus/kuis (belum memulai ujian).
+          </div>
+        </div>
+
+        <div class="kpi-box red">
+          <div class="kpi-box-title">🚨 Terblokir / Dijeda</div>
+          <div class="kpi-box-desc">
+            Siswa yang ujiannya sedang dihentikan sementara karena dijeda pengawas, dikunci sesinya, atau terkena pelanggaran.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. PERBEDAAN TINGKAT STATUS -->
+    <div class="section">
+      <div class="section-title">
+        <span>⚖️</span> 2. Memahami Perbedaan: "Dijeda", "Terblokir Sesi", dan "Tersuspend"
+      </div>
+      <p style="color:var(--text-muted); font-size:13.5px; margin-bottom:16px;">
+        Agar pengawas tidak keliru dalam mengambil tindakan, berikut pembagian status penghentian ujian:
+      </p>
+
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Tampilan di Layar Siswa</th>
+              <th>Status Akun Moodle</th>
+              <th>Tindakan untuk Membuka</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="badge badge-warning">⏸️ Dijeda (Paused)</span></td>
+              <td>Layar tertutup kotak kuning <em>"Ujian Sedang Dijeda oleh Pengawas"</em>. Siswa tidak bisa melihat soal.</td>
+              <td><strong>Aktif Normal</strong>. Siswa tidak dikeluarkan.</td>
+              <td>Proktor klik tombol <strong>"Lanjutkan"</strong> di baris nama siswa pada tabel Live Monitor.</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-danger">🔴 Terblokir Sesi (App Blocked)</span></td>
+              <td>Layar terkunci merah <em>"Sesi Ujian Dikunci"</em>. Aplikasi tidak bisa dipakai mengerjakan kuis.</td>
+              <td><strong>Aktif Normal</strong>, hanya sesi di HP tersebut yang dikunci.</td>
+              <td>Proktor klik tombol <strong>"Buka Kunci"</strong> di tabel Live Monitor.</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-danger">⛔ Tersuspend (Moodle Suspended)</span></td>
+              <td>Alarm berbunyi nyaring di HP siswa. Layar tertutup merah dan siswa dikeluarkan dari sistem Moodle.</td>
+              <td><strong>Terkunci Total</strong> (<code>suspended = 1</code>). Siswa tidak bisa login di mana pun.</td>
+              <td>Proktor buka tab <strong>"Pelanggaran & Suspend"</strong>, lalu klik tombol hijau <strong>"Aktifkan Siswa"</strong>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 3. ATURAN POKOK UJIAN -->
+    <div class="section">
+      <div class="section-title">
+        <span>📜</span> 3. Aturan Pokok Pelaksanaan Ujian (SOP Siswa & Pengawas)
+      </div>
+
+      <div class="rule-item">
+        <div class="rule-num">1</div>
+        <div class="rule-content">
+          <h3>Wajib Menggunakan Aplikasi Resmi Dosman Exam</h3>
+          <p>Siswa hanya dapat mengakses ujian melalui aplikasi resmi <strong>Dosman Exam</strong> (Android dan iOS). Percobaan mengakses lembar soal kuis melalui browser biasa (Google Chrome, Safari, Edge, Mozilla, atau PC) akan otomatis diblokir oleh sistem Moodle dengan status <em>403 Forbidden (Akses Ditolak)</em>.</p>
+        </div>
+      </div>
+
+      <div class="rule-item">
+        <div class="rule-num">2</div>
+        <div class="rule-content">
+          <h3>Kuncian Layar Otomatis (Screen Pinning & Guided Access)</h3>
+          <p>
+            • <strong>Android:</strong> Wajib menyetujui kuncian layar (Screen Pinning). Navigasi Tombol Home, Recent Apps, dan Notifikasi terkunci.<br>
+            • <strong>iOS (Apple):</strong> Wajib mengaktifkan Akses Terpandu (<em>Guided Access</em>) dengan menekan tombol samping/power 3 kali cepat saat masuk ujian.
+          </p>
+        </div>
+      </div>
+
+      <div class="rule-item">
+        <div class="rule-num">3</div>
+        <div class="rule-content">
+          <h3>Kebijakan Koneksi Internet (Tidak Ada Auto-Suspend)</h3>
+          <p>Jika koneksi internet sekolah terputus, Wi-Fi melemah, atau sinyal hilang, <strong>SISWA TIDAK AKAN DISUSPEND</strong>. Siswa cukup tetap berada di halaman ujian dan menunggu sambungan Wi-Fi kembali terhubung. Jangan panik dan jangan mencoba merestart paksa aplikasi.</p>
+        </div>
+      </div>
+
+      <div class="rule-item">
+        <div class="rule-num">4</div>
+        <div class="rule-content">
+          <h3>Sanksi Pelanggaran Melepas Kuncian (Unpinning)</h3>
+          <p>Jika siswa dengan sengaja menekan tombol untuk melepas kuncian layar, membuka aplikasi lain, atau mencoba force-close aplikasi:<br>
+          1. HP siswa akan membunyikan <strong>ALARM NYARING selama 11 detik</strong> di dalam ruangan.<br>
+          2. Akun Moodle siswa <strong>OTOMATIS TERSUSPEND</strong>.<br>
+          3. Siswa wajib segera melapor ke pengawas ruang untuk klarifikasi dan verifikasi.</p>
+        </div>
+      </div>
+
+      <div class="rule-item">
+        <div class="rule-num">5</div>
+        <div class="rule-content">
+          <h3>Satu Akun — Satu Perangkat</h3>
+          <p>Satu akun ujian hanya boleh digunakan pada satu perangkat. Jika seorang siswa mencoba login menggunakan perangkat lain sementara sesi pertama masih terbuka, sesi lama akan terputus atau membutuhkan reset sesi oleh proktor.</p>
+        </div>
+      </div>
+
+      <div class="rule-item">
+        <div class="rule-num">6</div>
+        <div class="rule-content">
+          <h3>Prosedur Resmi Keluar Ujian</h3>
+          <p>Setelah selesai mengerjakan soal, siswa wajib mengklik tombol <em>"Submit all and finish"</em> di Moodle. Untuk menutup aplikasi secara aman, siswa menekan tombol <strong>"Keluar"</strong> di sudut kanan atas dan meminta pengawas ruang memasukkan Password Keluar Pengawas.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. PANDUAN PENGATURAN KUIS GURU -->
+    <div class="section">
+      <div class="section-title">
+        <span>⚙️</span> 4. Petunjuk bagi Guru Pembuat Soal di Moodle
+      </div>
+      <p style="color:var(--text-muted); font-size:13.5px; margin-bottom:12px;">
+        Agar kuis hanya bisa dibuka dari aplikasi dan tidak bocor melalui browser biasa:
+      </p>
+      <div class="callout callout-info">
+        <div>💡</div>
+        <div>
+          Buka pengaturan kuis di Moodle &rarr; Buka bagian <strong>"Extra restrictions on attempts"</strong> &rarr; Pastikan opsi <strong>"Wajib Menggunakan Dosman Exam"</strong> dipilih <strong>YA / AKTIF</strong>. Dengan pengaturan ini, hanya aplikasi resmi yang diizinkan memuat lembar kuis.
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="text-align:center; color:var(--text-muted); font-size:12px; margin-top:32px;">
+      &copy; 2026 SMA Negeri 1 Gianyar &bull; Tim Pengembang Dosman Exam & Proctoring System
+    </div>
+
+  </div>
+
+</body>
+</html>

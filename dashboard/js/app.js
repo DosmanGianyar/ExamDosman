@@ -410,10 +410,22 @@
 
       // Action buttons
       let actionButtons = '';
-      if (isBlocked || isPaused) {
+      if (isPaused) {
+        actionButtons += `
+          <button class="btn-action btn-action-unblock" onclick="DosmanApp.unblockStudent(${u.userid}, '${escapeJs(u.firstname)}')" title="Lanjutkan ujian siswa yang sedang dijeda">
+            &#x25B6;&#xFE0F; Lanjutkan
+          </button>
+        `;
+      } else if (isBlocked) {
         actionButtons += `
           <button class="btn-action btn-action-unblock" onclick="DosmanApp.unblockStudent(${u.userid}, '${escapeJs(u.firstname)}')" title="Buka blokir dan izinkan siswa kembali ujian">
-            &#x1F513; Buka Blokir
+            &#x1F513; Buka Kunci
+          </button>
+        `;
+      } else {
+        actionButtons += `
+          <button class="btn-action" style="background:rgba(245,158,11,0.15); color:#fbbf24; border:1px solid rgba(245,158,11,0.3);" onclick="DosmanApp.pauseStudent(${u.userid}, '${escapeJs(u.firstname)}')" title="Jeda ujian siswa sementara">
+            &#x23F8;&#xFE0F; Jeda
           </button>
         `;
       }
@@ -860,6 +872,46 @@
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'Error', text: e.message });
     }
+  async function pauseStudent(userId, name) {
+    const res = await Swal.fire({
+      title: 'Jeda Ujian Siswa?',
+      html: `Ujian <strong>${escapeHtml(name)}</strong> akan dijeda sementara.<br><small style="color:var(--text-muted)">Layar HP siswa akan tertutup pemberitahuan jeda sampai Anda melanjutkannya.</small>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Ya, Jeda Ujian',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#f59e0b',
+      cancelButtonColor: '#475569',
+    });
+
+    if (!res.isConfirmed) return;
+
+    try {
+      const response = await fetch('../local/dosman_ujian/set_lock_status.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: state.token,
+          userid: userId,
+          lock_status: 3
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Ujian Dijeda',
+          text: `Sesi ujian "${name}" berhasil dijeda.`,
+          timer: 2000,
+          showConfirmButton: false
+        });
+        loadLiveUsers();
+      } else {
+        throw new Error(data.error || 'Gagal menjeda ujian siswa');
+      }
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e.message });
+    }
   }
 
   async function resetStudentSession(userId, name) {
@@ -1160,6 +1212,7 @@
     init: init,
     switchTab: switchTab,
     unblockStudent: unblockStudent,
+    pauseStudent: pauseStudent,
     resetStudentSession: resetStudentSession,
     suspendStudent: suspendStudent,
     unsuspendStudent: unsuspendStudent,

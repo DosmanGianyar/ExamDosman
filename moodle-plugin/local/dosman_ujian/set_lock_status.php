@@ -92,8 +92,11 @@ try {
         )->execute([$userid]);
 
     } elseif ($lockStatus === 1) {
-        // Tidak auto-unsuspend di sini.
-        // Re-aktivasi akun suspend harus lewat endpoint admin khusus (unsuspend_student.php).
+        // Pulihkan akun jika tersuspend
+        $pdo->prepare(
+            "UPDATE {$prefix}user SET suspended = 0 WHERE id = ?"
+        )->execute([$userid]);
+
         // Hapus dari blocked_students jika ada
         $stmtBlocked = $pdo->prepare(
             "SELECT value FROM {$prefix}config_plugins

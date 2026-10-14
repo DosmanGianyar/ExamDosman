@@ -33,6 +33,9 @@
         <span style="font-size:0.95rem;">&#x1F464;</span>
         <span id="nav-user-text">Guru</span>
       </div>
+      <a href="aturan_ujian.html" target="_blank" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:6px; text-decoration:none;" title="Buka Halaman Aturan & SOP Ujian Lengkap">
+        <span>&#x1F4D6;</span> Panduan & Aturan
+      </a>
       <button class="btn btn-danger btn-sm" id="logout-btn" title="Keluar dari sesi monitoring">
         &#x23FB; Keluar
       </button>
@@ -54,6 +57,9 @@
       </button>
       <button class="tab-btn" data-tab="security-password">
         <span>&#x1F510; Password Keluar & Keamanan</span>
+      </button>
+      <button class="tab-btn" data-tab="aturan-ujian">
+        <span>&#x1F4D6; Aturan & SOP Ujian</span>
       </button>
     </div>
 
@@ -343,6 +349,104 @@
                 Dashboard ini terhubung langsung ke aplikasi native iOS dan Android DosmanExam tanpa memerlukan Safe Exam Browser (SEB) pihak ketiga maupun kode QR.
               </div>
             </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ════ TAB 4: ATURAN & SOP UJIAN ════════════════════════════════════ -->
+    <div class="tab-panel" id="tab-aturan-ujian">
+      <div class="card" style="margin-bottom:1.5rem;">
+        <div class="card-header" style="flex-wrap:wrap; gap:1rem;">
+          <div class="card-title-group">
+            <h2 class="card-title">&#x1F4D6; Aturan & Standar Operasional Prosedur (SOP) Ujian</h2>
+            <span class="card-subtitle">Panduan resmi penggunaan akun, status monitor, dan tindakan pengawas di ruang ujian.</span>
+          </div>
+          <div style="display:flex; gap:0.5rem;">
+            <a href="aturan_ujian.html" target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+              <span>&#x1F5A8;&#xFE0F;</span> Buka Versi Cetak / PDF Lengkap
+            </a>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1rem; margin-top:1rem;">
+          
+          <div style="background:#0f172a; border-radius:12px; padding:1.25rem; border:1px solid #334155;">
+            <h3 style="font-size:0.95rem; color:#38bdf8; margin-bottom:0.75rem; display:flex; align-items:center; gap:8px;">
+              <span>&#x1F4F1;</span> 1. Wajib Aplikasi Resmi
+            </h3>
+            <p style="font-size:0.85rem; color:#94a3b8; line-height:1.6;">
+              Ujian hanya dapat diakses melalui aplikasi <strong>Dosman Exam</strong> (Android / iOS). Akses via Chrome, Safari, atau browser biasa akan otomatis ditolak oleh Moodle (<em>403 Forbidden</em>).
+            </p>
+          </div>
+
+          <div style="background:#0f172a; border-radius:12px; padding:1.25rem; border:1px solid #334155;">
+            <h3 style="font-size:0.95rem; color:#10b981; margin-bottom:0.75rem; display:flex; align-items:center; gap:8px;">
+              <span>&#x1F512;</span> 2. Kuncian Layar Otomatis
+            </h3>
+            <p style="font-size:0.85rem; color:#94a3b8; line-height:1.6;">
+              <strong>Android:</strong> Wajib menyetujui Screen Pinning (sematkan aplikasi).<br>
+              <strong>iOS (Apple):</strong> Wajib mengaktifkan Akses Terpandu (Guided Access) dengan menekan tombol samping 3x saat ujian dimulai.
+            </p>
+          </div>
+
+          <div style="background:#0f172a; border-radius:12px; padding:1.25rem; border:1px solid #334155;">
+            <h3 style="font-size:0.95rem; color:#fbbf24; margin-bottom:0.75rem; display:flex; align-items:center; gap:8px;">
+              <span>&#x1F4F6;</span> 3. Internet Putus Bukan Pelanggaran
+            </h3>
+            <p style="font-size:0.85rem; color:#94a3b8; line-height:1.6;">
+              Jika Wi-Fi sekolah terputus atau sinyal hilang, <strong>siswa TIDAK AKAN disuspend</strong>. Siswa cukup menunggu Wi-Fi tersambung kembali dan lanjut menjawab soal tanpa takut terkunci.
+            </p>
+          </div>
+
+          <div style="background:#0f172a; border-radius:12px; padding:1.25rem; border:1px solid #334155;">
+            <h3 style="font-size:0.95rem; color:#ef4444; margin-bottom:0.75rem; display:flex; align-items:center; gap:8px;">
+              <span>&#x1F6A8;</span> 4. Sanksi Keluar Paksa (Unpin)
+            </h3>
+            <p style="font-size:0.85rem; color:#94a3b8; line-height:1.6;">
+              Jika siswa memaksa melepas sematan layar atau keluar dari aplikasi saat ujian, <strong>alarm akan berbunyi nyaring di HP selama 11 detik</strong> dan akun Moodle otomatis tersuspend ke server.
+            </p>
+          </div>
+
+        </div>
+
+        <!-- Perbedaan Status Table -->
+        <div style="margin-top:1.5rem;">
+          <h3 style="font-size:1rem; color:#fff; margin-bottom:0.75rem;">
+            ⚖️ Memahami Arti Status Penghentian Ujian di Dashboard
+          </h3>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Tampilan di Layar Siswa</th>
+                  <th>Kondisi Akun Moodle</th>
+                  <th>Tindakan Pengawas</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="badge badge-warning">&#x23F8;&#xFE0F; Dijeda (Paused)</span></td>
+                  <td>Kotak dialog kuning: <em>"Ujian Sedang Dijeda oleh Pengawas"</em></td>
+                  <td><strong>Aktif Normal</strong>. Sesi tetap utuh.</td>
+                  <td>Klik tombol <strong>"Lanjutkan"</strong> di tabel Live Monitor.</td>
+                </tr>
+                <tr>
+                  <td><span class="badge badge-danger">&#x1F534; Terblokir Sesi (Blocked)</span></td>
+                  <td>Kotak merah: <em>"Sesi Ujian Dikunci oleh Pengawas"</em></td>
+                  <td><strong>Aktif Normal</strong>, hanya sesi di HP yang dikunci.</td>
+                  <td>Klik tombol <strong>"Buka Kunci"</strong> di tabel Live Monitor.</td>
+                </tr>
+                <tr>
+                  <td><span class="badge badge-danger">&#x26D4; Tersuspend (Suspended)</span></td>
+                  <td>Layar merah peringatan + Alarm bunyi di ruangan. Siswa logout.</td>
+                  <td><strong>Terkunci Total</strong> (<code>suspended = 1</code>).</td>
+                  <td>Buka tab <strong>Pelanggaran & Suspend</strong> &rarr; Klik <strong>"Aktifkan Siswa"</strong>.</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
