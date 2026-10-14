@@ -303,33 +303,27 @@
       color: #0f172a;
       box-shadow: 0 12px 35px rgba(0, 0, 0, 0.55);
       margin: 0 auto 28px;
-      padding: 8mm 8mm;
+      padding: 6.5mm 6.5mm;
       box-sizing: border-box;
       position: relative;
       page-break-after: always;
     }
 
-    /* Grid Layout Standar: 6 Kartu (2 Kolom x 3 Baris) — Proporsional & Modern */
+    /* Grid Layout: 8 Kartu per Lembar A4 (2 Kolom x 4 Baris) */
     .cards-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      grid-auto-rows: 90mm;
-      gap: 5mm 5mm;
+      grid-auto-rows: 67.5mm;
+      gap: 3.5mm 4mm;
       width: 100%;
       height: 100%;
     }
 
-    /* Grid Layout 8 Kartu (2 Kolom x 4 Baris) — Format Kompak */
-    .cards-grid.layout-8 {
-      grid-auto-rows: 67mm;
-      gap: 3.5mm 4mm;
-    }
-
     /* ─── CARD ITEM DESIGN (KARTU PESERTA MODERN) ─── */
     .exam-card {
-      border: 1.5px dashed #475569;
-      border-radius: 10px;
-      padding: 10px 12px 8px;
+      border: 1.2px dashed #475569;
+      border-radius: 8px;
+      padding: 7px 10px 6px;
       background: #ffffff;
       color: #0f172a;
       display: flex;
@@ -339,6 +333,7 @@
       overflow: hidden;
       box-sizing: border-box;
       font-family: 'Plus Jakarta Sans', Arial, sans-serif;
+      height: 67.5mm;
     }
 
     /* Decorative Watermark Logo Sekolah */
@@ -471,19 +466,14 @@
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
 
-    /* Ukuran Barcode Besar (110px di Layout 6, 88px di Layout 8) */
+    /* Ukuran Barcode Besar 82px di Pojok Kanan Atas */
     .qr-code-box {
-      width: 108px;
-      height: 108px;
+      width: 82px;
+      height: 82px;
       background: #ffffff;
       display: flex;
       align-items: center;
       justify-content: center;
-    }
-
-    .layout-8 .qr-code-box {
-      width: 82px;
-      height: 82px;
     }
 
     .qr-code-box img, .qr-code-box canvas {
@@ -843,11 +833,10 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="select-layout">Tata Letak Kartu / Lembar A4</label>
-            <select id="select-layout" class="form-select" onchange="updateLayoutGrid()">
-              <option value="6" selected>6 Kartu / A4 (2 x 3 Grid) — Sangat Proporsional</option>
-              <option value="8">8 Kartu / A4 (2 x 4 Grid) — Format Kompak</option>
-            </select>
+            <label class="form-label">Format Lembar Cetak</label>
+            <div style="background:#060a12; border:1px solid #334155; padding:7px 10px; border-radius:6px; font-size:0.775rem; color:#38bdf8; font-weight:700; display:flex; align-items:center; gap:6px;">
+              <span>📄</span> 8 Kartu / Lembar A4 (2 x 4 Grid)
+            </div>
           </div>
 
           <label class="checkbox-wrap">
@@ -1055,9 +1044,7 @@
 
       const students = getFilteredStudents();
       const showPassword = document.getElementById('cb-show-pwd')?.checked ?? true;
-      const layoutType = document.getElementById('select-layout')?.value || '6';
-      const isLayout6 = layoutType === '6';
-      const cardsPerPage = isLayout6 ? 6 : 8;
+      const cardsPerPage = 8;
 
       const cardTitle = document.getElementById('input-card-title')?.value || 'KARTU PESERTA ASESMEN SUMATIF (CBT)';
       const cardTA = document.getElementById('input-card-ta')?.value || 'TAHUN AJARAN 2025/2026';
@@ -1189,7 +1176,7 @@
 
         sheetsHtml += `
           <div class="a4-sheet">
-            <div class="cards-grid ${isLayout6 ? '' : 'layout-8'}">
+            <div class="cards-grid">
               ${cardsHtml}
             </div>
           </div>
@@ -1200,7 +1187,7 @@
 
       // Generate QR Code Besar untuk setiap kartu secara offline
       setTimeout(() => {
-        const qrSize = isLayout6 ? 106 : 82;
+        const qrSize = 82;
 
         document.querySelectorAll('.qr-code-box[data-username]').forEach(el => {
           const uname = el.getAttribute('data-username');
@@ -1243,14 +1230,6 @@
     }
 
     function togglePasswordVisibility() {
-      renderCards();
-    }
-
-    function updateLayoutGrid() {
-      renderCards();
-    }
-
-    function regenerateAllCards() {
       renderCards();
     }
 
