@@ -57,7 +57,7 @@ try {
         exit;
     }
 
-    // Ambil semua akun siswa yang terdaftar di kelas/cohort
+    // Ambil semua akun siswa (baik yang terdaftar di cohort, role student, maupun akun khusus seperti daput1)
     $sql = "SELECT u.id AS userid,
                    u.firstname,
                    u.lastname,
@@ -72,12 +72,23 @@ try {
                    IFNULL(sc.sesi, '') AS sesi,
                    IFNULL(sc.meja, '') AS meja
               FROM {$prefix}user u
-              JOIN {$prefix}cohort_members cm ON cm.userid = u.id
-              JOIN {$prefix}cohort c ON c.id = cm.cohortid
+              LEFT JOIN {$prefix}cohort_members cm ON cm.userid = u.id
+              LEFT JOIN {$prefix}cohort c ON c.id = cm.cohortid
               LEFT JOIN {$prefix}local_dosman_student_cards sc ON sc.username COLLATE utf8mb4_general_ci = u.username COLLATE utf8mb4_general_ci
+              LEFT JOIN {$prefix}role_assignments ra ON ra.userid = u.id
+              LEFT JOIN {$prefix}role r ON r.id = ra.roleid AND r.shortname = 'student'
              WHERE u.deleted = 0 
                AND u.suspended = 0 
-               AND (c.name LIKE 'Kelas%' OR u.lastname LIKE '| X%' OR u.lastname LIKE '| XI%')
+               AND u.id > 1 
+               AND u.username NOT IN ('guest', 'admin')
+               AND u.id NOT IN (2, 580)
+               AND (
+                   r.id IS NOT NULL 
+                   OR c.id IS NOT NULL 
+                   OR sc.id IS NOT NULL 
+                   OR u.lastname LIKE '| %'
+                   OR u.username LIKE 'daput%'
+               )
              GROUP BY u.id
              ORDER BY u.lastname ASC, u.firstname ASC";
 

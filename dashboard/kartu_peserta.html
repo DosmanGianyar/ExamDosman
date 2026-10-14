@@ -788,6 +788,13 @@
           </div>
 
           <div class="form-group">
+            <label class="form-label" for="input-card-date">Tanggal Cetak Kartu</label>
+            <input type="text" id="input-card-date" class="form-input" 
+                   placeholder="Contoh: 15 Oktober 2026" 
+                   oninput="updateCardTitles()">
+          </div>
+
+          <div class="form-group">
             <label class="form-label" for="input-sign-role">Jabatan Penandatangan</label>
             <input type="text" id="input-sign-role" class="form-input" 
                    value="Kepala SMAN 1 Gianyar" 
@@ -922,7 +929,7 @@
       const token = localStorage.getItem('token') || '';
 
       try {
-        const url = `../local/dosman_ujian/get_students_for_cards.php?token=${encodeURIComponent(token)}&apikey=${encodeURIComponent(API_KEY)}`;
+        const url = `../local/dosman_ujian/get_students_for_cards.php?token=${encodeURIComponent(token)}&apikey=${encodeURIComponent(API_KEY)}&_t=${Date.now()}`;
         const res = await fetch(url, { cache: 'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -1031,10 +1038,26 @@
           const matchUname = (s.username || '').toLowerCase().includes(searchKey);
           const matchNis = (s.idnumber || '').toLowerCase().includes(searchKey);
           const matchAbsen = (s.no_absen || '').toLowerCase().includes(searchKey);
-          if (!matchName && !matchUname && !matchNis && !matchAbsen) return false;
+          const matchNoPeserta = (s.no_peserta || '').toLowerCase().includes(searchKey);
+          const matchRuang = (s.ruang || '').toLowerCase().includes(searchKey);
+          const matchClass = (s.class_name || '').toLowerCase().includes(searchKey);
+          if (!matchName && !matchUname && !matchNis && !matchAbsen && !matchNoPeserta && !matchRuang && !matchClass) return false;
         }
         return true;
       });
+    }
+
+    function getFormattedCardDate() {
+      const raw = document.getElementById('input-card-date')?.value?.trim() || '';
+      if (raw) {
+        if (/^[a-z\s]+,/i.test(raw) || /^gianyar/i.test(raw)) {
+          return raw;
+        }
+        return `Gianyar, ${raw}`;
+      }
+      const d = new Date();
+      const months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+      return `Gianyar, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
     }
 
     /* ─── RENDER KARTU PESERTA MODERN PADA LEMBAR A4 ─── */
@@ -1050,16 +1073,13 @@
       const cardTA = document.getElementById('input-card-ta')?.value || 'TAHUN AJARAN 2025/2026';
       const signRole = document.getElementById('input-sign-role')?.value || 'Kepala SMAN 1 Gianyar';
       const signName = document.getElementById('input-sign-name')?.value || 'I Wayan Sudra Astra, S.Pd., M.Pd.';
+      const cardDateStr = getFormattedCardDate();
 
       // Update ringkasan di sidebar
       const sidebarCountEl = document.getElementById('sidebar-count-text');
       if (sidebarCountEl) {
         sidebarCountEl.textContent = `${students.length} Siswa Terpilih`;
       }
-
-      const dateNow = new Date();
-      const months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-      const dateStr = `${dateNow.getDate()} ${months[dateNow.getMonth()]} ${dateNow.getFullYear()}`;
 
       if (students.length === 0) {
         wrapper.innerHTML = `
@@ -1166,7 +1186,7 @@
                   *Wajib dibawa selama ujian. Dilarang meminjamkan kartu ke peserta lain.
                 </div>
                 <div class="card-signature">
-                  <div>Gianyar, ${dateStr}</div>
+                  <div class="dyn-card-date">${escapeHtml(cardDateStr)}</div>
                   <div class="sign-name dyn-sign-name">${escapeHtml(signName)}</div>
                 </div>
               </div>
@@ -1222,11 +1242,13 @@
       const cardTA = document.getElementById('input-card-ta')?.value || 'TAHUN AJARAN 2025/2026';
       const signRole = document.getElementById('input-sign-role')?.value || 'Kepala SMAN 1 Gianyar';
       const signName = document.getElementById('input-sign-name')?.value || 'I Wayan Sudra Astra, S.Pd., M.Pd.';
+      const cardDate = getFormattedCardDate();
 
       document.querySelectorAll('.dyn-card-title').forEach(el => el.textContent = cardTitle);
       document.querySelectorAll('.dyn-card-ta').forEach(el => el.textContent = cardTA);
       document.querySelectorAll('.dyn-sign-role').forEach(el => el.textContent = signRole);
       document.querySelectorAll('.dyn-sign-name').forEach(el => el.textContent = signName);
+      document.querySelectorAll('.dyn-card-date').forEach(el => el.textContent = cardDate);
     }
 
     function togglePasswordVisibility() {
@@ -1319,6 +1341,15 @@
 
     // Jalankan saat halaman siap
     document.addEventListener('DOMContentLoaded', () => {
+      const d = new Date();
+      const months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+      const defaultDateStr = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+      
+      const dateInput = document.getElementById('input-card-date');
+      if (dateInput && !dateInput.value) {
+        dateInput.value = defaultDateStr;
+      }
+
       loadStudentData();
     });
   </script>
