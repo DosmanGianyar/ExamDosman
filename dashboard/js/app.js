@@ -872,6 +872,8 @@
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'Error', text: e.message });
     }
+  }
+
   async function pauseStudent(userId, name) {
     const res = await Swal.fire({
       title: 'Jeda Ujian Siswa?',
