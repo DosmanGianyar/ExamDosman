@@ -109,31 +109,41 @@
       <div class="card">
         <div class="card-header">
           <div class="card-title-group">
-            <h2 class="card-title">&#x1F4CB; Daftar Siswa Aktif Real-Time</h2>
+            <h2 class="card-title">&#x1F4CB; Pemantauan Peserta Ujian Moodle Real-Time</h2>
             <span class="card-subtitle" id="filtered-count">Memuat data monitoring...</span>
           </div>
 
-          <div class="toolbar">
-            <div class="toolbar-left">
-              <div class="search-box">
+          <div class="toolbar" style="flex-wrap: wrap; gap: 10px;">
+            <div class="toolbar-left" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex: 1;">
+              <div class="search-box" style="min-width: 260px; flex: 1.5;">
                 <span class="search-icon">&#x1F50D;</span>
-                <input type="text" class="input-field" id="search-live" placeholder="Cari nama, username, kelas, atau ujian..." autocomplete="off">
+                <input type="text" class="input-field" id="search-live" placeholder="Cari First Name (Nama), Username, NIS, atau Kuis..." title="Cari berdasarkan First Name, Last Name, Username, ID Number / NIS, Cohort, atau Kuis Moodle" autocomplete="off">
               </div>
 
-              <select class="select-field" id="filter-class">
-                <option value="">Semua Kelas</option>
+              <select class="select-field" id="filter-grade" title="Filter berdasarkan Tingkat / Grade Moodle">
+                <option value="">Semua Tingkat (Grade)</option>
+                <option value="Kelas X">Kelas X (Grade 10)</option>
+                <option value="Kelas XI">Kelas XI (Grade 11)</option>
+                <option value="Kelas XII">Kelas XII (Grade 12)</option>
+                <option value="Guru / Staf">Guru / Staf</option>
               </select>
 
-              <select class="select-field" id="filter-status">
-                <option value="">Semua Status</option>
-                <option value="inquiz">&#x270D;&#xFE0F; Sedang Ujian</option>
-                <option value="standby">&#x1F4A4; Standby</option>
-                <option value="paused">&#x23F8;&#xFE0F; Dijeda</option>
-                <option value="blocked">&#x1F534; Terblokir</option>
+              <select class="select-field" id="filter-class" title="Filter berdasarkan Rombel / Cohort Moodle">
+                <option value="">Semua Kelas (Cohort)</option>
               </select>
 
-              <select class="select-field" id="filter-platform">
-                <option value="">Semua Platform</option>
+              <select class="select-field" id="filter-status" title="Filter berdasarkan Status Sesi Ujian Moodle">
+                <option value="">Semua Status Sesi</option>
+                <option value="online">🟢 Sedang Online (&lt; 15 mnt)</option>
+                <option value="inquiz">&#x270D;&#xFE0F; Sedang Kuis (In-Quiz)</option>
+                <option value="standby">&#x1F4A4; Standby (Di Luar Kuis)</option>
+                <option value="paused">&#x23F8;&#xFE0F; Dijeda (Paused)</option>
+                <option value="blocked">&#x1F534; Terblokir (Blocked)</option>
+                <option value="offline">&#x26AA; Offline / Belum Masuk</option>
+              </select>
+
+              <select class="select-field" id="filter-platform" title="Filter berdasarkan Perangkat Peserta">
+                <option value="">Semua Perangkat (Platform)</option>
                 <option value="android">&#x1F916; Android</option>
                 <option value="ios">&#x1F34E; iOS / Apple</option>
               </select>
@@ -160,13 +170,13 @@
           <table class="data-table">
             <thead>
               <tr>
-                <th style="width:45px;">No</th>
-                <th>Siswa</th>
-                <th>Kelas / Rombel</th>
-                <th>Platform</th>
+                <th style="width:40px;">No</th>
+                <th>Siswa (First Name &amp; Username)</th>
+                <th>Tingkat &amp; Kelas (Cohort)</th>
+                <th>Perangkat</th>
                 <th>Status Sesi</th>
-                <th>Ujian / Kuis</th>
-                <th>Ping Terakhir</th>
+                <th>Kuis Moodle</th>
+                <th>Aktivitas Terakhir</th>
                 <th style="text-align:right;">Tindakan Proktor</th>
               </tr>
             </thead>

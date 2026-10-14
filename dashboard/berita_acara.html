@@ -324,9 +324,10 @@
         if (res.ok) {
           const data = await res.json();
           const users = data.users || [];
-          document.getElementById('count-connected').textContent = users.length;
-          document.getElementById('count-inquiz').textContent = users.filter(u => u.current_quizid > 0 && u.lock_status === 1).length;
-          document.getElementById('count-standby').textContent = users.filter(u => u.current_quizid === 0 && u.lock_status === 1).length;
+          const onlineUsers = users.filter(u => u.is_online === 1);
+          document.getElementById('count-connected').textContent = onlineUsers.length > 0 ? onlineUsers.length : users.filter(u => u.lock_status >= 0).length;
+          document.getElementById('count-inquiz').textContent = users.filter(u => u.current_quizid > 0 && (u.is_online === 1 || u.lock_status === 1 || u.client_type === 'ios')).length;
+          document.getElementById('count-standby').textContent = users.filter(u => u.current_quizid === 0 && u.is_online === 1).length;
           document.getElementById('count-paused').textContent = users.filter(u => u.lock_status === 3).length;
 
           // Ambil nama kuis jika ada yang dominan

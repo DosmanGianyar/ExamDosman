@@ -258,8 +258,10 @@
   function updateLiveKPI() {
     const users = state.liveUsers;
     const total = users.length;
-    const inQuiz = users.filter(u => u.current_quizid > 0 && (u.lock_status === 1 || u.client_type === 'ios')).length;
-    const standby = users.filter(u => u.current_quizid === 0 && (u.lock_status === 1 || u.client_type === 'ios')).length;
+    const onlineUsers = users.filter(u => u.is_online === 1);
+    const onlineCount = onlineUsers.length;
+    const inQuiz = users.filter(u => u.current_quizid > 0 && (u.is_online === 1 || u.lock_status === 1 || u.client_type === 'ios')).length;
+    const standby = users.filter(u => u.current_quizid === 0 && u.is_online === 1).length;
     const blocked = users.filter(u => u.lock_status === 2 || u.lock_status === 3).length;
 
     const elTotal = document.getElementById('kpi-total');
@@ -268,48 +270,61 @@
     const elBlocked = document.getElementById('kpi-blocked');
     const tabBadge = document.getElementById('tab-badge-live');
 
-    if (elTotal) elTotal.textContent = total;
+    if (elTotal) {
+      elTotal.innerHTML = `${onlineCount} <span style="font-size:0.95rem; font-weight:400; color:var(--text-dim);">/ ${total}</span>`;
+    }
     if (elInQuiz) elInQuiz.textContent = inQuiz;
     if (elStandby) elStandby.textContent = standby;
     if (elBlocked) elBlocked.textContent = blocked;
-    if (tabBadge) tabBadge.textContent = total;
+    if (tabBadge) tabBadge.textContent = onlineCount > 0 ? onlineCount : total;
   }
 
   function rebuildClassFilterOptions() {
-    const select = document.getElementById('filter-class');
-    if (!select) return;
+    const classSelect = document.getElementById('filter-class');
+    if (!classSelect) return;
 
-    const currentVal = select.value;
+    const gradeSelect = document.getElementById('filter-grade');
+    const selectedGrade = gradeSelect ? gradeSelect.value : '';
+    const currentVal = classSelect.value;
+
     const classes = new Set();
 
     state.liveUsers.forEach(u => {
-      const dept = (u.department || '').trim();
-      if (dept) classes.add(dept);
+      // If a grade is selected, only show classes from that grade
+      if (selectedGrade && (u.grade || '') !== selectedGrade) {
+        return;
+      }
 
-      // Also check if class is embedded in lastname e.g. "| X 3 | 2025"
-      const match = (u.lastname || '').match(/\|\s*([X|XI|XII][^|]+)\s*\|/i);
-      if (match && match[1]) {
-        classes.add(match[1].trim());
+      const cls = (u.class_name || '').trim();
+      if (cls && cls !== 'Tidak Ada Kelas') {
+        classes.add(cls);
       }
     });
 
-    const sorted = Array.from(classes).sort((a, b) => a.localeCompare(b, 'id'));
+    // Natural sort: X 1 .. X 10, XI A .. XI D2, etc.
+    const sorted = Array.from(classes).sort((a, b) => {
+      return a.localeCompare(b, 'id', { numeric: true, sensitivity: 'base' });
+    });
 
-    // Preserve standard options
-    let html = '<option value="">Semua Kelas</option>';
+    let html = '<option value="">Semua Kelas (Cohort)</option>';
     sorted.forEach(cls => {
       html += `<option value="${escapeHtml(cls)}">${escapeHtml(cls)}</option>`;
     });
 
-    select.innerHTML = html;
+    classSelect.innerHTML = html;
     if (currentVal && (sorted.includes(currentVal) || currentVal === '')) {
-      select.value = currentVal;
+      classSelect.value = currentVal;
+    } else {
+      classSelect.value = '';
     }
   }
 
   function getFilteredLiveUsers() {
     const searchInput = document.getElementById('search-live');
     const q = (searchInput ? searchInput.value : '').trim().toLowerCase();
+
+    const gradeSelect = document.getElementById('filter-grade');
+    const selectedGrade = gradeSelect ? gradeSelect.value : '';
 
     const classSelect = document.getElementById('filter-class');
     const selectedClass = classSelect ? classSelect.value : '';
@@ -321,33 +336,78 @@
     const selectedPlatform = platformSelect ? platformSelect.value : '';
 
     return state.liveUsers.filter(u => {
-      // Platform filter
-      if (selectedPlatform && u.client_type !== selectedPlatform) return false;
+      // 1. Platform filter
+      if (selectedPlatform) {
+        if (selectedPlatform === 'android' && u.client_type !== 'android') return false;
+        if (selectedPlatform === 'ios' && u.client_type !== 'ios') return false;
+      }
 
-      // Status filter
-      if (selectedStatus === 'inquiz') {
-        if (!(u.current_quizid > 0 && (u.lock_status === 1 || u.client_type === 'ios'))) return false;
+      // 2. Grade (Tingkat) filter
+      if (selectedGrade) {
+        if ((u.grade || '') !== selectedGrade) return false;
+      }
+
+      // 3. Class / Cohort (Rombel) filter
+      if (selectedClass) {
+        const uClass = (u.class_name || '').trim();
+        const uCohort = (u.cohort_names || '').trim();
+        const uLastname = (u.lastname || '').trim();
+        const uDept = (u.department || '').trim();
+
+        const matchClass = uClass.toLowerCase() === selectedClass.toLowerCase() ||
+                           uCohort.toLowerCase().includes(selectedClass.toLowerCase()) ||
+                           uLastname.toLowerCase().includes(selectedClass.toLowerCase()) ||
+                           uDept.toLowerCase() === selectedClass.toLowerCase();
+        if (!matchClass) return false;
+      }
+
+      // 4. Status filter
+      if (selectedStatus === 'online') {
+        if (u.is_online !== 1) return false;
+      } else if (selectedStatus === 'inquiz') {
+        if (!(u.current_quizid > 0 && (u.is_online === 1 || u.lock_status === 1 || u.client_type === 'ios'))) return false;
       } else if (selectedStatus === 'standby') {
-        if (!(u.current_quizid === 0 && (u.lock_status === 1 || u.client_type === 'ios'))) return false;
+        if (!(u.current_quizid === 0 && u.is_online === 1)) return false;
       } else if (selectedStatus === 'paused') {
         if (u.lock_status !== 3) return false;
       } else if (selectedStatus === 'blocked') {
         if (u.lock_status !== 2) return false;
+      } else if (selectedStatus === 'offline') {
+        if (u.is_online === 1 || u.lock_status === 2 || u.lock_status === 3) return false;
       }
 
-      // Class filter
-      if (selectedClass) {
-        const dept = (u.department || '').trim();
-        const lastname = (u.lastname || '').trim();
-        if (dept !== selectedClass && !lastname.includes(selectedClass)) return false;
-      }
-
-      // Search keyword filter
+      // 5. Search keyword filter (Moodle First Name, Last Name, Username, ID Number / NIS, Quiz, Cohort)
       if (q) {
-        const fullname = `${u.firstname || ''} ${u.lastname || ''}`.toLowerCase();
+        const firstname = (u.firstname || '').toLowerCase();
+        const lastname = (u.lastname || '').toLowerCase();
+        const fullname = `${firstname} ${lastname}`;
         const username = (u.username || '').toLowerCase();
+        const idnumber = (u.idnumber || '').toLowerCase();
+        const email = (u.email || '').toLowerCase();
         const quizName = (u.quiz_name || '').toLowerCase();
-        if (!fullname.includes(q) && !username.includes(q) && !quizName.includes(q)) return false;
+        const className = (u.class_name || '').toLowerCase();
+        const cohortNames = (u.cohort_names || '').toLowerCase();
+        const gradeName = (u.grade || '').toLowerCase();
+
+        // Support matching stripped without spaces/punctuation (e.g. "darmaputra" matches "DARMA PUTRA")
+        const cleanQ = q.replace(/[\s\-_.,]+/g, '');
+        const cleanFirst = firstname.replace(/[\s\-_.,]+/g, '');
+        const cleanFull = fullname.replace(/[\s\-_.,]+/g, '');
+
+        const matches = firstname.includes(q) ||
+                        cleanFirst.includes(cleanQ) ||
+                        lastname.includes(q) ||
+                        fullname.includes(q) ||
+                        cleanFull.includes(cleanQ) ||
+                        username.includes(q) ||
+                        idnumber.includes(q) ||
+                        email.includes(q) ||
+                        quizName.includes(q) ||
+                        className.includes(q) ||
+                        cohortNames.includes(q) ||
+                        gradeName.includes(q);
+
+        if (!matches) return false;
       }
 
       return true;
@@ -360,7 +420,7 @@
     if (!tbody) return;
 
     const filtered = getFilteredLiveUsers();
-    if (countBadge) countBadge.textContent = `${filtered.length} siswa ditampilkan`;
+    if (countBadge) countBadge.textContent = `${filtered.length} peserta ditampilkan`;
 
     if (filtered.length === 0) {
       tbody.innerHTML = `
@@ -369,7 +429,7 @@
             <div class="empty-state">
               <div class="empty-icon">&#x1F4CB;</div>
               <div class="empty-title">Tidak Ada Siswa Sesuai Filter</div>
-              <div class="empty-desc">Belum ada siswa yang sedang terhubung atau sesuai kriteria pencarian yang dipilih.</div>
+              <div class="empty-desc">Tidak ditemukan siswa yang sesuai dengan kata kunci atau filter Moodle yang dipilih.</div>
             </div>
           </td>
         </tr>
@@ -381,8 +441,10 @@
     filtered.forEach((u, idx) => {
       const isBlocked = u.lock_status === 2;
       const isPaused = u.lock_status === 3;
-      const isOnQuiz = u.current_quizid > 0 && (u.lock_status === 1 || u.client_type === 'ios');
+      const isOnline = u.is_online === 1;
+      const isOnQuiz = u.current_quizid > 0 && (isOnline || u.lock_status === 1 || u.client_type === 'ios');
       const isIOS = u.client_type === 'ios';
+      const isAndroid = u.client_type === 'android';
 
       // Status Badge
       let statusBadge = '';
@@ -391,37 +453,48 @@
       } else if (isPaused) {
         statusBadge = '<span class="badge badge-warning">&#x23F8;&#xFE0F; Dijeda</span>';
       } else if (isOnQuiz) {
-        statusBadge = '<span class="badge badge-success">&#x270D;&#xFE0F; Sedang Ujian</span>';
+        statusBadge = '<span class="badge badge-success">&#x270D;&#xFE0F; Sedang Kuis</span>';
+      } else if (isOnline) {
+        statusBadge = '<span class="badge badge-info">🟢 Online (Standby)</span>';
+      } else if (u.lastping > 0) {
+        statusBadge = '<span class="badge badge-secondary" style="opacity:0.75;">&#x26AA; Offline</span>';
       } else {
-        statusBadge = '<span class="badge badge-secondary">&#x1F4A4; Standby</span>';
+        statusBadge = '<span class="badge badge-secondary" style="opacity:0.5;">&#x26AA; Belum Masuk</span>';
       }
 
       // Platform Badge
-      const platformBadge = isIOS
-        ? '<span class="badge badge-ios">&#x1F34E; iOS / Apple</span>'
-        : '<span class="badge badge-android">&#x1F916; Android</span>';
+      let platformBadge = '';
+      if (isIOS) {
+        platformBadge = '<span class="badge badge-ios">&#x1F34E; iOS / Apple</span>';
+      } else if (isAndroid) {
+        platformBadge = '<span class="badge badge-android">&#x1F916; Android</span>';
+      } else {
+        platformBadge = '<span class="badge badge-secondary" style="opacity:0.6;">&#x1F4F1; Belum Login</span>';
+      }
 
       // Initials Avatar
-      const rawFirst = (u.firstname || 'S').trim();
-      const initials = rawFirst.substring(0, 2).toUpperCase();
+      const rawFirst = (u.firstname || 'S').trim().replace(/^\d+\s*/, '');
+      const initials = (rawFirst.substring(0, 2) || 'S').toUpperCase();
+      const avatarBorder = isOnline ? 'border: 2px solid #10b981; box-shadow: 0 0 8px rgba(16,185,129,0.3);' : '';
 
-      // Formatted Class Name
-      let kelas = (u.department || '').trim();
-      const match = (u.lastname || '').match(/\|\s*([^|]+)\s*\|/);
-      if (match && match[1]) {
-        kelas = match[1].trim();
-      }
-      if (!kelas || kelas === 'SMA Negeri 1 Gianyar') {
-        kelas = (u.department || '—');
-      }
+      // Formatted Class & Grade
+      const kelasText = u.class_name || (u.department || '—');
+      const gradeText = u.grade || 'Moodle Cohort';
 
       // Quiz cell
       const quizHtml = isOnQuiz
-        ? `<strong style="color:var(--primary); font-size:0.825rem;">${escapeHtml(u.quiz_name || `Ujian #${u.current_quizid}`)}</strong>`
-        : `<span style="color:var(--text-dim); font-size:0.8rem;">Di Beranda</span>`;
+        ? `<strong style="color:var(--primary); font-size:0.825rem;">${escapeHtml(u.quiz_name || `Kuis #${u.current_quizid}`)}</strong>`
+        : `<span style="color:var(--text-dim); font-size:0.8rem;">${isOnline ? 'Di Beranda Ujian' : 'Tidak Ada Ujian'}</span>`;
 
       // Live ping ticker
-      const lastSeenText = formatLastSeen(u.lastping);
+      let pingHtml = '';
+      if (isOnline) {
+        pingHtml = `<span style="color:#10b981; font-weight:600; display:inline-flex; align-items:center; gap:5px;"><span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#10b981; animation:pulse 1.5s infinite;"></span> ${formatLastSeen(u.lastping)}</span>`;
+      } else if (u.lastping > 0) {
+        pingHtml = `<span style="color:var(--text-dim); font-size:0.8rem;">${formatLastSeen(u.lastping)}</span>`;
+      } else {
+        pingHtml = `<span style="color:var(--text-dim); font-size:0.8rem; font-style:italic;">Belum ada sesi</span>`;
+      }
 
       // Action buttons
       let actionButtons = '';
@@ -437,7 +510,7 @@
             &#x1F513; Buka Kunci
           </button>
         `;
-      } else {
+      } else if (isOnline) {
         actionButtons += `
           <button class="btn-action" style="background:rgba(245,158,11,0.15); color:#fbbf24; border:1px solid rgba(245,158,11,0.3);" onclick="DosmanApp.pauseStudent(${u.userid}, '${escapeJs(u.firstname)}')" title="Jeda ujian siswa sementara">
             &#x23F8;&#xFE0F; Jeda
@@ -445,34 +518,48 @@
         `;
       }
 
+      if (u.lastping > 0 || isOnline || isBlocked || isPaused) {
+        actionButtons += `
+          <button class="btn-action btn-action-reset" onclick="DosmanApp.resetStudentSession(${u.userid}, '${escapeJs(u.firstname)}')" title="Reset sesi aplikasi (paksa login ulang)">
+            &#x1F504; Reset
+          </button>
+        `;
+      }
+
       actionButtons += `
-        <button class="btn-action btn-action-reset" onclick="DosmanApp.resetStudentSession(${u.userid}, '${escapeJs(u.firstname)}')" title="Reset sesi aplikasi (paksa login ulang)">
-          &#x1F504; Reset
-        </button>
         <button class="btn-action btn-action-suspend" onclick="DosmanApp.suspendStudent(${u.userid}, '${escapeJs(u.firstname)}')" title="Kunci akun Moodle (pelanggaran)">
           &#x26D4; Suspend
         </button>
       `;
 
       rowsHtml += `
-        <tr>
+        <tr style="${isOnline ? 'background: rgba(16,185,129,0.03);' : ''}">
           <td style="color:var(--text-dim); font-size:0.8rem; font-family:'JetBrains Mono';">${idx + 1}</td>
           <td>
             <div class="student-cell">
-              <div class="student-avatar">${escapeHtml(initials)}</div>
+              <div class="student-avatar" style="${avatarBorder}">${escapeHtml(initials)}</div>
               <div class="student-meta">
-                <span class="student-name">${escapeHtml(u.firstname || '')} ${escapeHtml(u.lastname || '')}</span>
-                <span class="student-sub">@${escapeHtml(u.username || '')} &bull; ID: ${u.userid}</span>
+                <span class="student-name">${escapeHtml(u.firstname || '')}</span>
+                <span class="student-sub">
+                  @${escapeHtml(u.username || '')}
+                  ${u.idnumber ? ` &bull; <span style="color:var(--text-dim);">NIS: ${escapeHtml(u.idnumber)}</span>` : ''}
+                  ${u.lastname && !u.lastname.startsWith('|') ? ` &bull; ${escapeHtml(u.lastname)}` : ''}
+                </span>
               </div>
             </div>
           </td>
-          <td><span style="font-size:0.85rem; font-weight:500;">${escapeHtml(kelas)}</span></td>
+          <td>
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <span class="badge badge-primary" style="font-weight:600; width:max-content;">${escapeHtml(kelasText)}</span>
+              <span style="font-size:0.725rem; color:var(--text-dim);">${escapeHtml(gradeText)}</span>
+            </div>
+          </td>
           <td>${platformBadge}</td>
           <td>${statusBadge}</td>
           <td>${quizHtml}</td>
           <td>
             <div class="time-ticker live-ticker-cell" data-lastping="${u.lastping || 0}">
-              ${lastSeenText}
+              ${pingHtml}
             </div>
           </td>
           <td>
@@ -815,6 +902,14 @@
     const searchLive = document.getElementById('search-live');
     if (searchLive) {
       searchLive.addEventListener('input', renderLiveMonitorTable);
+    }
+
+    const filterGrade = document.getElementById('filter-grade');
+    if (filterGrade) {
+      filterGrade.addEventListener('change', () => {
+        rebuildClassFilterOptions();
+        renderLiveMonitorTable();
+      });
     }
 
     const filterClass = document.getElementById('filter-class');
