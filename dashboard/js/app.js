@@ -81,6 +81,21 @@
     // Setup Bulk Actions
     setupBulkActions();
 
+    // Setup Broadcast Modal Trigger & Listeners
+    const bcBtn = document.getElementById('btn-broadcast-open');
+    if (bcBtn) {
+      bcBtn.addEventListener('click', openBroadcastModal);
+    }
+    const bcModal = document.getElementById('modal-broadcast');
+    if (bcModal) {
+      bcModal.addEventListener('click', function(e) {
+        if (e.target === bcModal) closeBroadcastModal();
+      });
+    }
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeBroadcastModal();
+    });
+
     // Initial Load
     refreshAllData();
 
@@ -916,107 +931,169 @@
     }
   }
 
-  async function openBroadcastModal() {
-    let currentBc = null;
+  /* ─── BROADCAST ANNOUNCEMENT ────────────────────────────────────────────── */
+  function openBroadcastModal() {
+    const modal = document.getElementById('modal-broadcast');
+    if (!modal) return;
+
+    modal.style.display = 'flex';
+
+    // Reset input & alert
+    const inputMsg = document.getElementById('bc-input-message');
+    if (inputMsg) {
+      inputMsg.value = '';
+      setTimeout(() => inputMsg.focus(), 100);
+    }
+    setBroadcastFeedback('', '');
+
+    // Fetch status siaran aktif secara background
+    loadActiveBroadcastStatus();
+  }
+
+  function closeBroadcastModal() {
+    const modal = document.getElementById('modal-broadcast');
+    if (modal) modal.style.display = 'none';
+  }
+
+  async function loadActiveBroadcastStatus() {
+    const activeBox  = document.getElementById('bc-active-container');
+    const activeText = document.getElementById('bc-active-text');
+    const activeMeta = document.getElementById('bc-active-meta');
+    if (!activeBox) return;
+
     try {
-      const res = await fetch(`../local/dosman_ujian/broadcast_message.php?token=${encodeURIComponent(state.token)}`);
+      const res = await fetch(`../local/dosman_ujian/broadcast_message.php?token=${encodeURIComponent(state.token || '')}&t=${Date.now()}`);
       if (res.ok) {
         const d = await res.json();
-        currentBc = d.broadcast;
+        if (d.broadcast) {
+          activeBox.style.display = 'block';
+          if (activeText) activeText.textContent = `"${d.broadcast.message}"`;
+          if (activeMeta) {
+            const expDate = new Date(d.broadcast.expires_at * 1000);
+            activeMeta.textContent = `Disiarkan oleh: ${d.broadcast.sender || 'Proktor'} • Berakhir pukul ${expDate.toLocaleTimeString('id-ID')}`;
+          }
+          return;
+        }
       }
     } catch (_) {}
 
-    let currentHtml = '';
-    if (currentBc) {
-      currentHtml = `
-        <div style="background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); border-radius:8px; padding:10px 14px; margin-bottom:14px; text-align:left; font-size:13px;">
-          <div style="color:#fbbf24; font-weight:700; margin-bottom:4px;">&#x1F4E2; Pengumuman Sedang Aktif:</div>
-          <div style="color:#fff; margin-bottom:6px;">"${escapeHtml(currentBc.message)}"</div>
-          <div style="color:#94a3b8; font-size:11px;">Oleh: ${escapeHtml(currentBc.sender || 'Proktor')} &bull; Berakhir: ${new Date(currentBc.expires_at * 1000).toLocaleTimeString('id-ID')}</div>
-        </div>
-      `;
+    activeBox.style.display = 'none';
+  }
+
+  async function submitBroadcast() {
+    const inputMsg  = document.getElementById('bc-input-message');
+    const selectDur = document.getElementById('bc-select-duration');
+    const btnSubmit = document.getElementById('btn-submit-broadcast');
+
+    const msg = (inputMsg ? inputMsg.value : '').trim();
+    if (!msg) {
+      setBroadcastFeedback('Tuliskan pesan pengumuman terlebih dahulu!', 'error');
+      if (inputMsg) inputMsg.focus();
+      return;
     }
 
-    const swalRes = await Swal.fire({
-      title: '&#x1F4E2; Kirim Pengumuman Kilat',
-      html: `
-        ${currentHtml}
-        <p style="font-size:12.5px; color:#94a3b8; margin-bottom:10px; text-align:left;">
-          Pesan ini akan langsung muncul sebagai pop-up notifikasi di layar seluruh HP siswa yang sedang mengerjakan ujian.
-        </p>
-        <textarea id="swal-bc-msg" class="swal2-textarea" style="margin:0; width:100%; box-sizing:border-box; font-size:13px;" placeholder="Contoh: Perhatian Soal No 15: Opsi C diganti menjadi 25 cm..."></textarea>
-        <div style="margin-top:12px; display:flex; align-items:center; justify-content:space-between; font-size:12px; color:#94a3b8;">
-          <span>Masa aktif pengumuman:</span>
-          <select id="swal-bc-duration" style="background:#1e293b; color:#fff; border:1px solid #475569; padding:4px 8px; border-radius:6px;">
-            <option value="900">15 Menit</option>
-            <option value="1800" selected>30 Menit</option>
-            <option value="3600">1 Jam</option>
-            <option value="7200">2 Jam</option>
-          </select>
-        </div>
-      `,
-      focusConfirm: false,
-      showCancelButton: true,
-      confirmButtonText: '&#x1F680; Kirim ke Semua Siswa',
-      cancelButtonText: 'Tutup',
-      showDenyButton: !!currentBc,
-      denyButtonText: '&#x1F5D1;&#xFE0F; Tarik Pengumuman Aktif',
-      confirmButtonColor: '#f59e0b',
-      denyButtonColor: '#ef4444',
-      cancelButtonColor: '#475569',
-      preConfirm: () => {
-        const msg = (document.getElementById('swal-bc-msg') ? document.getElementById('swal-bc-msg').value : '').trim();
-        const dur = document.getElementById('swal-bc-duration') ? document.getElementById('swal-bc-duration').value : '1800';
-        if (!msg) {
-          Swal.showValidationMessage('Tuliskan pesan pengumuman terlebih dahulu!');
-          return false;
-        }
-        return { message: msg, expires_in: parseInt(dur) };
-      }
-    });
+    const dur = selectDur ? parseInt(selectDur.value, 10) : 1800;
 
-    if (swalRes.isConfirmed && swalRes.value) {
-      try {
-        const resp = await fetch('../local/dosman_ujian/broadcast_message.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            token: state.token,
-            message: swalRes.value.message,
-            expires_in: swalRes.value.expires_in
-          })
-        });
-        const resData = await resp.json();
-        if (resData.success) {
-          Swal.fire({
-            icon: 'success',
-            title: 'Pengumuman Terkirim!',
-            text: 'Pesan telah disiarkan ke seluruh perangkat siswa.',
-            timer: 2000,
-            showConfirmButton: false
-          });
-        }
-      } catch (e) {
-        Swal.fire({ icon: 'error', title: 'Gagal Mengirim', text: e.message });
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<span>⏳ Mengirim Siaran...</span>';
+    }
+
+    try {
+      const resp = await fetch('../local/dosman_ujian/broadcast_message.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: state.token,
+          apikey: API_KEY,
+          message: msg,
+          expires_in: dur,
+          duration_minutes: Math.round(dur / 60),
+          sender: state.username || 'Proktor CBT'
+        })
+      });
+
+      const resData = await resp.json();
+      if (resData.success) {
+        setBroadcastFeedback('✅ Pengumuman berhasil dikirim ke seluruh HP siswa!', 'success');
+        loadActiveBroadcastStatus();
+        if (inputMsg) inputMsg.value = '';
+        setTimeout(() => {
+          closeBroadcastModal();
+        }, 1500);
+      } else {
+        setBroadcastFeedback(resData.message || 'Gagal mengirim pengumuman', 'error');
       }
-    } else if (swalRes.isDenied) {
-      try {
-        await fetch('../local/dosman_ujian/broadcast_message.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: state.token, message: '' })
-        });
-        Swal.fire({
-          icon: 'info',
-          title: 'Pengumuman Ditarik',
-          text: 'Pesan pengumuman telah dinonaktifkan.',
-          timer: 1500,
-          showConfirmButton: false
-        });
-      } catch (e) {
-        Swal.fire({ icon: 'error', title: 'Error', text: e.message });
+    } catch (e) {
+      setBroadcastFeedback('Gagal menghubungi server: ' + e.message, 'error');
+    } finally {
+      if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = '<span>🚀 Kirim ke Semua Siswa</span>';
       }
     }
+  }
+
+  async function retractBroadcast() {
+    const btnRetract = document.getElementById('btn-retract-broadcast');
+    if (btnRetract) {
+      btnRetract.disabled = true;
+      btnRetract.textContent = 'Menarik...';
+    }
+
+    try {
+      const resp = await fetch('../local/dosman_ujian/broadcast_message.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: state.token,
+          apikey: API_KEY,
+          retract: true,
+          message: ''
+        })
+      });
+
+      const resData = await resp.json();
+      if (resData.success) {
+        setBroadcastFeedback('ℹ️ Pengumuman aktif berhasil ditarik.', 'info');
+        const activeBox = document.getElementById('bc-active-container');
+        if (activeBox) activeBox.style.display = 'none';
+      } else {
+        setBroadcastFeedback(resData.message || 'Gagal menarik pengumuman', 'error');
+      }
+    } catch (e) {
+      setBroadcastFeedback('Gagal menghubungi server: ' + e.message, 'error');
+    } finally {
+      if (btnRetract) {
+        btnRetract.disabled = false;
+        btnRetract.textContent = '🗑️ Tarik Siaran';
+      }
+    }
+  }
+
+  function setBroadcastFeedback(msg, type) {
+    const alertEl = document.getElementById('bc-feedback-alert');
+    if (!alertEl) return;
+    if (!msg) {
+      alertEl.style.display = 'none';
+      return;
+    }
+
+    alertEl.style.display = 'block';
+    if (type === 'success') {
+      alertEl.style.background = 'rgba(22,163,74,0.15)';
+      alertEl.style.border = '1px solid rgba(34,197,94,0.3)';
+      alertEl.style.color = '#4ade80';
+    } else if (type === 'error') {
+      alertEl.style.background = 'rgba(220,38,38,0.15)';
+      alertEl.style.border = '1px solid rgba(239,68,68,0.3)';
+      alertEl.style.color = '#f87171';
+    } else {
+      alertEl.style.background = 'rgba(59,130,246,0.15)';
+      alertEl.style.border = '1px solid rgba(96,165,250,0.3)';
+      alertEl.style.color = '#93c5fd';
+    }
+    alertEl.textContent = msg;
   }
 
   async function resetStudentSession(userId, name) {
@@ -1319,6 +1396,9 @@
     unblockStudent: unblockStudent,
     pauseStudent: pauseStudent,
     openBroadcastModal: openBroadcastModal,
+    closeBroadcastModal: closeBroadcastModal,
+    submitBroadcast: submitBroadcast,
+    retractBroadcast: retractBroadcast,
     resetStudentSession: resetStudentSession,
     suspendStudent: suspendStudent,
     unsuspendStudent: unsuspendStudent,
