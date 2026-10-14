@@ -710,13 +710,15 @@
           allStudents = data.users.filter(u => u.grade !== 'Guru / Staf').map(u => ({
             userid: u.userid,
             firstname: u.firstname,
-            name: (u.firstname || '').replace(/^\d+\s*/, ''),
-            no_absen: ((u.firstname || '').match(/^(\d+)/) || [])[1] || '',
+            name: u.student_name || (u.firstname || '').replace(/^\d+\s*/, ''),
+            student_name: u.student_name || (u.firstname || '').replace(/^\d+\s*/, ''),
+            no_absen: u.no_absen || ((u.firstname || '').match(/^(\d+)/) || [])[1] || '',
             lastname: u.lastname,
             username: u.username,
             idnumber: u.idnumber,
             grade: u.grade,
             class_name: u.class_name,
+            tahun_masuk: u.tahun_masuk || '',
             department: u.department,
           }));
           const statsEl = document.getElementById('card-stats-text');
@@ -855,7 +857,12 @@
                   <div class="info-row">
                     <span class="info-label">Nama Peserta</span>
                     <span class="info-colon">:</span>
-                    <span class="info-value student-name-val">${escapeHtml(s.firstname || 'Siswa')}</span>
+                    <span class="info-value student-name-val">${escapeHtml(s.student_name || s.name || s.firstname || 'Siswa')}</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-label">No. Absen</span>
+                    <span class="info-colon">:</span>
+                    <span class="info-value" style="font-weight:700;">${escapeHtml(s.no_absen || '—')}</span>
                   </div>
                   <div class="info-row">
                     <span class="info-label">NIS / NISN</span>
@@ -867,6 +874,7 @@
                     <span class="info-colon">:</span>
                     <span class="info-value">
                       <span class="badge-class">${escapeHtml(s.class_name || s.grade || '—')}</span>
+                      ${s.tahun_masuk ? `<span style="font-size:9px; color:#64748b; margin-left:4px;">(Angkatan ${escapeHtml(s.tahun_masuk)})</span>` : ''}
                     </span>
                   </div>
 

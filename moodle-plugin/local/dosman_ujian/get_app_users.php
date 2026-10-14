@@ -115,47 +115,76 @@ try {
     $rows  = $pdo->query($sql)->fetchAll(PDO::FETCH_OBJ);
     $users = [];
     foreach ($rows as $r) {
-        $cnames = (string)($r->cohort_names ?? '');
-        $lname  = (string)($r->lastname ?? '');
+        $fname  = trim((string)($r->firstname ?? ''));
+        $lname  = trim((string)($r->lastname ?? ''));
+        $cnames = trim((string)($r->cohort_names ?? ''));
 
-        // Ekstraksi Tingkat / Grade Moodle
-        $grade = '';
-        if (strpos($cnames, 'Kelas X ') !== false || preg_match('/\|\s*X\s+\d+/i', $lname)) {
-            $grade = 'Kelas X';
-        } else if (strpos($cnames, 'Kelas XI ') !== false || preg_match('/\|\s*XI\s+/i', $lname)) {
-            $grade = 'Kelas XI';
-        } else if (strpos($cnames, 'Kelas XII ') !== false || preg_match('/\|\s*XII\s+/i', $lname)) {
-            $grade = 'Kelas XII';
-        } else if (strpos($cnames, 'Guru') !== false || stripos($lname, 'Guru') !== false || stripos($lname, 'TIM IT') !== false) {
-            $grade = 'Guru / Staf';
+        // 1. Ekstraksi Nomor Absen & Nama Bersih Siswa
+        // Contoh firstname: "08 I Putu Darma Putra" -> no_absen: "08", student_name: "I Putu Darma Putra"
+        $noAbsen = '';
+        $cleanName = $fname;
+        if (preg_match('/^(\d{1,2})\s+(.+)$/', $fname, $m)) {
+            $noAbsen = str_pad($m[1], 2, '0', STR_PAD_LEFT);
+            $cleanName = trim($m[2]);
+        }
+        // Bersihkan jika nama masih ada separator pipe (|)
+        if (preg_match('/^([^|]+?)\s*\|/i', $cleanName, $m)) {
+            $cleanName = trim($m[1]);
         }
 
-        // Ekstraksi Kelas / Cohort Moodle
+        // 2. Ekstraksi Rombel / Kelas & Tahun Penerimaan (Angkatan)
+        // Contoh format Moodle: "| XI A | 2024" atau "| X 1 | 2025"
+        $full = $fname . ' ' . $lname;
         $className = '';
-        foreach (explode(',', $cnames) as $cn) {
-            $cn = trim($cn);
-            if (preg_match('/^XI\s+[A-D]\d?$/i', $cn)) {
-                $className = $cn;
-                break;
-            }
-        }
-        if ($className === '' && preg_match('/\|\s*([X|XI|XII][^|]+)\s*\|/i', $lname, $m)) {
+        $tahunMasuk = '';
+        if (preg_match('/\|\s*([^|]+?)\s*\|\s*(\d{4})/i', $full, $m)) {
+            $className = trim($m[1]);
+            $tahunMasuk = trim($m[2]);
+        } else if (preg_match('/\|\s*([^|]+)/i', $full, $m)) {
             $className = trim($m[1]);
         }
-        if ($className === '' && strpos($cnames, 'Guru') !== false) {
+
+        // Fallback nama kelas dari cohort jika belum didapat dari pipe
+        if (empty($className)) {
+            foreach (explode(',', $cnames) as $cn) {
+                $cn = trim($cn);
+                if (preg_match('/^(X|XI|XII)\s+[A-Za-z0-9]+/i', $cn)) {
+                    $className = $cn;
+                    break;
+                }
+            }
+        }
+        if (empty($className) && (stripos($cnames, 'Guru') !== false || stripos($lname, 'Guru') !== false)) {
             $className = 'Guru';
+        }
+
+        // 3. Ekstraksi Tingkat / Grade Moodle yang akurat
+        $grade = '';
+        if (preg_match('/\bKelas XII\b/i', $cnames) || preg_match('/\|\s*XII\b/i', $lname) || $tahunMasuk === '2023') {
+            $grade = 'Kelas XII';
+        } else if (preg_match('/\bKelas XI\b/i', $cnames) || preg_match('/\|\s*XI\b/i', $lname) || $tahunMasuk === '2024') {
+            $grade = 'Kelas XI';
+        } else if (preg_match('/\bKelas X\b/i', $cnames) || preg_match('/\|\s*X\b/i', $lname) || $tahunMasuk === '2025') {
+            $grade = 'Kelas X';
+        } else if (stripos($cnames, 'Guru') !== false || stripos($lname, 'Guru') !== false || stripos($lname, 'TIM IT') !== false) {
+            $grade = 'Guru / Staf';
+        } else {
+            $grade = 'Lainnya';
         }
 
         $users[] = [
             'userid'          => (int)$r->userid,
             'firstname'       => $r->firstname ?? '',
             'lastname'        => $r->lastname ?? '',
+            'student_name'    => $cleanName,
+            'no_absen'        => $noAbsen,
+            'class_name'      => $className,
+            'tahun_masuk'     => $tahunMasuk,
             'username'        => $r->username ?? '',
             'email'           => $r->email ?? '',
             'idnumber'        => $r->idnumber ?? '',
             'department'      => $r->department ?? '',
             'grade'           => $grade,
-            'class_name'      => $className,
             'cohort_names'    => $cnames,
             'lock_status'     => (int)$r->lock_status,
             'lastping'        => (int)$r->lastping,

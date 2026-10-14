@@ -79,52 +79,66 @@ try {
     $students = [];
 
     foreach ($rows as $r) {
-        $cnames = (string)($r->cohort_names ?? '');
-        $lname  = (string)($r->lastname ?? '');
+        $fname  = trim((string)($r->firstname ?? ''));
+        $lname  = trim((string)($r->lastname ?? ''));
+        $cnames = trim((string)($r->cohort_names ?? ''));
 
-        // Ekstraksi Tingkat / Grade Moodle
-        $grade = '';
-        if (strpos($cnames, 'Kelas X ') !== false || preg_match('/\|\s*X\s+\d+/i', $lname)) {
-            $grade = 'Kelas X';
-        } else if (strpos($cnames, 'Kelas XI ') !== false || preg_match('/\|\s*XI\s+/i', $lname)) {
-            $grade = 'Kelas XI';
-        } else if (strpos($cnames, 'Kelas XII ') !== false || preg_match('/\|\s*XII\s+/i', $lname)) {
-            $grade = 'Kelas XII';
+        // 1. Ekstraksi Nomor Absen & Nama Bersih Siswa
+        $noAbsen = '';
+        $cleanName = $fname;
+        if (preg_match('/^(\d{1,2})\s+(.+)$/', $fname, $m)) {
+            $noAbsen = str_pad($m[1], 2, '0', STR_PAD_LEFT);
+            $cleanName = trim($m[2]);
+        }
+        if (preg_match('/^([^|]+?)\s*\|/i', $cleanName, $m)) {
+            $cleanName = trim($m[1]);
         }
 
-        // Ekstraksi Rombel / Kelas Moodle
+        // 2. Ekstraksi Rombel / Kelas & Tahun Penerimaan (Angkatan)
+        $full = $fname . ' ' . $lname;
         $className = '';
-        foreach (explode(',', $cnames) as $cn) {
-            $cn = trim($cn);
-            if (preg_match('/^XI\s+[A-D]\d?$/i', $cn)) {
-                $className = $cn;
-                break;
-            }
-        }
-        if ($className === '' && preg_match('/\|\s*([X|XI|XII][^|]+)\s*\|/i', $lname, $m)) {
+        $tahunMasuk = '';
+        if (preg_match('/\|\s*([^|]+?)\s*\|\s*(\d{4})/i', $full, $m)) {
+            $className = trim($m[1]);
+            $tahunMasuk = trim($m[2]);
+        } else if (preg_match('/\|\s*([^|]+)/i', $full, $m)) {
             $className = trim($m[1]);
         }
 
-        // Parse nomor absen jika ada di awal firstname
-        $noAbsen = '';
-        $cleanName = $r->firstname ?? '';
-        if (preg_match('/^(\d+)\s+(.+)$/', (string)$r->firstname, $m)) {
-            $noAbsen = $m[1];
-            $cleanName = $m[2];
+        if (empty($className)) {
+            foreach (explode(',', $cnames) as $cn) {
+                $cn = trim($cn);
+                if (preg_match('/^(X|XI|XII)\s+[A-Za-z0-9]+/i', $cn)) {
+                    $className = $cn;
+                    break;
+                }
+            }
+        }
+
+        // 3. Ekstraksi Tingkat / Grade Moodle
+        $grade = '';
+        if (preg_match('/\bKelas XII\b/i', $cnames) || preg_match('/\|\s*XII\b/i', $lname) || $tahunMasuk === '2023') {
+            $grade = 'Kelas XII';
+        } else if (preg_match('/\bKelas XI\b/i', $cnames) || preg_match('/\|\s*XI\b/i', $lname) || $tahunMasuk === '2024') {
+            $grade = 'Kelas XI';
+        } else if (preg_match('/\bKelas X\b/i', $cnames) || preg_match('/\|\s*X\b/i', $lname) || $tahunMasuk === '2025') {
+            $grade = 'Kelas X';
         }
 
         $students[] = [
             'userid'      => (int)$r->userid,
             'firstname'   => $r->firstname ?? '',
             'name'        => $cleanName,
+            'student_name'=> $cleanName,
             'no_absen'    => $noAbsen,
+            'class_name'  => $className ?: 'X',
+            'tahun_masuk' => $tahunMasuk,
             'lastname'    => $r->lastname ?? '',
             'username'    => $r->username ?? '',
             'email'       => $r->email ?? '',
             'idnumber'    => $r->idnumber ?? '',
             'department'  => $r->department ?? '',
             'grade'       => $grade ?: 'Kelas X',
-            'class_name'  => $className ?: 'X',
             'cohort_names'=> $cnames,
         ];
     }

@@ -291,12 +291,28 @@
 
     state.liveUsers.forEach(u => {
       // If a grade is selected, only show classes from that grade
-      if (selectedGrade && (u.grade || '') !== selectedGrade) {
-        return;
+      if (selectedGrade) {
+        const uGrade = (u.grade || '').trim();
+        const uClass = (u.class_name || '').trim();
+        const uYear = (u.tahun_masuk || '').trim();
+
+        let matchGrade = (uGrade === selectedGrade);
+        if (!matchGrade) {
+          if (selectedGrade === 'Kelas X') {
+            matchGrade = uGrade.includes('Kelas X') || uClass.startsWith('X ') || uYear === '2025';
+          } else if (selectedGrade === 'Kelas XI') {
+            matchGrade = uGrade.includes('Kelas XI') || uClass.startsWith('XI') || uYear === '2024';
+          } else if (selectedGrade === 'Kelas XII') {
+            matchGrade = uGrade.includes('Kelas XII') || uClass.startsWith('XII') || uYear === '2023';
+          } else if (selectedGrade === 'Guru / Staf') {
+            matchGrade = uGrade.includes('Guru') || uClass === 'Guru' || uClass === 'TIM IT';
+          }
+        }
+        if (!matchGrade) return;
       }
 
       const cls = (u.class_name || '').trim();
-      if (cls && cls !== 'Tidak Ada Kelas') {
+      if (cls && cls !== 'Tidak Ada Kelas' && cls !== 'Guru') {
         classes.add(cls);
       }
     });
@@ -344,7 +360,23 @@
 
       // 2. Grade (Tingkat) filter
       if (selectedGrade) {
-        if ((u.grade || '') !== selectedGrade) return false;
+        const uGrade = (u.grade || '').trim();
+        const uClass = (u.class_name || '').trim();
+        const uYear = (u.tahun_masuk || '').trim();
+
+        let matchGrade = (uGrade === selectedGrade);
+        if (!matchGrade) {
+          if (selectedGrade === 'Kelas X') {
+            matchGrade = uGrade.includes('Kelas X') || uClass.startsWith('X ') || uYear === '2025';
+          } else if (selectedGrade === 'Kelas XI') {
+            matchGrade = uGrade.includes('Kelas XI') || uClass.startsWith('XI') || uYear === '2024';
+          } else if (selectedGrade === 'Kelas XII') {
+            matchGrade = uGrade.includes('Kelas XII') || uClass.startsWith('XII') || uYear === '2023';
+          } else if (selectedGrade === 'Guru / Staf') {
+            matchGrade = uGrade.includes('Guru') || uClass === 'Guru' || uClass === 'TIM IT';
+          }
+        }
+        if (!matchGrade) return false;
       }
 
       // 3. Class / Cohort (Rombel) filter
@@ -376,10 +408,12 @@
         if (u.is_online === 1 || u.lock_status === 2 || u.lock_status === 3) return false;
       }
 
-      // 5. Search keyword filter (Moodle First Name, Last Name, Username, ID Number / NIS, Quiz, Cohort)
+      // 5. Search keyword filter
       if (q) {
+        const studentName = (u.student_name || '').toLowerCase();
         const firstname = (u.firstname || '').toLowerCase();
         const lastname = (u.lastname || '').toLowerCase();
+        const noAbsen = (u.no_absen || '').toLowerCase();
         const fullname = `${firstname} ${lastname}`;
         const username = (u.username || '').toLowerCase();
         const idnumber = (u.idnumber || '').toLowerCase();
@@ -388,24 +422,30 @@
         const className = (u.class_name || '').toLowerCase();
         const cohortNames = (u.cohort_names || '').toLowerCase();
         const gradeName = (u.grade || '').toLowerCase();
+        const tahunMasuk = (u.tahun_masuk || '').toLowerCase();
 
-        // Support matching stripped without spaces/punctuation (e.g. "darmaputra" matches "DARMA PUTRA")
         const cleanQ = q.replace(/[\s\-_.,]+/g, '');
+        const cleanStudent = studentName.replace(/[\s\-_.,]+/g, '');
         const cleanFirst = firstname.replace(/[\s\-_.,]+/g, '');
         const cleanFull = fullname.replace(/[\s\-_.,]+/g, '');
 
-        const matches = firstname.includes(q) ||
+        const matches = studentName.includes(q) ||
+                        cleanStudent.includes(cleanQ) ||
+                        firstname.includes(q) ||
                         cleanFirst.includes(cleanQ) ||
                         lastname.includes(q) ||
                         fullname.includes(q) ||
                         cleanFull.includes(cleanQ) ||
+                        noAbsen === q ||
+                        (noAbsen && ('absen ' + noAbsen).includes(q)) ||
                         username.includes(q) ||
                         idnumber.includes(q) ||
                         email.includes(q) ||
                         quizName.includes(q) ||
                         className.includes(q) ||
                         cohortNames.includes(q) ||
-                        gradeName.includes(q);
+                        gradeName.includes(q) ||
+                        tahunMasuk.includes(q);
 
         if (!matches) return false;
       }
@@ -472,14 +512,41 @@
         platformBadge = '<span class="badge badge-secondary" style="opacity:0.6;">&#x1F4F1; Belum Login</span>';
       }
 
-      // Initials Avatar
-      const rawFirst = (u.firstname || 'S').trim().replace(/^\d+\s*/, '');
-      const initials = (rawFirst.substring(0, 2) || 'S').toUpperCase();
-      const avatarBorder = isOnline ? 'border: 2px solid #10b981; box-shadow: 0 0 8px rgba(16,185,129,0.3);' : '';
+      // Pisahkan 4 Komponen Data: No Absen, Nama Bersih, Kelas, dan Tahun Masuk
+      let noAbsen = (u.no_absen || '').trim();
+      let studentName = (u.student_name || '').trim();
+      let className = (u.class_name || '').trim();
+      let tahunMasuk = (u.tahun_masuk || '').trim();
+      let gradeName = (u.grade || '').trim();
 
-      // Formatted Class & Grade
-      const kelasText = u.class_name || (u.department || '—');
-      const gradeText = u.grade || 'Moodle Cohort';
+      // Fallback parsing jika backend belum ter-update
+      if (!studentName || !noAbsen) {
+        const rawF = (u.firstname || '').trim();
+        const m = rawF.match(/^(\d{1,2})\s+(.+)$/);
+        if (m) {
+          if (!noAbsen) noAbsen = m[1].padStart(2, '0');
+          if (!studentName) studentName = m[2].trim();
+        } else if (!studentName) {
+          studentName = rawF;
+        }
+      }
+      if (studentName.includes('|')) {
+        studentName = studentName.split('|')[0].trim();
+      }
+      if (!className || !tahunMasuk) {
+        const rawL = `${u.firstname || ''} ${u.lastname || ''}`;
+        const m2 = rawL.match(/\|\s*([^|]+?)\s*\|\s*(\d{4})/i);
+        if (m2) {
+          if (!className) className = m2[1].trim();
+          if (!tahunMasuk) tahunMasuk = m2[2].trim();
+        }
+      }
+
+      // Avatar: Tampilkan Nomor Absen jika ada (e.g. 08, 22), atau inisial nama
+      const initials = (studentName.replace(/[^a-zA-Z]/g, '').substring(0, 2) || 'S').toUpperCase();
+      const avatarText = noAbsen ? noAbsen : initials;
+      const avatarBorder = isOnline ? 'border: 2px solid #10b981; box-shadow: 0 0 8px rgba(16,185,129,0.3);' : '';
+      const avatarBg = noAbsen ? 'background: linear-gradient(135deg, #1e40af, #3b82f6); color: #ffffff; font-weight: 700; font-family: "JetBrains Mono", monospace;' : '';
 
       // Quiz cell
       const quizHtml = isOnQuiz
@@ -500,19 +567,19 @@
       let actionButtons = '';
       if (isPaused) {
         actionButtons += `
-          <button class="btn-action btn-action-unblock" onclick="DosmanApp.unblockStudent(${u.userid}, '${escapeJs(u.firstname)}')" title="Lanjutkan ujian siswa yang sedang dijeda">
+          <button class="btn-action btn-action-unblock" onclick="DosmanApp.unblockStudent(${u.userid}, '${escapeJs(studentName)}')" title="Lanjutkan ujian siswa yang sedang dijeda">
             &#x25B6;&#xFE0F; Lanjutkan
           </button>
         `;
       } else if (isBlocked) {
         actionButtons += `
-          <button class="btn-action btn-action-unblock" onclick="DosmanApp.unblockStudent(${u.userid}, '${escapeJs(u.firstname)}')" title="Buka blokir dan izinkan siswa kembali ujian">
+          <button class="btn-action btn-action-unblock" onclick="DosmanApp.unblockStudent(${u.userid}, '${escapeJs(studentName)}')" title="Buka blokir dan izinkan siswa kembali ujian">
             &#x1F513; Buka Kunci
           </button>
         `;
       } else if (isOnline) {
         actionButtons += `
-          <button class="btn-action" style="background:rgba(245,158,11,0.15); color:#fbbf24; border:1px solid rgba(245,158,11,0.3);" onclick="DosmanApp.pauseStudent(${u.userid}, '${escapeJs(u.firstname)}')" title="Jeda ujian siswa sementara">
+          <button class="btn-action" style="background:rgba(245,158,11,0.15); color:#fbbf24; border:1px solid rgba(245,158,11,0.3);" onclick="DosmanApp.pauseStudent(${u.userid}, '${escapeJs(studentName)}')" title="Jeda ujian siswa sementara">
             &#x23F8;&#xFE0F; Jeda
           </button>
         `;
@@ -520,14 +587,14 @@
 
       if (u.lastping > 0 || isOnline || isBlocked || isPaused) {
         actionButtons += `
-          <button class="btn-action btn-action-reset" onclick="DosmanApp.resetStudentSession(${u.userid}, '${escapeJs(u.firstname)}')" title="Reset sesi aplikasi (paksa login ulang)">
+          <button class="btn-action btn-action-reset" onclick="DosmanApp.resetStudentSession(${u.userid}, '${escapeJs(studentName)}')" title="Reset sesi aplikasi (paksa login ulang)">
             &#x1F504; Reset
           </button>
         `;
       }
 
       actionButtons += `
-        <button class="btn-action btn-action-suspend" onclick="DosmanApp.suspendStudent(${u.userid}, '${escapeJs(u.firstname)}')" title="Kunci akun Moodle (pelanggaran)">
+        <button class="btn-action btn-action-suspend" onclick="DosmanApp.suspendStudent(${u.userid}, '${escapeJs(studentName)}')" title="Kunci akun Moodle (pelanggaran)">
           &#x26D4; Suspend
         </button>
       `;
@@ -537,21 +604,27 @@
           <td style="color:var(--text-dim); font-size:0.8rem; font-family:'JetBrains Mono';">${idx + 1}</td>
           <td>
             <div class="student-cell">
-              <div class="student-avatar" style="${avatarBorder}">${escapeHtml(initials)}</div>
+              <div class="student-avatar" style="${avatarBorder} ${avatarBg}" title="${noAbsen ? 'Nomor Absen: ' + noAbsen : 'Inisial Peserta'}">${escapeHtml(avatarText)}</div>
               <div class="student-meta">
-                <span class="student-name">${escapeHtml(u.firstname || '')}</span>
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                  ${noAbsen ? `<span class="badge" style="background:rgba(59,130,246,0.18); color:#60a5fa; border:1px solid rgba(59,130,246,0.35); font-size:0.75rem; padding:1px 6px; font-weight:700; border-radius:4px;" title="Nomor Absen di Kelas">Absen ${escapeHtml(noAbsen)}</span>` : ''}
+                  <span class="student-name" style="font-weight:600; color:#ffffff; font-size:0.925rem;">${escapeHtml(studentName)}</span>
+                </div>
                 <span class="student-sub">
                   @${escapeHtml(u.username || '')}
                   ${u.idnumber ? ` &bull; <span style="color:var(--text-dim);">NIS: ${escapeHtml(u.idnumber)}</span>` : ''}
-                  ${u.lastname && !u.lastname.startsWith('|') ? ` &bull; ${escapeHtml(u.lastname)}` : ''}
+                  ${tahunMasuk ? ` &bull; <span style="color:#94a3b8;" title="Tahun Penerimaan Siswa">Angkatan ${escapeHtml(tahunMasuk)}</span>` : ''}
                 </span>
               </div>
             </div>
           </td>
           <td>
             <div style="display:flex; flex-direction:column; gap:2px;">
-              <span class="badge badge-primary" style="font-weight:600; width:max-content;">${escapeHtml(kelasText)}</span>
-              <span style="font-size:0.725rem; color:var(--text-dim);">${escapeHtml(gradeText)}</span>
+              <span class="badge badge-primary" style="font-weight:600; width:max-content;">${escapeHtml(className || u.department || '—')}</span>
+              <div style="font-size:0.725rem; color:var(--text-dim); display:flex; align-items:center; gap:4px;">
+                <span>${escapeHtml(gradeName || 'Moodle Cohort')}</span>
+                ${tahunMasuk ? `<span>&bull; Th. ${escapeHtml(tahunMasuk)}</span>` : ''}
+              </div>
             </div>
           </td>
           <td>${platformBadge}</td>
@@ -1513,6 +1586,20 @@
     unsuspendStudent: unsuspendStudent,
     unblockDevice: unblockDevice,
     toggleSuspendedSelect: toggleSuspendedSelect,
+    onGradeChange: function() {
+      rebuildClassFilterOptions();
+      renderLiveMonitorTable();
+    },
+    onClassChange: function() {
+      renderLiveMonitorTable();
+    },
+    onFilterChange: function() {
+      renderLiveMonitorTable();
+    },
+    refreshData: function() {
+      state.countdown = 10;
+      refreshAllData(false);
+    },
   };
 
   // Launch when DOM is ready

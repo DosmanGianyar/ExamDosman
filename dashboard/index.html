@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Dosman Exam — Dashboard Guru & Proctoring</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
@@ -120,10 +123,10 @@
             <div class="toolbar-left" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex: 1;">
               <div class="search-box" style="min-width: 260px; flex: 1.5;">
                 <span class="search-icon">&#x1F50D;</span>
-                <input type="search" class="input-field" id="search-live" name="search_live_filter" placeholder="Cari First Name (Nama), Username, NIS, atau Kuis..." title="Cari berdasarkan First Name, Last Name, Username, ID Number / NIS, Cohort, atau Kuis Moodle" autocomplete="off" autocapitalize="none" spellcheck="false">
+                <input type="search" class="input-field" id="search-live" name="search_live_filter" oninput="DosmanApp.onFilterChange()" placeholder="Cari Nama, No. Absen, Username, NIS, Kelas..." title="Cari berdasarkan No Absen, Nama Siswa, Username, ID Number / NIS, Kelas, atau Kuis Moodle" autocomplete="off" autocapitalize="none" spellcheck="false">
               </div>
 
-              <select class="select-field" id="filter-grade" title="Filter berdasarkan Tingkat / Grade Moodle">
+              <select class="select-field" id="filter-grade" onchange="DosmanApp.onGradeChange()" title="Filter berdasarkan Tingkat / Grade Moodle">
                 <option value="">Semua Tingkat (Grade)</option>
                 <option value="Kelas X">Kelas X (Grade 10)</option>
                 <option value="Kelas XI">Kelas XI (Grade 11)</option>
@@ -131,11 +134,11 @@
                 <option value="Guru / Staf">Guru / Staf</option>
               </select>
 
-              <select class="select-field" id="filter-class" title="Filter berdasarkan Rombel / Cohort Moodle">
+              <select class="select-field" id="filter-class" onchange="DosmanApp.onClassChange()" title="Filter berdasarkan Rombel / Cohort Moodle">
                 <option value="">Semua Kelas (Cohort)</option>
               </select>
 
-              <select class="select-field" id="filter-status" title="Filter berdasarkan Status Sesi Ujian Moodle">
+              <select class="select-field" id="filter-status" onchange="DosmanApp.onFilterChange()" title="Filter berdasarkan Status Sesi Ujian Moodle">
                 <option value="">Semua Status Sesi</option>
                 <option value="online">🟢 Sedang Online (&lt; 15 mnt)</option>
                 <option value="inquiz">&#x270D;&#xFE0F; Sedang Kuis (In-Quiz)</option>
@@ -145,7 +148,7 @@
                 <option value="offline">&#x26AA; Offline / Belum Masuk</option>
               </select>
 
-              <select class="select-field" id="filter-platform" title="Filter berdasarkan Perangkat Peserta">
+              <select class="select-field" id="filter-platform" onchange="DosmanApp.onFilterChange()" title="Filter berdasarkan Perangkat Peserta">
                 <option value="">Semua Perangkat (Platform)</option>
                 <option value="android">&#x1F916; Android</option>
                 <option value="ios">&#x1F34E; iOS / Apple</option>
@@ -163,7 +166,7 @@
                 &#x1F4C4; Berita Acara
               </a>
               <div class="refresh-wrap">
-                <button class="btn btn-primary btn-sm" id="btn-manual-refresh">
+                <button class="btn btn-primary btn-sm" id="btn-manual-refresh" onclick="DosmanApp.refreshData()">
                   &#x1F504; Refresh
                 </button>
                 <span class="countdown-badge" id="refresh-countdown" title="Hitung mundur refresh otomatis">10s</span>
@@ -177,8 +180,8 @@
             <thead>
               <tr>
                 <th style="width:40px;">No</th>
-                <th>Siswa (First Name &amp; Username)</th>
-                <th>Tingkat &amp; Kelas (Cohort)</th>
+                <th>Peserta Ujian (No Absen, Nama &amp; Username)</th>
+                <th>Tingkat, Kelas &amp; Angkatan</th>
                 <th>Perangkat</th>
                 <th>Status Sesi</th>
                 <th>Kuis Moodle</th>
@@ -549,8 +552,8 @@
 
   <!-- ─── SCRIPTS ───────────────────────────────────────────────────────── -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="js/config.js?v=2.7.3"></script>
-  <script src="js/auth.js?v=2.7.3"></script>
-  <script src="js/app.js?v=2.7.3"></script>
+  <script src="js/config.js?v=3.2.0"></script>
+  <script src="js/auth.js?v=3.2.0"></script>
+  <script src="js/app.js?v=3.2.0"></script>
 </body>
 </html>
