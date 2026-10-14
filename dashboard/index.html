@@ -120,7 +120,7 @@
             <div class="toolbar-left" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex: 1;">
               <div class="search-box" style="min-width: 260px; flex: 1.5;">
                 <span class="search-icon">&#x1F50D;</span>
-                <input type="text" class="input-field" id="search-live" placeholder="Cari First Name (Nama), Username, NIS, atau Kuis..." title="Cari berdasarkan First Name, Last Name, Username, ID Number / NIS, Cohort, atau Kuis Moodle" autocomplete="off">
+                <input type="search" class="input-field" id="search-live" name="search_live_filter" placeholder="Cari First Name (Nama), Username, NIS, atau Kuis..." title="Cari berdasarkan First Name, Last Name, Username, ID Number / NIS, Cohort, atau Kuis Moodle" autocomplete="off" autocapitalize="none" spellcheck="false">
               </div>
 
               <select class="select-field" id="filter-grade" title="Filter berdasarkan Tingkat / Grade Moodle">
@@ -315,7 +315,7 @@
             </label>
             <div class="password-input-group">
               <div class="password-input-wrapper">
-                <input type="password" class="input-field" id="exit-pwd-input" placeholder="Kosongkan jika siswa bebas keluar..." autocomplete="off">
+                <input type="password" class="input-field" id="exit-pwd-input" name="cbt_exit_security_key" placeholder="Kosongkan jika siswa bebas keluar..." autocomplete="new-password">
                 <button type="button" class="toggle-pwd-btn" id="btn-toggle-pwd" title="Tampilkan / Sembunyikan">&#x1F441;</button>
               </div>
             </div>

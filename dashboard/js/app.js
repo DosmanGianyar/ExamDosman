@@ -901,7 +901,21 @@
   function setupFilters() {
     const searchLive = document.getElementById('search-live');
     if (searchLive) {
+      searchLive.value = '';
       searchLive.addEventListener('input', renderLiveMonitorTable);
+
+      // Bersihkan autofill browser (Chrome/Edge Password Manager sering otomatis mengisi username proktor ke input teks)
+      const clearBrowserAutofill = () => {
+        const val = (searchLive.value || '').trim();
+        const uname = (state.username || '').trim();
+        if (val && uname && val.toLowerCase() === uname.toLowerCase()) {
+          searchLive.value = '';
+          renderLiveMonitorTable();
+        }
+      };
+      setTimeout(clearBrowserAutofill, 50);
+      setTimeout(clearBrowserAutofill, 200);
+      setTimeout(clearBrowserAutofill, 500);
     }
 
     const filterGrade = document.getElementById('filter-grade');
