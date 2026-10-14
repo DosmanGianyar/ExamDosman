@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.hardware.display.DisplayManager
 import android.app.NotificationManager
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Build
@@ -619,6 +620,26 @@ class MainActivity : FlutterActivity() {
                         }
                     } catch (_: Exception) { false }
                     result.success(vpnActive)
+                }
+
+                "checkBluetoothAudio" -> {
+                    try {
+                        val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                        val isBt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            val devices = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                            devices.any { dev ->
+                                dev.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                                dev.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                                (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && dev.type == AudioDeviceInfo.TYPE_BLE_HEADSET)
+                            }
+                        } else {
+                            @Suppress("DEPRECATION")
+                            am.isBluetoothA2dpOn || am.isBluetoothScoOn
+                        }
+                        result.success(isBt)
+                    } catch (_: Exception) {
+                        result.success(false)
+                    }
                 }
 
                 "isScreenInteractive" -> {

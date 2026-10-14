@@ -14,6 +14,7 @@ import '../config/app_config.dart';
 import '../utils/app_version.dart';
 
 import 'device_blocked_screen.dart';
+import '../widgets/qr_login_scanner_dialog.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -156,6 +157,28 @@ class _LoginScreenState extends State<LoginScreen>
       _showError('Terjadi kesalahan: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// Buka modal scanner kamera untuk memindai kartu login siswa.
+  Future<void> _scanQrCard() async {
+    FocusScope.of(context).unfocus();
+    final creds = await QrLoginScannerDialog.show(context);
+    if (creds == null || !mounted) return;
+
+    final u = creds['username'] ?? '';
+    final p = creds['password'] ?? '';
+    if (u.isNotEmpty && p.isNotEmpty) {
+      _userCtrl.text = u;
+      _passCtrl.text = p;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Kartu peserta terdeteksi! Memulai login otomatis...'),
+          duration: Duration(seconds: 2),
+          backgroundColor: Color(0xFF16A34A),
+        ),
+      );
+      _doLogin();
     }
   }
 
@@ -569,6 +592,11 @@ class _LoginScreenState extends State<LoginScreen>
 
             // Tombol Login
             _buildLoginButton(),
+
+            const SizedBox(height: 12),
+
+            // Tombol Scan Kartu Ujian (QR Code)
+            _buildScanQrButton(),
           ],
         ),
       ),
@@ -844,6 +872,33 @@ class _LoginScreenState extends State<LoginScreen>
                     ),
                   ],
                 ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScanQrButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: OutlinedButton.icon(
+        onPressed: _isLoading ? null : _scanQrCard,
+        icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
+        label: const Text(
+          'Pindai Kartu Ujian (QR Code)',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.3,
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFF2563EB),
+          side: const BorderSide(color: Color(0xFF93C5FD), width: 1.5),
+          backgroundColor: const Color(0xFFEFF6FF),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       ),
     );

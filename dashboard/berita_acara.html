@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Berita Acara Pelaksanaan Ujian — SMAN 1 Gianyar</title>
+  <link rel="icon" type="image/png" href="assets/logo_sekolah.png">
+  <style>
+    :root {
+      --primary: #1e3a5f;
+      --text: #1f2937;
+      --text-muted: #4b5563;
+      --border: #d1d5db;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 13.5px;
+      line-height: 1.5;
+      color: var(--text);
+      background: #f3f4f6;
+      padding: 0;
+      margin: 0;
+    }
+
+    /* Print & Action Bar */
+    .action-bar {
+      background: var(--primary);
+      color: #fff;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .action-title { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .action-btns { display: flex; gap: 10px; }
+    .btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-secondary { background: #475569; color: #fff; }
+    .btn-secondary:hover { background: #334155; }
+
+    /* A4 Document Sheet */
+    .document-page {
+      max-width: 800px;
+      margin: 24px auto 40px;
+      background: #fff;
+      padding: 40px 50px;
+      box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+      border-radius: 4px;
+    }
+
+    /* Kop Surat */
+    .kop-header {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding-bottom: 12px;
+      border-bottom: 3px double #000;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .kop-logo { width: 78px; height: 78px; object-fit: contain; }
+    .kop-text { flex: 1; }
+    .kop-text h2 { font-size: 15px; font-weight: 700; text-transform: uppercase; margin: 0; letter-spacing: 0.5px; }
+    .kop-text h1 { font-size: 18px; font-weight: 800; text-transform: uppercase; margin: 2px 0; letter-spacing: 0.5px; }
+    .kop-text p { font-size: 11px; margin: 2px 0 0; color: #374151; font-family: Arial, sans-serif; }
+
+    /* Title */
+    .doc-title {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .doc-title h3 {
+      font-size: 15px;
+      font-weight: 800;
+      text-transform: uppercase;
+      text-decoration: underline;
+      margin-bottom: 4px;
+    }
+    .doc-title span { font-size: 13px; font-family: Arial, sans-serif; color: var(--text-muted); }
+
+    /* Metadata Table */
+    .meta-table { width: 100%; margin-bottom: 20px; border-collapse: collapse; }
+    .meta-table td { padding: 4px 6px; font-size: 13px; }
+    .meta-table td.label { width: 180px; font-weight: 600; }
+    .meta-table td.colon { width: 15px; }
+
+    /* Section Subtitle */
+    .section-heading {
+      font-size: 13.5px;
+      font-weight: 700;
+      margin: 18px 0 8px;
+      text-transform: uppercase;
+    }
+
+    /* Data Table */
+    .report-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      font-size: 12.5px;
+    }
+    .report-table th, .report-table td {
+      border: 1px solid #000;
+      padding: 6px 10px;
+    }
+    .report-table th {
+      background: #f3f4f6;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    /* Signature Grid */
+    .sign-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      margin-top: 40px;
+      page-break-inside: avoid;
+    }
+    .sign-box { text-align: center; font-size: 13px; }
+    .sign-space { height: 65px; }
+    .sign-name { font-weight: 700; text-decoration: underline; }
+
+    /* Print Setup */
+    @media print {
+      .action-bar { display: none; }
+      body { background: #fff; padding: 0; }
+      .document-page { max-width: 100%; margin: 0; padding: 20px 30px; box-shadow: none; border-radius: 0; }
+      .report-table th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="action-bar">
+    <div class="action-title">
+      <span>📄</span> Berita Acara Ujian CBT — SMA Negeri 1 Gianyar
+    </div>
+    <div class="action-btns">
+      <a href="index.html" class="btn btn-secondary">
+        <span>⬅️</span> Kembali
+      </a>
+      <button onclick="window.print()" class="btn btn-primary">
+        <span>🖨️</span> Cetak Berita Acara (PDF)
+      </button>
+    </div>
+  </div>
+
+  <div class="document-page">
+
+    <!-- Kop Surat -->
+    <div class="kop-header">
+      <img src="assets/logo_sekolah.png" alt="Logo SMAN 1 Gianyar" class="kop-logo" onerror="this.style.display='none'">
+      <div class="kop-text">
+        <h2>Pemerintah Provinsi Bali</h2>
+        <h2>Dinas Pendidikan Kepemudaan dan Olahraga</h2>
+        <h1>SMA NEGERI 1 GIANYAR</h1>
+        <p>Jalan Ratna No. 1 Gianyar, Bali 80511 &bull; Telp. (0361) 943034 &bull; Website: sman1-gianyar.sch.id</p>
+      </div>
+    </div>
+
+    <!-- Title -->
+    <div class="doc-title">
+      <h3>BERITA ACARA PELAKSANAAN UJIAN BERBASIS APLIKASI</h3>
+      <span>DOSMAN EXAM CBT & PROCTORING SYSTEM</span>
+    </div>
+
+    <!-- Intro Text -->
+    <p style="margin-bottom:14px; text-align:justify;">
+      Pada hari ini, <strong id="val-day-date">Rabu, 14 Oktober 2026</strong>, bertempat di SMA Negeri 1 Gianyar telah diselenggarakan Ujian Berbasis Komputer/Smartphone (CBT) dengan rincian operasional sebagai berikut:
+    </p>
+
+    <!-- Meta Details -->
+    <table class="meta-table">
+      <tr>
+        <td class="label">Mata Pelajaran / Ujian</td>
+        <td class="colon">:</td>
+        <td id="val-subject">Semua Kuis Terjadwal</td>
+      </tr>
+      <tr>
+        <td class="label">Tahun Ajaran / Semester</td>
+        <td class="colon">:</td>
+        <td>2026/2027 &bull; Semester Ganjil</td>
+      </tr>
+      <tr>
+        <td class="label">Waktu Pembuatan Laporan</td>
+        <td class="colon">:</td>
+        <td id="val-timestamp">--:--:-- WITA</td>
+      </tr>
+      <tr>
+        <td class="label">Status Server / LMS</td>
+        <td class="colon">:</td>
+        <td>lms.sman1-gianyar.sch.id:9443 (Online & Terproteksi)</td>
+      </tr>
+    </table>
+
+    <!-- Table 1: Rekapitulasi Peserta -->
+    <div class="section-heading">I. Rekapitulasi Partisipasi Peserta Didik</div>
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th style="width:40px;">No</th>
+          <th>Kategori Indikator Sesi</th>
+          <th style="width:120px;">Jumlah Siswa</th>
+          <th>Keterangan Operasional</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="text-align:center;">1</td>
+          <td>Peserta Terhubung ke Aplikasi (Live)</td>
+          <td style="text-align:center; font-weight:700;" id="count-connected">0</td>
+          <td>Siswa aktif di aplikasi Dosman Exam</td>
+        </tr>
+        <tr>
+          <td style="text-align:center;">2</td>
+          <td>Peserta Sedang Mengerjakan Soal</td>
+          <td style="text-align:center; font-weight:700;" id="count-inquiz">0</td>
+          <td>Aktif berada di dalam lembar kuis Moodle</td>
+        </tr>
+        <tr>
+          <td style="text-align:center;">3</td>
+          <td>Peserta Standby di Beranda</td>
+          <td style="text-align:center; font-weight:700;" id="count-standby">0</td>
+          <td>Login siap memulai ujian</td>
+        </tr>
+        <tr>
+          <td style="text-align:center;">4</td>
+          <td>Sesi Dijeda oleh Pengawas</td>
+          <td style="text-align:center; font-weight:700;" id="count-paused">0</td>
+          <td>Dijeda sementara untuk verifikasi/teknis</td>
+        </tr>
+        <tr>
+          <td style="text-align:center;">5</td>
+          <td>Akun Tersanksi Suspend</td>
+          <td style="text-align:center; font-weight:700;" id="count-suspended">0</td>
+          <td>Terdeteksi unpinning / pelanggaran fatal</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Table 2: Catatan Insiden & Integritas -->
+    <div class="section-heading">II. Catatan Khusus & Log Integritas Ruangan</div>
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th style="width:40px;">No</th>
+          <th>Nama Siswa & Username</th>
+          <th>Kelas</th>
+          <th>Bentuk Kejadian / Pelanggaran</th>
+          <th>Waktu</th>
+          <th>Tindakan Pengawas</th>
+        </tr>
+      </thead>
+      <tbody id="incident-tbody">
+        <tr>
+          <td colspan="6" style="text-align:center; color:#4b5563; font-style:italic; padding:12px;">
+            Tidak ada insiden pelanggaran tercatat. Seluruh sesi berjalan aman dan tertib.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p style="margin-top:16px; text-align:justify;">
+      Demikian Berita Acara ini dibuat dengan sebenarnya sesuai dengan data rekaman sistem monitoring real-time Dosman Exam untuk dapat dipergunakan sebagaimana mestinya.
+    </p>
+
+    <!-- Signatures -->
+    <div class="sign-grid">
+      <div class="sign-box">
+        Mengetahui,<br>
+        <strong>Proktor Utama Ujian</strong>
+        <div class="sign-space"></div>
+        <div class="sign-name">( .................................................... )</div>
+        NIP.
+      </div>
+      <div class="sign-box">
+        Gianyar, <span id="sign-date">14 Oktober 2026</span><br>
+        <strong>Pengawas Ruang Ujian</strong>
+        <div class="sign-space"></div>
+        <div class="sign-name">( .................................................... )</div>
+        NIP.
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Ambil data live monitoring dari API untuk mengisi Berita Acara secara otomatis
+    async function loadReportData() {
+      const now = new Date();
+      const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+      const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+      const dateStr = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+      document.getElementById('val-day-date').textContent = dateStr;
+      document.getElementById('sign-date').textContent = `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+      document.getElementById('val-timestamp').textContent = now.toLocaleTimeString('id-ID') + ' WITA';
+
+      try {
+        const res = await fetch('../local/dosman_ujian/get_app_users.php?apikey=dosman-exam-sman1gianyar-2024');
+        if (res.ok) {
+          const data = await res.json();
+          const users = data.users || [];
+          document.getElementById('count-connected').textContent = users.length;
+          document.getElementById('count-inquiz').textContent = users.filter(u => u.current_quizid > 0 && u.lock_status === 1).length;
+          document.getElementById('count-standby').textContent = users.filter(u => u.current_quizid === 0 && u.lock_status === 1).length;
+          document.getElementById('count-paused').textContent = users.filter(u => u.lock_status === 3).length;
+
+          // Ambil nama kuis jika ada yang dominan
+          const quizNames = users.filter(u => u.quiz_name).map(u => u.quiz_name);
+          if (quizNames.length > 0) {
+            document.getElementById('val-subject').textContent = quizNames[0];
+          }
+        }
+      } catch (e) {
+        console.warn('Gagal memuat users:', e);
+      }
+
+      try {
+        const resSusp = await fetch('../local/dosman_ujian/get_suspended_students.php?apikey=dosman-exam-sman1gianyar-2024');
+        if (resSusp.ok) {
+          const suspData = await resSusp.json();
+          const suspList = suspData.students || [];
+          document.getElementById('count-suspended').textContent = suspList.length;
+
+          if (suspList.length > 0) {
+            const tbody = document.getElementById('incident-tbody');
+            let rows = '';
+            suspList.forEach((s, idx) => {
+              rows += `
+                <tr>
+                  <td style="text-align:center;">${idx + 1}</td>
+                  <td><strong>${s.firstname || ''} ${s.lastname || ''}</strong> (@${s.username})</td>
+                  <td>${s.department || '—'}</td>
+                  <td style="color:#b91c1c;">Akun Disuspend (Upaya Keluar Aplikasi / Unpin)</td>
+                  <td style="text-align:center;">${s.timemodified ? new Date(s.timemodified * 1000).toLocaleTimeString('id-ID') : '—'}</td>
+                  <td>Disanksi oleh sistem</td>
+                </tr>
+              `;
+            });
+            tbody.innerHTML = rows;
+          }
+        }
+      } catch (e) {
+        console.warn('Gagal memuat suspended:', e);
+      }
+    }
+
+    loadReportData();
+  </script>
+</body>
+</html>

@@ -41,15 +41,18 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
   String    _autoUsername  = '';
   String    _autoPassword  = '';
 
-  // ─── Browser heartbeat (server-side detection) ───────────────────────────
+  // ─── Browser heartbeat & broadcast ───────────────────────────────────────
   Timer? _pingTimer;
   Timer? _startupNoticeRetryTimer;
+  int?   _dismissedBroadcastAt;
+  bool   _btDialogShowing = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     KioskController.instance.addViolationListener(_onNativeViolation);
+    ExamService.activeBroadcast.addListener(_onBroadcastChanged);
     _loadCachedUserId();
     _clearClipboard();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -63,6 +66,7 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
       await _checkAccessibilityServices();
       await _checkScreenCast();
       await _checkVpn();
+      await _checkBluetoothAudio();
     });
   }
 
@@ -171,7 +175,10 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
       if (!mounted) return;
       tick++;
       ExamService.sendBrowserHeartbeat(userId: userId);
-      if (tick % 3 == 0) ExamService.pingAppLogin(); // setiap 30 detik
+      if (tick % 3 == 0) {
+        ExamService.pingAppLogin(); // setiap 30 detik
+        _checkBluetoothAudio();     // pantau earphone/TWS Bluetooth berkala
+      }
     });
   }
 
@@ -434,6 +441,65 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
     );
   }
 
+  /// Cek apakah ada perangkat audio Bluetooth (TWS / Headset) yang terhubung.
+  Future<void> _checkBluetoothAudio() async {
+    if (_btDialogShowing) return;
+    final btActive = await KioskController.instance.checkBluetoothAudio();
+    if (!btActive || !mounted) return;
+
+    _btDialogShowing = true;
+    try {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1C1917),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.headset_off, color: Color(0xFFF97316), size: 24),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Audio Bluetooth Terdeteksi',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Perangkat kamu terhubung ke earphone / headset Bluetooth.\n\n'
+            'Demi integritas dan kepatuhan aturan ujian, harap lepaskan earphone '
+            'dan matikan Bluetooth sebelum memulai ujian.',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              height: 1.6,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFFF97316),
+              ),
+              child: const Text(
+                'Saya Mengerti',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      _btDialogShowing = false;
+    }
+  }
+
   /// Cek accessibility service pihak ketiga yang aktif saat screen pertama kali aktif.
   Future<void> _checkAccessibilityServices() async {
     final services = await KioskController.instance.checkAccessibilityServices();
@@ -529,10 +595,15 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
     _doBlockStudent(violationReason: reason);
   }
 
+  void _onBroadcastChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     KioskController.instance.removeViolationListener(_onNativeViolation);
+    ExamService.activeBroadcast.removeListener(_onBroadcastChanged);
     _blockTimer?.cancel();
     _pingTimer?.cancel();
     _startupNoticeRetryTimer?.cancel();
@@ -1012,6 +1083,19 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
 
                 const Spacer(),
 
+                // Tombol Pengumuman jika ada broadcast aktif
+                if (ExamService.activeBroadcast.value != null) ...[
+                  _navBtn(
+                    icon: Icons.campaign_rounded,
+                    label: 'Pengumuman',
+                    onTap: () {
+                      setState(() => _dismissedBroadcastAt = null);
+                    },
+                    accentColor: const Color(0xFFF59E0B),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+
                 // Tombol Petunjuk
                 _navBtn(
                   icon: Icons.help_outline_rounded,
@@ -1094,18 +1178,21 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
     required String    label,
     required VoidCallback onTap,
     bool danger = false,
+    Color? accentColor,
   }) {
+    final effectiveColor = accentColor ?? (danger ? const Color(0xFFDC2626) : null);
+    final isCustom = effectiveColor != null;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
         decoration: BoxDecoration(
-          color: danger
-              ? const Color(0x22DC2626)
+          color: isCustom
+              ? effectiveColor.withValues(alpha: 0.15)
               : Colors.white.withValues(alpha: 0.07),
           border: Border.all(
-            color: danger
-                ? const Color(0xFFDC2626).withValues(alpha: 0.8)
+            color: isCustom
+                ? effectiveColor.withValues(alpha: 0.8)
                 : Colors.white.withValues(alpha: 0.2),
             width: 1,
           ),
@@ -1117,7 +1204,7 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
             Icon(
               icon,
               size: 13,
-              color: danger ? const Color(0xFFFCA5A5) : Colors.white70,
+              color: isCustom ? effectiveColor : Colors.white70,
             ),
             const SizedBox(width: 4),
             Text(
@@ -1125,12 +1212,109 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
-                color: danger ? const Color(0xFFFCA5A5) : Colors.white70,
+                color: isCustom ? effectiveColor : Colors.white70,
                 letterSpacing: 0.2,
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Banner pengumuman siaran langsung dari pengawas CBT.
+  Widget _buildBroadcastBanner() {
+    final bc = ExamService.activeBroadcast.value;
+    if (bc == null) return const SizedBox.shrink();
+
+    final createdAt = (bc['created_at'] is num) ? (bc['created_at'] as num).toInt() : 0;
+    if (_dismissedBroadcastAt == createdAt) return const SizedBox.shrink();
+
+    final message = (bc['message'] ?? '').toString();
+    final sender  = (bc['sender'] ?? 'Pengawas CBT').toString();
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF78350F), Color(0xFF92400E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFBBF24), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFF59E0B).withValues(alpha: 0.25),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Icon(Icons.campaign_rounded, color: Colors.black, size: 16),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'PENGUMUMAN DARI $sender'.toUpperCase(),
+                  style: const TextStyle(
+                    color: Color(0xFFFDE68A),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              InkWell(
+                onTap: () {
+                  setState(() => _dismissedBroadcastAt = createdAt);
+                },
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Tutup',
+                        style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600),
+                      ),
+                      SizedBox(width: 2),
+                      Icon(Icons.close_rounded, color: Colors.white70, size: 13),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              height: 1.4,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1159,6 +1343,7 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
                     child: Column(
                       children: [
                         _buildNavbar(),
+                        _buildBroadcastBanner(),
                         Expanded(
                           child: Stack(children: [
                             InAppWebView(

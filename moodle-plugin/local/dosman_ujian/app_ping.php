@@ -126,7 +126,26 @@ try {
     require_once __DIR__ . '/stale_app_ping_suspend.inc.php';
     dosman_ujian_suspend_stale_app_ping_users($pdo, $prefix, $now);
 
-    echo json_encode(['success' => true, 'lock_status' => $finalStatus]);
+    // Cek pengumuman broadcast aktif dari pengawas
+    $activeBroadcast = null;
+    $stmtBc = $pdo->prepare(
+        "SELECT value FROM {$prefix}config_plugins
+          WHERE plugin = 'local_dosman_ujian' AND name = 'active_broadcast' LIMIT 1"
+    );
+    $stmtBc->execute();
+    $rawBc = $stmtBc->fetchColumn();
+    if ($rawBc) {
+        $bcArr = json_decode($rawBc, true);
+        if (!empty($bcArr) && ($bcArr['expires_at'] ?? 0) > $now) {
+            $activeBroadcast = $bcArr;
+        }
+    }
+
+    echo json_encode([
+        'success'     => true,
+        'lock_status' => $finalStatus,
+        'broadcast'   => $activeBroadcast,
+    ]);
 
 } catch (Throwable $e) {
     http_response_code(500);

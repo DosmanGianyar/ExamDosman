@@ -5,6 +5,7 @@
 
 import 'dart:convert';
 import 'dart:developer' as dev;
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import 'api_service.dart';
@@ -13,6 +14,10 @@ import '../models/session.dart';
 
 class ExamService {
   ExamService._();
+
+  /// Pengumuman broadcast aktif dari pengawas/dashboard.
+  /// Berisi: { message: String, created_at: int, expires_at: int, sender: String }
+  static final ValueNotifier<Map<String, dynamic>?> activeBroadcast = ValueNotifier(null);
 
   // ─── Heartbeat: ping server setiap 5 detik ─────────────────────────────
   static bool _heartbeatActive = false;
@@ -428,6 +433,11 @@ class ExamService {
         try {
           final data = json.decode(resp.body) as Map<String, dynamic>;
           if (data['suspended'] == true) return false;
+          if (data['broadcast'] is Map<String, dynamic>) {
+            activeBroadcast.value = Map<String, dynamic>.from(data['broadcast'] as Map);
+          } else {
+            activeBroadcast.value = null;
+          }
         } catch (_) {}
       }
       return true;

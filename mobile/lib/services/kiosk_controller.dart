@@ -68,6 +68,8 @@ class KioskController {
         _notifyViolation('screen_cast');
       case 'onScreenshotDetected':
         _notifyViolation('screenshot_attempt');
+      case 'onBluetoothAudioConnected':
+        _notifyViolation('bluetooth_audio');
     }
     return null;
   }
@@ -137,6 +139,16 @@ class KioskController {
   Future<bool> isGuidedAccessActive() async {
     try {
       final res = await _channel.invokeMethod<bool>('isGuidedAccessActive');
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Cek apakah ada perangkat audio Bluetooth (TWS / Headset) yang tersambung.
+  Future<bool> checkBluetoothAudio() async {
+    try {
+      final res = await _channel.invokeMethod<bool>('checkBluetoothAudio');
       return res ?? false;
     } catch (_) {
       return false;

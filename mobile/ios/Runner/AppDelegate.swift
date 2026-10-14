@@ -2,6 +2,7 @@ import Flutter
 import UIKit
 import CFNetwork
 import AudioToolbox
+import AVFoundation
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -65,6 +66,15 @@ import AudioToolbox
             case "checkScreenCast":
                 let isCasting = UIScreen.screens.count > 1 || UIScreen.main.isCaptured
                 result(isCasting)
+
+            case "checkBluetoothAudio":
+                let outputs = AVAudioSession.sharedInstance().currentRoute.outputs
+                let isBt = outputs.contains { port in
+                    port.portType == .bluetoothA2DP ||
+                    port.portType == .bluetoothHFP ||
+                    port.portType == .bluetoothLE
+                }
+                result(isBt)
 
             case "checkVpn":
                 result(self.isVpnActive())
@@ -154,6 +164,27 @@ import AudioToolbox
             name: UIAccessibility.guidedAccessStatusDidChangeNotification,
             object: nil
         )
+
+        // Deteksi koneksi audio Bluetooth
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(audioRouteChanged),
+            name: AVAudioSession.routeChangeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func audioRouteChanged() {
+        guard isLockdownActive else { return }
+        let outputs = AVAudioSession.sharedInstance().currentRoute.outputs
+        let isBt = outputs.contains { port in
+            port.portType == .bluetoothA2DP ||
+            port.portType == .bluetoothHFP ||
+            port.portType == .bluetoothLE
+        }
+        if isBt {
+            flutterChannel?.invokeMethod("onBluetoothAudioConnected", arguments: nil)
+        }
     }
 
     @objc private func didTakeScreenshot() {
