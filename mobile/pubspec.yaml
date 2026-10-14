@@ -1,7 +1,7 @@
 name: dosman_ujian
 description: Aplikasi Ujian Online Anti-Kecurangan - SMAN 1 GIANYAR, Bali
 publish_to: 'none'
-version: 2.7.2+133
+version: 2.7.3+134
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
