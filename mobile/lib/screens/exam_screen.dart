@@ -175,32 +175,62 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
     Clipboard.setData(const ClipboardData(text: ''));
   }
 
-  /// Dipanggil KioskController saat native mendeteksi pelanggaran (split-screen, unpin, dll.).
+  /// Dipanggil KioskController saat native mendeteksi pelanggaran (split-screen, unpin, VM, kloning, dll.).
   void _onNativeViolation(String reason) {
     _logViolation(reason, data: {'phase': _webPhase});
 
-    // Jika lock task / pinned screen dilepas (alarm aktif) → langsung suspend akun siswa
-    if (reason == 'lock_task_lost' || reason.contains('unpin')) {
-      _handleUnpinSuspension();
+    final fatalReasons = [
+      'lock_task_lost',
+      'unpin',
+      'split_screen',
+      'virtual_environment',
+      'cloned_app',
+      'screen_cast',
+      'bluetooth_audio',
+    ];
+
+    if (fatalReasons.any((r) => reason.contains(r))) {
+      _handleSecurityViolationSuspension(reason);
     }
   }
 
-  Future<void> _handleUnpinSuspension() async {
+  Future<void> _handleSecurityViolationSuspension(String reason) async {
     final userId = widget.userId;
+    String userMessage = 'Akun Anda ditangguhkan karena pelanggaran keamanan ujian. Harap segera melapor ke pengawas ujian.';
+    String serverReason = 'Pelanggaran keamanan: $reason';
+
+    if (reason == 'lock_task_lost' || reason.contains('unpin')) {
+      userMessage = 'Akun Anda ditangguhkan karena Anda memaksa melepas kuncian layar (pinned screen) saat kuis berlangsung.';
+      serverReason = 'Siswa memaksa melepas pinned screen saat kuis aktif (alarm aktif)';
+    } else if (reason == 'split_screen') {
+      userMessage = 'Akun Anda ditangguhkan karena Anda terdeteksi menggunakan tampilan layar terbagi (Split Screen / Floating Window) saat kuis berlangsung.';
+      serverReason = 'Siswa menggunakan split screen / floating window saat kuis';
+    } else if (reason == 'virtual_environment') {
+      userMessage = 'Akun Anda ditangguhkan karena aplikasi terdeteksi berjalan di dalam Virtual Machine / Emulator.';
+      serverReason = 'Siswa menjalankan kuis di Virtual Machine';
+    } else if (reason == 'cloned_app') {
+      userMessage = 'Akun Anda ditangguhkan karena aplikasi terdeteksi berjalan di Ruang Ganda / Aplikasi Kloning.';
+      serverReason = 'Siswa menjalankan kuis di aplikasi ganda / kloning';
+    } else if (reason == 'screen_cast') {
+      userMessage = 'Akun Anda ditangguhkan karena terdeteksi menyambungkan layar ke perangkat lain (Screen Cast / Mirroring) saat kuis berlangsung.';
+      serverReason = 'Siswa menyambungkan screen cast / mirroring saat kuis';
+    } else if (reason == 'bluetooth_audio') {
+      userMessage = 'Akun Anda ditangguhkan karena terdeteksi menyambungkan perangkat audio Bluetooth (earphone / TWS) saat kuis berlangsung.';
+      serverReason = 'Siswa menyambungkan audio Bluetooth saat kuis';
+    }
+
     if (userId > 0) {
       try {
         await ExamService.suspendStudent(
           userId: userId,
-          reason: 'Siswa memaksa melepas pinned screen saat kuis aktif (alarm aktif)',
+          reason: serverReason,
         );
       } catch (_) {}
     }
     await AuthService.saveBlockedStatus(true);
     await AuthService.saveSuspendedByAdmin(true);
     if (!mounted) return;
-    await _goToBlockedScreen(
-      'Akun Anda ditangguhkan karena memaksa melepas kuncian layar (pinned screen) saat kuis berlangsung.',
-    );
+    await _goToBlockedScreen(userMessage);
   }
 
   // ─── App Lifecycle: deteksi minimize / background ────────────────────────

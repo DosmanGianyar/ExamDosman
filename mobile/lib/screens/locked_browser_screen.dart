@@ -61,6 +61,8 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
       if (!mounted) return;
       await _checkBlockedOnStart();
       if (!mounted) return;
+      await _checkVirtualAndClonedEnvironment();
+      if (!mounted) return;
       await _checkDeviceSecurity();
       await _checkRootStatus();
       await _checkAccessibilityServices();
@@ -182,16 +184,219 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
     });
   }
 
+  /// Cek apakah aplikasi berjalan di Virtual Machine atau Ruang Ganda / Kloning.
+  Future<void> _checkVirtualAndClonedEnvironment() async {
+    final username = (await AuthService.getUsername()).toLowerCase().trim();
+    final isReviewer = username == 'playstore.review' || username == 'appstore.review';
+    if (isReviewer) return;
+
+    final isVm = await KioskController.instance.checkVirtualEnvironment();
+    if (isVm && mounted) {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1C1917),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 24),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Virtual Machine Terdeteksi',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Aplikasi terdeteksi berjalan di dalam Virtual Machine / Emulator (seperti VMOS, VPhoneGaGa, F1 VM, atau sandbox sejenis).\n\n'
+            'Demi integritas dan kejujuran ujian, aplikasi Dosman Exam WAJIB dijalankan langsung di HP fisik utama Anda.',
+            style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.6),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await AuthService.logout();
+                if (mounted) {
+                  KioskController.instance.unlock();
+                  Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Keluar Aplikasi'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final isCloned = await KioskController.instance.checkClonedApp();
+    if (isCloned && mounted) {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1C1917),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.content_copy, color: Color(0xFFEF4444), size: 24),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Aplikasi Kloning Terdeteksi',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Aplikasi terdeteksi berjalan di Ruang Ganda / Profil Kerja / Aplikasi Kloning (Xiaomi Dual Apps, Samsung Secure Folder, Parallel Space, Island, dll).\n\n'
+            'Silakan buka aplikasi Dosman Exam di profil/ruang utama HP Anda.',
+            style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.6),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await AuthService.logout();
+                if (mounted) {
+                  KioskController.instance.unlock();
+                  Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Keluar Aplikasi'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final isSplit = await KioskController.instance.isSplitScreenActive();
+    if (isSplit && mounted) {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1C1917),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.splitscreen, color: Color(0xFFEF4444), size: 24),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Layar Terbagi Terdeteksi',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Tampilan layar terbagi (Split Screen) atau jendela mengambang terdeteksi.\n\n'
+            'Ubah tampilan ke layar penuh (Full Screen) untuk mengikuti ujian.',
+            style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.6),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Saya Sudah Layar Penuh'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
   /// Cek USB Debugging / Developer Mode saat screen pertama kali aktif.
   Future<void> _checkDeviceSecurity() async {
     final flags = await KioskController.instance.checkDeviceSecurityFlags();
     if (flags == null || !mounted) return;
     if (!flags.usbDebugging && !flags.developerMode) return;
 
+    final username = (await AuthService.getUsername()).toLowerCase().trim();
+    final isReviewer = username == 'playstore.review' || username == 'appstore.review';
+    if (!mounted) return;
+
+    if (!isReviewer && flags.usbDebugging) {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1C1917),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.usb, color: Color(0xFFEF4444), size: 24),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'USB Debugging Aktif',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            'USB Debugging terdeteksi aktif di perangkat Anda.\n\n'
+            'Pengaturan ini dapat disalahgunakan untuk proyeksi layar atau kendali jarak jauh (seperti scrcpy). '
+            'Anda WAJIB mematikan USB Debugging di menu Pengaturan HP → Opsi Pengembang sebelum melanjutkan ujian.',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              height: 1.6,
+            ),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await AuthService.logout();
+                if (mounted) {
+                  KioskController.instance.unlock();
+                  Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text(
+                'Keluar & Matikan Debugging',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     final issues = <String>[];
     if (flags.usbDebugging)  issues.add('• USB Debugging aktif');
     if (flags.developerMode) issues.add('• Mode Developer aktif');
 
+    if (!mounted) return;
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -756,13 +961,46 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
       } catch (_) {}
     }
 
-    // Jika pelanggaran adalah melepas pinned screen (alarm aktif) → suspend akun siswa
-    if (violationReason == 'lock_task_lost' || violationReason.contains('unpin')) {
+    // Jika pelanggaran keamanan (unpin, split screen, VM, cloned app, Bluetooth, screen cast)
+    final fatalReasons = [
+      'lock_task_lost',
+      'unpin',
+      'split_screen',
+      'virtual_environment',
+      'cloned_app',
+      'screen_cast',
+      'bluetooth_audio',
+    ];
+
+    if (fatalReasons.any((r) => violationReason.contains(r))) {
+      String userMessage = 'Akun Anda ditangguhkan karena pelanggaran keamanan ujian. Harap segera melapor ke pengawas ujian.';
+      String serverReason = 'Pelanggaran keamanan: $violationReason';
+
+      if (violationReason == 'lock_task_lost' || violationReason.contains('unpin')) {
+        userMessage = 'Akun Anda ditangguhkan karena Anda memaksa melepas kuncian layar (pinned screen). Harap segera melapor ke pengawas ujian.';
+        serverReason = 'Siswa memaksa melepas pinned screen (alarm aktif)';
+      } else if (violationReason == 'split_screen') {
+        userMessage = 'Akun Anda ditangguhkan karena Anda terdeteksi menggunakan tampilan layar terbagi (Split Screen / Floating Window) saat ujian.';
+        serverReason = 'Siswa menggunakan split screen / floating window';
+      } else if (violationReason == 'virtual_environment') {
+        userMessage = 'Akun Anda ditangguhkan karena aplikasi terdeteksi berjalan di Virtual Machine / Emulator.';
+        serverReason = 'Siswa menjalankan aplikasi di Virtual Machine';
+      } else if (violationReason == 'cloned_app') {
+        userMessage = 'Akun Anda ditangguhkan karena aplikasi terdeteksi berjalan di Ruang Ganda / Aplikasi Kloning.';
+        serverReason = 'Siswa menjalankan aplikasi di Ruang Ganda / Aplikasi Kloning';
+      } else if (violationReason == 'screen_cast') {
+        userMessage = 'Akun Anda ditangguhkan karena terdeteksi menyambungkan layar ke perangkat lain (Screen Cast / Mirroring).';
+        serverReason = 'Siswa menyambungkan screen cast / mirroring';
+      } else if (violationReason == 'bluetooth_audio') {
+        userMessage = 'Akun Anda ditangguhkan karena terdeteksi menyambungkan perangkat audio Bluetooth (earphone / TWS) saat ujian.';
+        serverReason = 'Siswa menyambungkan audio Bluetooth';
+      }
+
       if (userId > 0) {
         try {
           await ExamService.suspendStudent(
             userId: userId,
-            reason: 'Siswa memaksa melepas pinned screen (alarm aktif)',
+            reason: serverReason,
           );
         } catch (_) {}
       }
@@ -775,7 +1013,7 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
         MaterialPageRoute(
           builder: (_) => BlockedScreen(
             userId: userId,
-            reason: 'Akun Anda ditangguhkan karena Anda memaksa melepas kuncian layar (pinned screen). Harap segera melapor ke pengawas ujian.',
+            reason: userMessage,
           ),
         ),
         (route) => false,

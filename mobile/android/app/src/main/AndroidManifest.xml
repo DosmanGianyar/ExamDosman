@@ -40,6 +40,7 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize"
             android:screenOrientation="portrait"
+            android:resizeableActivity="false"
             android:lockTaskMode="always">
 
             <meta-data

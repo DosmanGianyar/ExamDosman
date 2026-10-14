@@ -62,6 +62,10 @@ class KioskController {
         _notifyViolation('lock_task_lost');
       case 'onSplitScreenDetected':
         _notifyViolation('split_screen');
+      case 'onVirtualEnvironmentDetected':
+        _notifyViolation('virtual_environment');
+      case 'onClonedAppDetected':
+        _notifyViolation('cloned_app');
       case 'onOverlayDetected':
         _notifyViolation('overlay');
       case 'onScreenCastDetected':
@@ -196,8 +200,50 @@ class KioskController {
     } catch (_) {}
   }
 
+  /// Beritahu native apakah pengguna saat ini adalah akun reviewer.
+  Future<void> setReviewerMode(bool isReviewer) async {
+    try {
+      await _channel.invokeMethod('setReviewerMode', {'isReviewer': isReviewer});
+    } catch (_) {}
+  }
+
+  /// Cek apakah aplikasi berjalan di Virtual Machine (VMOS, VPhone, dll.)
+  Future<bool> checkVirtualEnvironment() async {
+    try {
+      final res = await _channel.invokeMethod<bool>('checkVirtualEnvironment');
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Cek apakah aplikasi berjalan di Ruang Ganda / Kloning (Dual App, Parallel Space, dll.)
+  Future<bool> checkClonedApp() async {
+    try {
+      final res = await _channel.invokeMethod<bool>('checkClonedApp');
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Cek apakah tampilan saat ini dalam split-screen atau floating window
+  Future<bool> isSplitScreenActive() async {
+    try {
+      final res = await _channel.invokeMethod<bool>('isSplitScreenActive');
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Aktifkan kunci penuh — dipanggil tepat setelah login berhasil.
   Future<void> lock({int? userId}) async {
+    try {
+      final username = (await AuthService.getUsername()).toLowerCase().trim();
+      final isReviewer = username == 'playstore.review' || username == 'appstore.review';
+      await setReviewerMode(isReviewer);
+    } catch (_) {}
     try { await _channel.invokeMethod('enableLockdown'); }   catch (_) {}
     try {
       final effectiveId = (userId != null && userId > 0) ? userId : await AuthService.getUserId();
