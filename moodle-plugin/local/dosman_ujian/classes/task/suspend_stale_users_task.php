@@ -23,15 +23,10 @@ class suspend_stale_users_task extends \core\task\scheduled_task {
     }
 
     public function execute(): void {
-        $now = time();
-
-        $n1 = $this->suspend_stale_app_ping($now);
-        $n2 = $this->suspend_stale_heartbeat($now);
-
-        if ($n1 + $n2 > 0) {
-            mtrace("dosman_ujian: suspended " . ($n1 + $n2) .
-                   " user(s) [app_ping={$n1}, heartbeat={$n2}]");
-        }
+        // FIX: Kehilangan koneksi internet (Wi-Fi drop / signal loss) BUKAN bentuk kecurangan.
+        // Auto-suspend via cron dinonaktifkan agar siswa tidak tersuspend false-positive
+        // saat jaringan internet sekolah terputus sementara waktu.
+        return;
     }
 
     /**
