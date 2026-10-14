@@ -893,7 +893,7 @@
 
                 <!-- QR Barcode Scanner Area -->
                 <div class="qr-col">
-                  <div class="qr-code-box" id="${qrId}" data-username="${escapeHtml(s.username)}"></div>
+                  <div class="qr-code-box" id="${qrId}" data-username="${escapeHtml(s.username)}" data-name="${escapeHtml(s.student_name || s.name || s.firstname || '')}"></div>
                   <span class="qr-caption">Scan Login</span>
                 </div>
               </div>
@@ -928,10 +928,11 @@
       setTimeout(() => {
         document.querySelectorAll('.qr-code-box[data-username]').forEach(el => {
           const uname = el.getAttribute('data-username');
+          const sname = el.getAttribute('data-name') || '';
           if (!uname) return;
 
           // Payload QR format kompatibel dengan Flutter QR Scanner
-          const payload = `DOSMAN_LOGIN:${uname}:${defaultPass}`;
+          const payload = sname ? `DOSMAN_LOGIN:${uname}:${defaultPass}:${sname}` : `DOSMAN_LOGIN:${uname}:${defaultPass}`;
 
           el.innerHTML = '';
           try {

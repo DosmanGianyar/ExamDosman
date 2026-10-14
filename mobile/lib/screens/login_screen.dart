@@ -166,20 +166,204 @@ class _LoginScreenState extends State<LoginScreen>
     final creds = await QrLoginScannerDialog.show(context);
     if (creds == null || !mounted) return;
 
-    final u = creds['username'] ?? '';
-    final p = creds['password'] ?? '';
-    if (u.isNotEmpty && p.isNotEmpty) {
+    final u = (creds['username'] ?? '').trim();
+    final p = (creds['password'] ?? '').trim();
+    final rawName = (creds['name'] ?? '').trim();
+    final displayName = rawName.isNotEmpty ? rawName : u;
+
+    if (u.isEmpty || p.isEmpty) {
+      _showError('Format barcode kartu ujian tidak valid');
+      return;
+    }
+
+    // Tampilkan dialog konfirmasi:
+    // "Anda akan login dengan user [nama siswa]. Jika benar maka next jika salah maka back"
+    final bool? isConfirmed = await _showScanConfirmDialog(displayName, u);
+
+    if (isConfirmed == true && mounted) {
       _userCtrl.text = u;
       _passCtrl.text = p;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Kartu peserta terdeteksi! Memulai login otomatis...'),
-          duration: Duration(seconds: 2),
-          backgroundColor: Color(0xFF16A34A),
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Login sebagai $displayName...',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          duration: const Duration(seconds: 2),
+          backgroundColor: const Color(0xFF16A34A),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
       _doLogin();
+    } else {
+      // Siswa memilih 'Back' / Batal
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Login dibatalkan. Silakan scan ulang kartu atau masukkan manual.'),
+            duration: const Duration(seconds: 2),
+            backgroundColor: const Color(0xFF475569),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
     }
+  }
+
+  /// Dialog konfirmasi setelah scan barcode:
+  /// Menampilkan "Anda akan login dengan user [nama siswa]. Jika benar maka next jika salah maka back"
+  Future<bool?> _showScanConfirmDialog(String displayName, String username) {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        backgroundColor: const Color(0xFF0F172A),
+        contentPadding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Avatar / Icon
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2563EB).withValues(alpha: 0.18),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFF3B82F6).withValues(alpha: 0.35),
+                  width: 2,
+                ),
+              ),
+              child: const Icon(
+                Icons.person_rounded,
+                color: Color(0xFF60A5FA),
+                size: 32,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Konfirmasi Akun Peserta',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Column(
+                children: [
+                  const Text(
+                    'Anda akan login dengan user:',
+                    style: TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    displayName,
+                    style: const TextStyle(
+                      color: Color(0xFFFDE047),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  if (displayName != username && username.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      '@$username',
+                      style: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 11,
+                        fontFamily: 'monospace',
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Apakah data peserta di atas sudah benar?',
+              style: TextStyle(
+                color: Color(0xFFCBD5E1),
+                fontSize: 12,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                // Tombol Back (Salah)
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                    icon: const Icon(Icons.arrow_back_rounded, size: 16),
+                    label: const Text(
+                      'Back',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF94A3B8),
+                      side: const BorderSide(color: Color(0xFF334155), width: 1.5),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Tombol Next (Benar)
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    icon: const Text(
+                      'Next',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                    ),
+                    label: const Icon(Icons.arrow_forward_rounded, size: 16),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showError(String msg) {
@@ -249,11 +433,9 @@ class _LoginScreenState extends State<LoginScreen>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           _buildHeader(),
-                          const SizedBox(height: 18),
-                          _buildVisi(),
-                          const SizedBox(height: 18),
+                          const SizedBox(height: 22),
                           _buildLoginCard(),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 22),
                           _buildFooter(),
                         ],
                       ),
@@ -411,97 +593,12 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // ─── Visi ─────────────────────────────────────────────────────────────────
-
-  Widget _buildVisi() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
-      decoration: BoxDecoration(
-        color:        Colors.white.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(16),
-        border:       Border.all(color: Colors.white.withValues(alpha: 0.14), width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Label VISI
-          Row(
-            children: [
-              Container(
-                width: 3,
-                height: 14,
-                decoration: BoxDecoration(
-                  color:        const Color(0xFFD4A017),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'V I S I',
-                style: TextStyle(
-                  color:         Colors.white.withValues(alpha: 0.85),
-                  fontSize:      10,
-                  fontWeight:    FontWeight.w800,
-                  letterSpacing: 3.0,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          // Tanda kutip besar
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '“',
-                style: TextStyle(
-                  color:    const Color(0xFFD4A017).withValues(alpha: 0.80),
-                  fontSize: 36,
-                  height:   0.7,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(width: 4),
-              const Expanded(
-                child: Text(
-                  'Insan Cerdas, Sarat Prestasi, Berkarakter, Berbudaya, '
-                  'Peduli Lingkungan, dan Berwawasan Global',
-                  style: TextStyle(
-                    color:     Colors.white,
-                    fontSize:  12,
-                    fontStyle: FontStyle.italic,
-                    height:    1.6,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              '”',
-              style: TextStyle(
-                color:    const Color(0xFFD4A017).withValues(alpha: 0.80),
-                fontSize: 36,
-                height:   0.7,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   // ─── Login Card ───────────────────────────────────────────────────────────
 
   Widget _buildLoginCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(26, 26, 26, 24),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 22),
       decoration: BoxDecoration(
         color:        Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -552,7 +649,7 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                     ),
                     Text(
-                      'Masukkan akun Moodle Anda',
+                      'Masuk melalui barcode kartu atau akun Moodle',
                       style: TextStyle(
                         fontSize: 11,
                         color:    Color(0xFF94A3B8),
@@ -563,18 +660,28 @@ class _LoginScreenState extends State<LoginScreen>
               ],
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
-            // Divider
+            // Divider halus
             Container(height: 1, color: const Color(0xFFF1F5F9)),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             // Error alert
             if (_errorMsg.isNotEmpty) ...[
               _buildErrorAlert(),
               const SizedBox(height: 16),
             ],
+
+            // ── TOMBOL AKSES KAMERA / SCAN BARCODE KARTU UJIAN ──────────────
+            _buildCameraScanHeroButton(),
+
+            const SizedBox(height: 18),
+
+            // Divider "ATAU MASUK MANUAL"
+            _buildOrDivider(),
+
+            const SizedBox(height: 18),
 
             // Username
             _buildFieldLabel('Username', Icons.person_outline_rounded),
@@ -588,18 +695,121 @@ class _LoginScreenState extends State<LoginScreen>
             const SizedBox(height: 7),
             _buildPasswordField(),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 22),
 
-            // Tombol Login
+            // Tombol Login Manual
             _buildLoginButton(),
-
-            const SizedBox(height: 12),
-
-            // Tombol Scan Kartu Ujian (QR Code)
-            _buildScanQrButton(),
           ],
         ),
       ),
+    );
+  }
+
+  /// Tombol utama akses kamera untuk memindai barcode / QR kartu ujian
+  Widget _buildCameraScanHeroButton() {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1E3A8A), Color(0xFF2563EB), Color(0xFF0284C7)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2563EB).withValues(alpha: 0.35),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _isLoading ? null : _scanQrCard,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: const Icon(
+                    Icons.qr_code_scanner_rounded,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Scan Barcode Kartu Ujian',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Buka kamera & arahkan ke kartu ujian',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.camera_alt_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Garis pembatas elegan dengan teks ATAU MASUK MANUAL
+  Widget _buildOrDivider() {
+    return Row(
+      children: [
+        const Expanded(child: Divider(color: Color(0xFFE2E8F0), thickness: 1)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            'ATAU MASUK MANUAL',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF94A3B8),
+              letterSpacing: 0.8,
+            ),
+          ),
+        ),
+        const Expanded(child: Divider(color: Color(0xFFE2E8F0), thickness: 1)),
+      ],
     );
   }
 
@@ -742,7 +952,13 @@ class _LoginScreenState extends State<LoginScreen>
       autofillHints:        const [AutofillHints.username],
       enabled:              !_isLoading,
       style:                const TextStyle(fontSize: 14, color: Color(0xFF0F172A)),
-      decoration:           _inputDeco(hint: 'username atau email Moodle', icon: Icons.person_outline_rounded),
+      decoration:           _inputDeco(hint: 'username atau email Moodle', icon: Icons.person_outline_rounded).copyWith(
+        suffixIcon: IconButton(
+          icon: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF2563EB), size: 20),
+          tooltip: 'Scan Barcode Kartu Ujian',
+          onPressed: _isLoading ? null : _scanQrCard,
+        ),
+      ),
       onFieldSubmitted:     (_) => _passFocus.requestFocus(),
       validator: (v) => (v == null || v.trim().isEmpty) ? 'Username wajib diisi' : null,
     );
@@ -872,33 +1088,6 @@ class _LoginScreenState extends State<LoginScreen>
                     ),
                   ],
                 ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildScanQrButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: OutlinedButton.icon(
-        onPressed: _isLoading ? null : _scanQrCard,
-        icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
-        label: const Text(
-          'Pindai Kartu Ujian (QR Code)',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.3,
-          ),
-        ),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xFF2563EB),
-          side: const BorderSide(color: Color(0xFF93C5FD), width: 1.5),
-          backgroundColor: const Color(0xFFEFF6FF),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
         ),
       ),
     );

@@ -48,41 +48,52 @@ class _QrLoginScannerDialogState extends State<QrLoginScannerDialog> {
 
     String? username;
     String? password;
+    String? name;
 
-    // Format 1: JSON {"username": "...", "password": "..."}
+    // Format 1: JSON {"username": "...", "password": "...", "name": "..."}
     if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
       try {
         final decoded = json.decode(trimmed);
         if (decoded is Map) {
           username = (decoded['username'] ?? decoded['user'])?.toString().trim();
           password = (decoded['password'] ?? decoded['pass'])?.toString();
+          name = (decoded['name'] ?? decoded['nama'])?.toString().trim();
         }
       } catch (_) {}
     }
 
-    // Format 2: Prefix DOSMAN_LOGIN:user:pass atau DOSMAN:user:pass
+    // Format 2: Prefix DOSMAN_LOGIN:user:pass:name atau DOSMAN:user:pass:name
     if (username == null || password == null) {
       if (trimmed.toUpperCase().startsWith('DOSMAN_LOGIN:')) {
         final parts = trimmed.substring('DOSMAN_LOGIN:'.length).split(':');
         if (parts.length >= 2) {
           username = parts[0].trim();
-          password = parts.sublist(1).join(':');
+          password = parts[1].trim();
+          if (parts.length >= 3) {
+            name = parts.sublist(2).join(':').trim();
+          }
         }
       } else if (trimmed.toUpperCase().startsWith('DOSMAN:')) {
         final parts = trimmed.substring('DOSMAN:'.length).split(':');
         if (parts.length >= 2) {
           username = parts[0].trim();
-          password = parts.sublist(1).join(':');
+          password = parts[1].trim();
+          if (parts.length >= 3) {
+            name = parts.sublist(2).join(':').trim();
+          }
         }
       }
     }
 
-    // Format 3: Plain username:password
+    // Format 3: Plain username:password atau username:password:name
     if (username == null || password == null) {
       final parts = trimmed.split(':');
-      if (parts.length == 2 && parts[0].isNotEmpty && parts[1].isNotEmpty) {
+      if (parts.length >= 2 && parts[0].isNotEmpty && parts[1].isNotEmpty) {
         username = parts[0].trim();
-        password = parts[1];
+        password = parts[1].trim();
+        if (parts.length >= 3) {
+          name = parts.sublist(2).join(':').trim();
+        }
       }
     }
 
@@ -92,6 +103,7 @@ class _QrLoginScannerDialogState extends State<QrLoginScannerDialog> {
       Navigator.of(context).pop({
         'username': username,
         'password': password,
+        'name': (name != null && name.isNotEmpty) ? name : username,
       });
     } else {
       setState(() {
