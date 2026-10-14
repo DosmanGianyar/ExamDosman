@@ -115,8 +115,21 @@
       <div class="card">
         <div class="card-header">
           <div class="card-title-group">
-            <h2 class="card-title">&#x1F4CB; Pemantauan Peserta Ujian Moodle Real-Time</h2>
+            <h2 class="card-title" id="card-monitor-title">&#x1F5A5;&#xFE0F; Pemantauan Peserta Ujian Sedang Login (Live Real-Time)</h2>
             <span class="card-subtitle" id="filtered-count">Memuat data monitoring...</span>
+          </div>
+
+          <!-- Mode Toggle: Sedang Login (Live) vs Semua Akun Terdaftar (Direktori) -->
+          <div class="segmented-control" style="display:inline-flex; background:rgba(15,23,42,0.65); padding:4px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); gap:6px;">
+            <button type="button" id="btn-mode-live" class="btn btn-sm" onclick="DosmanApp.setListMode('live')" style="background:var(--primary); color:#fff; font-weight:600; border-radius:8px; padding:6px 14px; border:none; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
+              <span class="status-dot" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981; box-shadow:0 0 8px #10b981;"></span>
+              <span>Sedang Login (Live)</span>
+              <span id="badge-count-live" style="background:rgba(16,185,129,0.25); color:#6ee7b7; padding:2px 8px; border-radius:12px; font-size:0.75rem; font-weight:700;">0</span>
+            </button>
+            <button type="button" id="btn-mode-all" class="btn btn-sm" onclick="DosmanApp.setListMode('all')" style="background:transparent; color:var(--text-dim); font-weight:600; border-radius:8px; padding:6px 14px; border:none; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
+              <span>&#x1F465; Semua Akun Terdaftar</span>
+              <span id="badge-count-all" style="background:rgba(255,255,255,0.1); color:var(--text-muted); padding:2px 8px; border-radius:12px; font-size:0.75rem; font-weight:700;">857</span>
+            </button>
           </div>
 
           <div class="toolbar" style="flex-wrap: wrap; gap: 10px;">
@@ -552,8 +565,8 @@
 
   <!-- ─── SCRIPTS ───────────────────────────────────────────────────────── -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="js/config.js?v=3.2.0"></script>
-  <script src="js/auth.js?v=3.2.0"></script>
-  <script src="js/app.js?v=3.2.0"></script>
+  <script src="js/config.js?v=3.3.0"></script>
+  <script src="js/auth.js?v=3.3.0"></script>
+  <script src="js/app.js?v=3.3.0"></script>
 </body>
 </html>

@@ -13,6 +13,7 @@
     token: '',
     username: 'Guru',
     activeTab: 'live-monitor',
+    listMode: 'live', // 'live' = Siswa Sedang Login / Ujian (Active Only), 'all' = Semua Akun Terdaftar (Direktori)
     liveUsers: [],
     deviceBlocked: [],
     suspendedStudents: [],
@@ -260,8 +261,8 @@
     const total = users.length;
     const onlineUsers = users.filter(u => u.is_online === 1);
     const onlineCount = onlineUsers.length;
-    const inQuiz = users.filter(u => u.current_quizid > 0 && (u.is_online === 1 || u.lock_status === 1 || u.client_type === 'ios')).length;
-    const standby = users.filter(u => u.current_quizid === 0 && u.is_online === 1).length;
+    const inQuiz = users.filter(u => u.is_online === 1 && u.current_quizid > 0).length;
+    const standby = users.filter(u => u.is_online === 1 && u.current_quizid === 0).length;
     const blocked = users.filter(u => u.lock_status === 2 || u.lock_status === 3).length;
 
     const elTotal = document.getElementById('kpi-total');
@@ -269,6 +270,8 @@
     const elStandby = document.getElementById('kpi-standby');
     const elBlocked = document.getElementById('kpi-blocked');
     const tabBadge = document.getElementById('tab-badge-live');
+    const badgeCountLive = document.getElementById('badge-count-live');
+    const badgeCountAll = document.getElementById('badge-count-all');
 
     if (elTotal) {
       elTotal.innerHTML = `${onlineCount} <span style="font-size:0.95rem; font-weight:400; color:var(--text-dim);">/ ${total}</span>`;
@@ -276,7 +279,33 @@
     if (elInQuiz) elInQuiz.textContent = inQuiz;
     if (elStandby) elStandby.textContent = standby;
     if (elBlocked) elBlocked.textContent = blocked;
-    if (tabBadge) tabBadge.textContent = onlineCount > 0 ? onlineCount : total;
+    if (tabBadge) tabBadge.textContent = onlineCount;
+    if (badgeCountLive) badgeCountLive.textContent = onlineCount;
+    if (badgeCountAll) badgeCountAll.textContent = total;
+  }
+
+  function setListMode(mode) {
+    state.listMode = mode;
+    const btnLive = document.getElementById('btn-mode-live');
+    const btnAll = document.getElementById('btn-mode-all');
+    const cardTitle = document.getElementById('card-monitor-title');
+
+    if (btnLive && btnAll) {
+      if (mode === 'live') {
+        btnLive.style.background = 'var(--primary)';
+        btnLive.style.color = '#fff';
+        btnAll.style.background = 'transparent';
+        btnAll.style.color = 'var(--text-dim)';
+        if (cardTitle) cardTitle.innerHTML = '&#x1F5A5;&#xFE0F; Pemantauan Peserta Ujian Sedang Login (Live Real-Time)';
+      } else {
+        btnAll.style.background = 'var(--primary)';
+        btnAll.style.color = '#fff';
+        btnLive.style.background = 'transparent';
+        btnLive.style.color = 'var(--text-dim)';
+        if (cardTitle) cardTitle.innerHTML = '&#x1F465; Direktori Semua Akun Siswa Terdaftar (LMS Moodle)';
+      }
+    }
+    renderLiveMonitorTable();
   }
 
   function rebuildClassFilterOptions() {
@@ -352,6 +381,12 @@
     const selectedPlatform = platformSelect ? platformSelect.value : '';
 
     return state.liveUsers.filter(u => {
+      // 0. Mode Filter (Sedang Login / Live vs Semua Akun Terdaftar)
+      if (state.listMode === 'live') {
+        const isLive = (u.is_online === 1) || (u.lock_status === 2 || u.lock_status === 3) || (u.current_quizid > 0);
+        if (!isLive) return false;
+      }
+
       // 1. Platform filter
       if (selectedPlatform) {
         if (selectedPlatform === 'android' && u.client_type !== 'android') return false;
@@ -397,7 +432,7 @@
       if (selectedStatus === 'online') {
         if (u.is_online !== 1) return false;
       } else if (selectedStatus === 'inquiz') {
-        if (!(u.current_quizid > 0 && (u.is_online === 1 || u.lock_status === 1 || u.client_type === 'ios'))) return false;
+        if (!(u.current_quizid > 0 && u.is_online === 1)) return false;
       } else if (selectedStatus === 'standby') {
         if (!(u.current_quizid === 0 && u.is_online === 1)) return false;
       } else if (selectedStatus === 'paused') {
@@ -460,20 +495,47 @@
     if (!tbody) return;
 
     const filtered = getFilteredLiveUsers();
-    if (countBadge) countBadge.textContent = `${filtered.length} peserta ditampilkan`;
+    if (countBadge) {
+      if (state.listMode === 'live') {
+        countBadge.textContent = `${filtered.length} peserta sedang login (Live)`;
+      } else {
+        countBadge.textContent = `${filtered.length} dari ${state.liveUsers.length} total akun siswa terdaftar`;
+      }
+    }
 
     if (filtered.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="8">
-            <div class="empty-state">
-              <div class="empty-icon">&#x1F4CB;</div>
-              <div class="empty-title">Tidak Ada Siswa Sesuai Filter</div>
-              <div class="empty-desc">Tidak ditemukan siswa yang sesuai dengan kata kunci atau filter Moodle yang dipilih.</div>
-            </div>
-          </td>
-        </tr>
-      `;
+      if (state.listMode === 'live') {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8">
+              <div class="empty-state" style="padding:45px 20px; text-align:center;">
+                <div class="empty-icon" style="font-size:2.8rem; margin-bottom:10px;">🟢</div>
+                <div class="empty-title" style="font-size:1.15rem; font-weight:700; color:#fff;">Tidak Ada Siswa yang Sedang Login</div>
+                <div class="empty-desc" style="color:var(--text-dim); max-width:540px; margin:8px auto 16px; font-size:0.875rem; line-height:1.5;">
+                  Saat ini belum ada siswa yang membuka aplikasi CBT dan terhubung ke server ujian Moodle. Sesi login siswa akan otomatis muncul secara real-time di sini begitu mereka masuk.
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="DosmanApp.setListMode('all')" style="display:inline-flex; align-items:center; gap:6px;">
+                  <span>👥 Buka Direktori Semua Akun Siswa (857 Terdaftar)</span>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      } else {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8">
+              <div class="empty-state" style="padding:45px 20px; text-align:center;">
+                <div class="empty-icon" style="font-size:2.8rem; margin-bottom:10px;">📋</div>
+                <div class="empty-title" style="font-size:1.15rem; font-weight:700; color:#fff;">Tidak Ada Siswa Sesuai Filter</div>
+                <div class="empty-desc" style="color:var(--text-dim); max-width:500px; margin:8px auto 16px; font-size:0.875rem;">
+                  Tidak ditemukan siswa yang sesuai dengan kata kunci atau filter Moodle yang dipilih.
+                </div>
+              </div>
+            </td>
+          </tr>
+        `;
+      }
       return;
     }
 
@@ -482,9 +544,9 @@
       const isBlocked = u.lock_status === 2;
       const isPaused = u.lock_status === 3;
       const isOnline = u.is_online === 1;
-      const isOnQuiz = u.current_quizid > 0 && (isOnline || u.lock_status === 1 || u.client_type === 'ios');
-      const isIOS = u.client_type === 'ios';
-      const isAndroid = u.client_type === 'android';
+      const isOnQuiz = isOnline && (u.current_quizid > 0);
+      const isIOS = isOnline && (u.client_type === 'ios');
+      const isAndroid = isOnline && (u.client_type === 'android');
 
       // Status Badge
       let statusBadge = '';
@@ -496,20 +558,22 @@
         statusBadge = '<span class="badge badge-success">&#x270D;&#xFE0F; Sedang Kuis</span>';
       } else if (isOnline) {
         statusBadge = '<span class="badge badge-info">🟢 Online (Standby)</span>';
-      } else if (u.lastping > 0) {
-        statusBadge = '<span class="badge badge-secondary" style="opacity:0.75;">&#x26AA; Offline</span>';
       } else {
-        statusBadge = '<span class="badge badge-secondary" style="opacity:0.5;">&#x26AA; Belum Masuk</span>';
+        statusBadge = '<span class="badge badge-secondary" style="opacity:0.55;">&#x26AA; Belum Login</span>';
       }
 
-      // Platform Badge
+      // Platform Badge: Hanya tampilkan iOS/Android jika siswa BENAR-BENAR sedang online
       let platformBadge = '';
-      if (isIOS) {
-        platformBadge = '<span class="badge badge-ios">&#x1F34E; iOS / Apple</span>';
-      } else if (isAndroid) {
-        platformBadge = '<span class="badge badge-android">&#x1F916; Android</span>';
+      if (isOnline) {
+        if (isIOS) {
+          platformBadge = '<span class="badge badge-ios">&#x1F34E; iOS / Apple</span>';
+        } else if (isAndroid) {
+          platformBadge = '<span class="badge badge-android">&#x1F916; Android</span>';
+        } else {
+          platformBadge = '<span class="badge badge-primary">&#x1F4F1; CBT App</span>';
+        }
       } else {
-        platformBadge = '<span class="badge badge-secondary" style="opacity:0.6;">&#x1F4F1; Belum Login</span>';
+        platformBadge = '<span class="badge badge-secondary" style="opacity:0.5;">— (Offline)</span>';
       }
 
       // Pisahkan 4 Komponen Data: No Absen, Nama Bersih, Kelas, dan Tahun Masuk
@@ -1586,6 +1650,7 @@
     unsuspendStudent: unsuspendStudent,
     unblockDevice: unblockDevice,
     toggleSuspendedSelect: toggleSuspendedSelect,
+    setListMode: setListMode,
     onGradeChange: function() {
       rebuildClassFilterOptions();
       renderLiveMonitorTable();

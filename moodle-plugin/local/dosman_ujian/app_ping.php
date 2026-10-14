@@ -85,6 +85,17 @@ try {
 
     $now = time();
     $ip  = $_SERVER['REMOTE_ADDR'] ?? '';
+    $platform = trim((string)($body['platform'] ?? ''));
+    if (empty($platform)) {
+        $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        if (stripos($ua, 'iPhone') !== false || stripos($ua, 'iPad') !== false || stripos($ua, 'Darwin') !== false || stripos($ua, 'CFNetwork') !== false) {
+            $platform = 'ios';
+        } else if (stripos($ua, 'Android') !== false) {
+            $platform = 'android';
+        } else {
+            $platform = 'unknown';
+        }
+    }
 
     // Ambil lock_status saat ini (jika ada)
     $stmtCur = $pdo->prepare(
@@ -98,9 +109,9 @@ try {
         // Belum ada record → insert baru dengan lock_status = 1
         $pdo->prepare(
             "INSERT INTO {$prefix}local_dosman_ujian_appstatus
-                (userid, lastping, ipaddress, lock_status, current_quizid)
-             VALUES (?, ?, ?, 1, 0)"
-        )->execute([$userid, $now, $ip]);
+                (userid, lastping, ipaddress, lock_status, current_quizid, platform)
+             VALUES (?, ?, ?, 1, 0, ?)"
+        )->execute([$userid, $now, $ip, $platform]);
         $finalStatus = 1;
     } else {
         $currentStatus = (int)$currentStatus;
@@ -108,17 +119,17 @@ try {
             // Diblokir atau dijeda — hanya update lastping, jangan ubah lock_status
             $pdo->prepare(
                 "UPDATE {$prefix}local_dosman_ujian_appstatus
-                    SET lastping = ?, ipaddress = ?
+                    SET lastping = ?, ipaddress = ?, platform = ?
                   WHERE userid = ?"
-            )->execute([$now, $ip, $userid]);
+            )->execute([$now, $ip, $platform, $userid]);
             $finalStatus = $currentStatus;
         } else {
             // Normal → set lock_status = 1 (aktif), update lastping
             $pdo->prepare(
                 "UPDATE {$prefix}local_dosman_ujian_appstatus
-                    SET lastping = ?, ipaddress = ?, lock_status = 1
+                    SET lastping = ?, ipaddress = ?, lock_status = 1, platform = ?
                   WHERE userid = ?"
-            )->execute([$now, $ip, $userid]);
+            )->execute([$now, $ip, $platform, $userid]);
             $finalStatus = 1;
         }
     }

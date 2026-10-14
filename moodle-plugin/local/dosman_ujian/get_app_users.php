@@ -92,13 +92,17 @@ try {
                    IFNULL(a.current_quizid, 0) AS current_quizid,
                    IFNULL(q.name, '') AS quiz_name,
                    CASE 
-                     WHEN a.lock_status > 0 THEN 'android'
-                     WHEN a.lock_status = 0 THEN 'ios'
-                     ELSE 'unknown'
+                     WHEN (a.lastping IS NOT NULL AND a.lastping > UNIX_TIMESTAMP() - 300 AND a.lock_status IN (1, 2, 3)) THEN
+                       CASE 
+                         WHEN a.platform = 'ios' THEN 'ios'
+                         WHEN a.platform = 'android' THEN 'android'
+                         ELSE 'cbt_app'
+                       END
+                     ELSE 'none'
                    END AS client_type,
                    GROUP_CONCAT(DISTINCT c.name SEPARATOR ', ') AS cohort_names,
                    CASE
-                     WHEN (a.lastping IS NOT NULL AND a.lastping > UNIX_TIMESTAMP() - 900 AND a.lock_status IN (0, 1)) THEN 1
+                     WHEN (a.lastping IS NOT NULL AND a.lastping > UNIX_TIMESTAMP() - 300 AND a.lock_status IN (1, 2, 3)) THEN 1
                      ELSE 0
                    END AS is_online
               FROM {$prefix}user u
@@ -108,7 +112,7 @@ try {
               LEFT JOIN {$prefix}cohort c ON c.id = cm.cohortid
              WHERE u.deleted = 0 
                AND u.suspended = 0
-               AND (a.id IS NOT NULL OR c.name LIKE 'Kelas%' OR u.id = 580)
+               AND (a.id IS NOT NULL OR c.name LIKE 'Kelas%' OR u.id = 580 OR u.id IN (2002, 2003, 2004, 2005))
              GROUP BY u.id
              ORDER BY is_online DESC, a.lock_status DESC, a.lastping DESC, u.firstname ASC";
 

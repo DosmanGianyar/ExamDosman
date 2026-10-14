@@ -5,6 +5,7 @@
 
 import 'dart:convert';
 import 'dart:developer' as dev;
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
@@ -419,7 +420,10 @@ class ExamService {
       final resp = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({'token': token}),
+        body: json.encode({
+          'token': token,
+          'platform': kIsWeb ? 'web' : (Platform.isIOS ? 'ios' : 'android'),
+        }),
       ).timeout(const Duration(seconds: 5));
 
       if (resp.statusCode == 401) {
