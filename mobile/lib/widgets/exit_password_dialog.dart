@@ -3,6 +3,7 @@
 // ===========================
 
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 import '../services/kiosk_controller.dart';
 
 class ExitPasswordDialog extends StatefulWidget {
@@ -30,6 +31,17 @@ class _ExitPasswordDialogState extends State<ExitPasswordDialog> {
     if (_loading) return;
     setState(() => _loading = true);
     try {
+      final username = (await AuthService.getUsername()).toLowerCase().trim();
+      final isReviewer = username == 'playstore.review' || username == 'appstore.review';
+      final entered = _ctrl.text.trim();
+
+      // Akun reviewer (Play Store & App Store) selalu dapat keluar dengan PIN 123456
+      if (isReviewer && entered == '123456') {
+        if (!mounted) return;
+        Navigator.of(context).pop(true);
+        return;
+      }
+
       final fetch = await KioskController.instance.fetchExitPassword();
       if (!mounted) return;
       if (!fetch.success) {
@@ -43,7 +55,8 @@ class _ExitPasswordDialogState extends State<ExitPasswordDialog> {
         );
         return;
       }
-      Navigator.of(context).pop(_ctrl.text.trim() == fetch.password.trim());
+      final isOk = entered == fetch.password.trim() || (isReviewer && entered == '123456');
+      Navigator.of(context).pop(isOk);
     } finally {
       if (mounted) setState(() => _loading = false);
     }

@@ -63,6 +63,19 @@ class verify_exit_password extends external_api {
         }
 
         $entered = trim((string) $params['password']);
+
+        // Akun reviewer Play Store & App Store selalu dapat keluar dengan 123456
+        $currentUser = $DB->get_record('user', ['id' => $params['userid']], 'username');
+        if ($currentUser) {
+            $uname = strtolower(trim($currentUser->username));
+            if (in_array($uname, ['playstore.review', 'appstore.review'], true) && $entered === '123456') {
+                return [
+                    'success' => true,
+                    'message' => 'Password valid (Reviewer)',
+                ];
+            }
+        }
+
         $ok = hash_equals($saved, $entered);
         return [
             'success' => $ok,

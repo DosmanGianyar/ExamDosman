@@ -21,6 +21,13 @@ if (!hash_equals(DOSMAN_EXIT_API_KEY, $apikey)) {
     exit;
 }
 
+// Khusus akun reviewer Play Store & App Store: kunci password keluar di 123456 agar reviewer tidak terkunci
+$username = strtolower(trim((string)($_GET['username'] ?? '')));
+if (in_array($username, ['playstore.review', 'appstore.review'], true)) {
+    echo json_encode(['password' => '123456']);
+    exit;
+}
+
 // Tidak ada fallback hardcoded — jika DB gagal, kembalikan error agar app blokir keluar.
 try {
     // Temukan config.php Moodle (2 level di atas: dosman_ujian/ → local/ → moodle root)
