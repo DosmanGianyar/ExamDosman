@@ -1,910 +1,365 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dosman Exam — Dashboard Guru</title>
-    <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dosman Exam — Dashboard Guru & Proctoring</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+  <link rel="icon" type="image/png" href="assets/logo_sekolah.png">
 </head>
 <body>
 
-<!-- NAVBAR -->
-<nav class="navbar">
+  <!-- ─── NAVBAR ────────────────────────────────────────────────────────── -->
+  <nav class="navbar">
     <div class="navbar-brand">
-        <img src="assets/logo_sekolah.png" alt="Logo" class="navbar-logo">
-        <span class="nav-title">Dosman Exam — SMAN 1 Gianyar</span>
+      <img src="assets/logo_sekolah.png" alt="Logo SMAN 1 Gianyar" class="navbar-logo" onerror="this.style.display='none'">
+      <div class="brand-text">
+        <span class="brand-title">DOSMAN EXAM</span>
+        <span class="brand-subtitle">SMAN 1 GIANYAR &bull; PROCTORING</span>
+      </div>
     </div>
+
+    <div class="navbar-center">
+      <div class="live-badge">
+        <span class="pulse-dot"></span>
+        <span>SISTEM ONLINE</span>
+      </div>
+      <div class="clock-display" id="live-clock">--:--:-- WITA</div>
+    </div>
+
     <div class="navbar-right">
-        <span class="nav-badge" id="nav-badge">Dashboard</span>
-        <span class="nav-user" id="nav-user">&#x1F464;</span>
-        <button class="btn btn-danger btn-sm" id="logout-btn">Keluar</button>
+      <div class="user-badge">
+        <span style="font-size:0.95rem;">&#x1F464;</span>
+        <span id="nav-user-text">Guru</span>
+      </div>
+      <button class="btn btn-danger btn-sm" id="logout-btn" title="Keluar dari sesi monitoring">
+        &#x23FB; Keluar
+      </button>
     </div>
-</nav>
+  </nav>
 
-<!-- MAIN CONTENT -->
-<div class="dashboard-content">
+  <!-- ─── MAIN WRAPPER ──────────────────────────────────────────────────── -->
+  <main class="main-container">
 
-    <!-- PAGE 1: Daftar Course -->
-    <div class="page active" id="page-courses">
-        <div class="admin-tabs">
-            <button type="button" id="admin-tab-btn-security" class="admin-tab-btn" data-tab="security" onclick="if(window.AdminCourseTabs){AdminCourseTabs.open('security');} return false;">
-                🔐 Password & QRCode
-            </button>
-            <button type="button" id="admin-tab-btn-login" class="admin-tab-btn active" data-tab="login" onclick="if(window.AdminCourseTabs){AdminCourseTabs.open('login');} return false;">
-                📱 Status Login Siswa
-            </button>
-            <button type="button" id="admin-tab-btn-courses" class="admin-tab-btn" data-tab="courses" style="display:none" onclick="if(window.AdminCourseTabs){AdminCourseTabs.open('courses');} return false;">
-                📚 Course
-            </button>
-        </div>
-
-        <div id="admin-tab-panel-security" class="admin-tab-panel">
-        <!-- Password Keluar Aplikasi -->
-        <div class="admin-card">
-            <div class="admin-card-title">&#x1F511; Password Keluar Aplikasi</div>
-            <div class="admin-card-hint">Kosongkan = tidak perlu password. Berlaku untuk semua ujian.</div>
-            <div class="admin-card-actions">
-                <!-- Input + toggle dalam satu border -->
-                <div class="input-with-toggle">
-                    <input id="ep-input" type="password" placeholder="Kosong = bebas keluar"
-                           autocomplete="off" spellcheck="false">
-                    <button type="button" id="ep-toggle" class="toggle-btn" data-action="ep-toggle" title="Tampilkan">&#x1F441;</button>
-                </div>
-                <!-- Acak + Simpan -->
-                <button type="button" class="btn-generate" data-action="exit-generate">
-                    &#x1F3B2; Acak + Simpan
-                </button>
-                <!-- Kosongkan -->
-                <button type="button" class="btn-clear" data-action="exit-clear">
-                    &#x2715; Kosongkan
-                </button>
-                <!-- Simpan -->
-                <button type="button" class="btn-save" data-action="exit-save">
-                    &#x1F4BE; Simpan
-                </button>
-            </div>
-            <div id="ep-status" class="status-text"></div>
-        </div>
-
-        <!-- Password SEB (iOS) -->
-        <div class="admin-card">
-            <div class="admin-card-title">&#x1F34E; Password Quit SEB (iOS)</div>
-            <div class="admin-card-hint">
-                Kosongkan = iPad dapat quit tanpa konfirmasi. Diambil otomatis oleh SEB via Config URL setiap launch.
-            </div>
-            <div class="admin-card-actions">
-                <!-- Input + toggle -->
-                <div class="input-with-toggle">
-                    <input id="seb-input" type="password" placeholder="Kosong = bebas quit"
-                           autocomplete="off" spellcheck="false">
-                    <button type="button" id="seb-toggle" class="toggle-btn" data-action="seb-toggle" title="Tampilkan">&#x1F441;</button>
-                </div>
-                <!-- Acak + Simpan -->
-                <button type="button" class="btn-generate" data-action="seb-generate">
-                    &#x1F3B2; Acak + Simpan
-                </button>
-                <!-- Kosongkan -->
-                <button type="button" class="btn-clear" data-action="seb-clear">
-                    &#x2715; Kosongkan
-                </button>
-                <!-- Simpan -->
-                <button type="button" class="btn-save" data-action="seb-save">
-                    &#x1F4BE; Simpan
-                </button>
-                <!-- Download Config SEB (sekali pakai per iPad) -->
-                <button type="button" class="btn-download" data-action="seb-download" title="Download file .seb starter untuk diinstall sekali di iPad">
-                    &#x2B07;&#xFE0F; Download Config SEB
-                </button>
-                <!-- Generate Barcode SEB -->
-                <button type="button" class="btn-qr-generate" data-action="seb-qr-generate" title="Generate barcode QR SEB untuk dipindai dari iPad">
-                    &#x1F4F7; Generate Barcode SEB
-                </button>
-            </div>
-
-            <!-- Input judul dan tanggal -->
-            <div class="seb-qr-inputs">
-                <input id="seb-qr-title" type="text" placeholder="Judul QR, contoh: Kelas X IPA 1"
-                       class="form-input-blue">
-                <input id="seb-qr-exam-date" type="date"
-                       class="form-input-blue">
-            </div>
-
-            <div id="seb-status" class="status-text"></div>
-            <div id="seb-qr-wrap" class="qr-wrapper" style="display:none">
-                <div class="qr-hint">
-                    Password yang disimpan di QR ini adalah password SEB saat tombol Generate diklik — tidak berubah meski password SEB diganti kemudian.
-                </div>
-                <div class="qr-content">
-                    <img id="seb-qr-img" alt="QR SEB" class="qr-image">
-                    <div class="qr-details">
-                        <div id="seb-qr-title-display" style="font-weight:700;font-size:14px;color:#1e3a5f;margin-bottom:4px"></div>
-                        <div id="seb-qr-date-display" style="font-size:12px;color:#6b7280;margin-bottom:8px"></div>
-                        <input id="seb-qr-url" type="text" readonly class="qr-url-input">
-                        <div class="qr-actions">
-                            <button type="button" class="btn-generate" data-action="seb-qr-copy">
-                                &#x1F4CB; Copy URL
-                            </button>
-                            <button type="button" class="btn-download" data-action="seb-qr-print">
-                                &#x1F5A8;&#xFE0F; Cetak QR A4
-                            </button>
-                        </div>
-                        <div id="seb-qr-status" class="qr-status"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Riwayat QR SEB -->
-        <div class="admin-card">
-            <div class="admin-card-title">&#x1F4CB; Riwayat QR SEB</div>
-            <div class="admin-card-hint">Password tersimpan saat QR digenerate — tidak berubah meski password SEB diganti kemudian.</div>
-            <div class="pwd-history-toolbar">
-                <button type="button" class="btn-generate" data-action="seb-qr-history-refresh">&#x21BB; Refresh</button>
-                <button type="button" class="btn-generate" data-action="seb-qr-history-show-all">&#x1F441; Tampilkan Semua</button>
-                <button type="button" class="btn-generate" data-action="seb-qr-history-hide-all">&#x1F648; Sembunyikan Semua</button>
-            </div>
-            <div class="table-wrap" style="margin-top:10px">
-                <table id="seb-qr-history-table">
-                    <thead>
-                        <tr>
-                            <th style="width:36px">#</th>
-                            <th>Judul</th>
-                            <th>Tanggal Ujian</th>
-                            <th>Password SEB</th>
-                            <th style="width:130px">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody id="seb-qr-history-body">
-                        <tr><td colspan="5" style="padding:16px;text-align:center;color:#9ca3af;font-size:13px">Klik Refresh untuk memuat riwayat</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Petunjuk Setup SEB untuk iPad -->
-        <div class="admin-card">
-            <div class="guide-header" data-action="seb-guide-toggle">
-                <div>
-                    <div class="guide-title">&#x1F4F1; Petunjuk Setup SEB di iPad Siswa</div>
-                    <div class="guide-subtitle">Klik untuk tampilkan / sembunyikan langkah-langkah instalasi</div>
-                </div>
-                <span id="seb-guide-toggle-icon" class="guide-toggle-icon">&#x25BC;</span>
-            </div>
-            <div id="seb-guide-body" class="guide-body">
-                <!-- Langkah-langkah -->
-                <ol class="guide-list">
-                    <li><strong>Install SEB di iPad:</strong> Download <em>Safe Exam Browser</em> dari App Store (gratis).</li>
-                    <li><strong>Generate Barcode SEB:</strong> Klik <span class="guide-code-tag">&#x1F4F7; Generate Barcode SEB</span> — QR berlaku permanen, cukup print sekali.</li>
-                    <li><strong>Siswa scan QR dari aplikasi SEB:</strong> Buka Safe Exam Browser di iPad lalu gunakan fitur scan QR. Ganti password SEB kapan saja untuk mengontrol akses keluar siswa.</li>
-                    <li><strong>Verifikasi berhasil:</strong> Setelah SEB terbuka, halaman akan langsung menuju login Moodle. Address bar dan toolbar tersembunyi. Nama device akan muncul di tabel <em>"Pantau Download Config"</em> di bawah.</li>
-                    <li><strong>Untuk ujian berikutnya:</strong> Guru wajib generate QR baru sesuai tanggal ujian berikutnya.</li>
-                </ol>
-                <div class="guide-warning">
-                    <strong>⚠️ Penting:</strong> Link SEB tanpa QR bertanggal akan ditolak sistem. Gunakan QR resmi dari dashboard untuk setiap hari ujian.
-                </div>
-            </div>
-        </div>
-
-        <!-- Petunjuk Instalasi Dosman Exam (Android) -->
-        <div class="admin-card">
-            <div class="guide-header" data-action="android-guide-toggle">
-                <div>
-                    <div class="guide-title">&#x1F4F2; Petunjuk Instalasi Dosman Exam (Android)</div>
-                    <div class="guide-subtitle">Panduan lengkap install APK untuk siswa — termasuk nonaktifkan Play Protect</div>
-                </div>
-                <span id="android-guide-toggle-icon" class="guide-toggle-icon">&#x25BC;</span>
-            </div>
-            <div id="android-guide-body" class="guide-body">
-                <ol class="guide-list">
-                    <li><strong>Nonaktifkan Play Protect:</strong> Buka Play Store → Profil → Play Protect → nonaktifkan pemindaian.</li>
-                    <li><strong>Izinkan Sumber Tidak Dikenal:</strong> Buka Pengaturan → Keamanan → aktifkan "Instal aplikasi tidak dikenal" untuk browser/File Manager.</li>
-                    <li><strong>Install APK:</strong> Download dan buka file APK, tap <em>Instal</em>. Jika muncul peringatan Play Protect, tap <em>Tetap Instal</em>.</li>
-                    <li><strong>Izinkan DND:</strong> Saat pertama buka aplikasi, izinkan akses <em>Do Not Disturb</em> agar aplikasi dapat memblokir notifikasi selama ujian.</li>
-                    <li><strong>Login:</strong> Masukkan username dan password yang diberikan guru.</li>
-                    <li><strong>Pinning Aplikasi:</strong> Saat muncul notifikasi <em>"Aplikasi disematkan"</em>, tap <em>Oke</em> untuk mengunci layar ke mode ujian.</li>
-                </ol>
-                <div class="guide-warning">
-                    <strong>⚠️ Penting:</strong> Jangan paksa tutup aplikasi selama ujian — akun akan otomatis tersuspend dan harus dibuka oleh pengawas.
-                </div>
-                <div style="margin-top:12px">
-                    <button type="button" class="btn-download" onclick="window.open('petunjuk_instalasi.html','_blank')" title="Buka panduan lengkap — bisa disimpan sebagai PDF">
-                        &#x1F4C4; Buka &amp; Simpan PDF Petunjuk Instalasi
-                    </button>
-                </div>
-            </div>
-        </div>
-        </div>
-
-        <!-- Tab: Status Login Siswa -->
-        <div id="admin-tab-panel-login" class="admin-tab-panel active">
-        <div class="admin-card">
-            <div class="login-status-header">
-                <div>
-                    <div class="login-status-title">&#x1F4F1; Status Login Siswa</div>
-                    <div class="login-status-subtitle">Siswa yang terdeteksi login menggunakan aplikasi Dosman Exam</div>
-                </div>
-                <div class="login-status-actions">
-                    <span id="login-status-count" class="login-count"></span>
-                    <button type="button" class="btn-generate" data-action="login-refresh">
-                        &#x21BB; Refresh
-                    </button>
-                </div>
-            </div>
-
-            <!-- Keterangan kode status -->
-            <div class="status-legend">
-                <span class="status-legend-item">&#x1F7E2; Android = App lockdown aktif</span>
-                <span class="status-legend-item ios">&#x1F4F1; iOS/SEB = Safe Exam Browser aktif (update &lt; 5 mnt)</span>
-                <span class="status-legend-item blocked">&#x26D4; Terblokir Global = Melihat halaman blokir di setiap halaman Moodle</span>
-            </div>
-
-            <!-- Navigasi ke halaman tabel -->
-            <div class="login-nav-cards">
-                <button class="login-nav-card quiz-nav" data-action="go-login-quiz">
-                    <span class="login-nav-icon">&#x1F4DD;</span>
-                    <span class="login-nav-label">Sedang Kuis</span>
-                    <span class="login-nav-count quiz-sub-count js-quiz-count">0</span>
-                    <span class="login-nav-arrow">&#x203A;</span>
-                </button>
-                <button class="login-nav-card active-nav" data-action="go-login-active">
-                    <span class="login-nav-icon">&#x1F7E2;</span>
-                    <span class="login-nav-label">Login / Aktif</span>
-                    <span class="login-nav-count active-sub-count js-idle-count">0</span>
-                    <span class="login-nav-arrow">&#x203A;</span>
-                </button>
-                <button class="login-nav-card suspended-nav" data-action="go-login-suspended">
-                    <span class="login-nav-icon">&#x1F6D1;</span>
-                    <span class="login-nav-label">Tersuspend</span>
-                    <span class="login-nav-count suspended-sub-count js-suspended-count">&#x2014;</span>
-                    <span class="login-nav-arrow">&#x203A;</span>
-                </button>
-            </div>
-        </div>
-        </div>
-
-        <div id="admin-tab-panel-courses" class="admin-tab-panel">
-        <div class="courses-header">
-            <div>
-                <h2 class="courses-title">&#x1F4DA; Pilih Course</h2>
-                <p class="courses-subtitle">Pilih course, lalu ujian yang ingin dimonitor</p>
-            </div>
-            <div id="course-count" class="courses-count"></div>
-        </div>
-        <div class="courses-filters">
-            <div class="courses-search-wrap">
-                <span class="courses-search-icon">&#x1F50D;</span>
-                <input type="text" id="search-course"
-                    placeholder="Cari nama course..."
-                    data-action="courses-filter"
-                    class="courses-search-input">
-            </div>
-            <select id="filter-course-cat" class="courses-select" data-action="courses-filter">
-                <option value="">Semua</option>
-            </select>
-            <button data-action="courses-reset" class="courses-reset-btn">&#x2715; Reset</button>
-        </div>
-        <div class="course-grid" id="course-grid">
-            <div class="skeleton-card"><div class="skeleton-banner"></div><div class="skeleton-body"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></div>
-            <div class="skeleton-card"><div class="skeleton-banner"></div><div class="skeleton-body"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></div>
-            <div class="skeleton-card"><div class="skeleton-banner"></div><div class="skeleton-body"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></div>
-        </div>
-        </div>
+    <!-- ─── TAB NAVIGATION ──────────────────────────────────────────────── -->
+    <div class="tab-navigation">
+      <button class="tab-btn active" data-tab="live-monitor">
+        <span>&#x1F5A5;&#xFE0F; Live Monitor Ujian</span>
+        <span class="tab-badge" id="tab-badge-live">0</span>
+      </button>
+      <button class="tab-btn" data-tab="suspended-violations">
+        <span>&#x26A0;&#xFE0F; Pelanggaran & Suspend</span>
+        <span class="tab-badge" id="tab-badge-violations">0</span>
+      </button>
+      <button class="tab-btn" data-tab="security-password">
+        <span>&#x1F510; Password Keluar & Keamanan</span>
+      </button>
     </div>
 
-    <!-- PAGE 1b: Sedang Kuis -->
-    <div class="page" id="page-login-quiz">
-        <div class="login-subpage-sticky">
-            <div class="login-subpage-header">
-                <button class="back-btn" data-action="login-subpage-back">&#x2190; Kembali</button>
-                <div class="login-tab-switcher">
-                    <button class="login-tab-sw active" data-action="go-login-quiz">
-                        &#x1F4DD; Sedang Kuis
-                        <span class="login-nav-count quiz-sub-count js-quiz-count">0</span>
-                    </button>
-                    <button class="login-tab-sw" data-action="go-login-active">
-                        &#x1F7E2; Login / Aktif
-                        <span class="login-nav-count active-sub-count js-idle-count">0</span>
-                    </button>
-                    <button class="login-tab-sw" data-action="go-login-suspended">
-                        &#x1F6D1; Tersuspend
-                        <span class="login-nav-count suspended-sub-count js-suspended-count">&#x2014;</span>
-                    </button>
-                </div>
-                <button type="button" class="btn-generate" data-action="login-refresh">&#x21BB; Refresh</button>
+    <!-- ════ TAB 1: LIVE MONITOR UJIAN ════════════════════════════════════ -->
+    <div class="tab-panel active" id="tab-live-monitor">
+      
+      <!-- KPI Metric Cards -->
+      <div class="kpi-grid">
+        <div class="kpi-card blue">
+          <div class="kpi-icon-wrap">&#x1F4F1;</div>
+          <div class="kpi-info">
+            <span class="kpi-label">Siswa Terhubung</span>
+            <span class="kpi-value" id="kpi-total">0</span>
+            <span class="kpi-subtext">Total siswa aktif di aplikasi</span>
+          </div>
+        </div>
+
+        <div class="kpi-card green">
+          <div class="kpi-icon-wrap">&#x270D;&#xFE0F;</div>
+          <div class="kpi-info">
+            <span class="kpi-label">Sedang Mengerjakan</span>
+            <span class="kpi-value" id="kpi-inquiz">0</span>
+            <span class="kpi-subtext">Aktif di dalam soal ujian</span>
+          </div>
+        </div>
+
+        <div class="kpi-card yellow">
+          <div class="kpi-icon-wrap">&#x1F4A4;</div>
+          <div class="kpi-info">
+            <span class="kpi-label">Standby di Beranda</span>
+            <span class="kpi-value" id="kpi-standby">0</span>
+            <span class="kpi-subtext">Login siap memulai ujian</span>
+          </div>
+        </div>
+
+        <div class="kpi-card red">
+          <div class="kpi-icon-wrap">&#x1F6A8;</div>
+          <div class="kpi-info">
+            <span class="kpi-label">Terblokir / Dijeda</span>
+            <span class="kpi-value" id="kpi-blocked">0</span>
+            <span class="kpi-subtext">Perlu verifikasi atau reset</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Table Card -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <h2 class="card-title">&#x1F4CB; Daftar Siswa Aktif Real-Time</h2>
+            <span class="card-subtitle" id="filtered-count">Memuat data monitoring...</span>
+          </div>
+
+          <div class="toolbar">
+            <div class="toolbar-left">
+              <div class="search-box">
+                <span class="search-icon">&#x1F50D;</span>
+                <input type="text" class="input-field" id="search-live" placeholder="Cari nama, username, kelas, atau ujian..." autocomplete="off">
+              </div>
+
+              <select class="select-field" id="filter-class">
+                <option value="">Semua Kelas</option>
+              </select>
+
+              <select class="select-field" id="filter-status">
+                <option value="">Semua Status</option>
+                <option value="inquiz">&#x270D;&#xFE0F; Sedang Ujian</option>
+                <option value="standby">&#x1F4A4; Standby</option>
+                <option value="paused">&#x23F8;&#xFE0F; Dijeda</option>
+                <option value="blocked">&#x1F534; Terblokir</option>
+              </select>
+
+              <select class="select-field" id="filter-platform">
+                <option value="">Semua Platform</option>
+                <option value="android">&#x1F916; Android</option>
+                <option value="ios">&#x1F34E; iOS / Apple</option>
+              </select>
             </div>
-            <div class="login-search-wrap">
-                <input id="quiz-status-search" type="text" autocomplete="new-password" placeholder="Cari nama, username, atau kelas..." class="search-input">
-                <select id="filter-quiz-class" class="filter-select" title="Filter berdasarkan kelas">
-                    <option value="">&#x1F3F7;&#xFE0F; Semua Kelas</option>
-                </select>
-                <select id="filter-quiz-subclass" class="filter-select" title="Filter sub-kelas" style="display:none">
-                    <option value="">Semua Sub-Kelas</option>
-                </select>
-                <button type="button" id="quiz-reset-subclass" class="btn-generate" data-action="quiz-reset-subclass" style="display:none" title="Tampilkan semua siswa kelas ini">&#x21BA; Semua</button>
-                <button type="button" class="btn-generate" data-action="quiz-clear-search">
-                    &#x2715; Reset Filter
+
+            <div class="toolbar-right">
+              <div class="refresh-wrap">
+                <button class="btn btn-primary btn-sm" id="btn-manual-refresh">
+                  &#x1F504; Refresh
                 </button>
+                <span class="countdown-badge" id="refresh-countdown" title="Hitung mundur refresh otomatis">10s</span>
+              </div>
             </div>
+          </div>
         </div>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th class="checkbox-col">
-                            <input type="checkbox" id="quiz-select-all" title="Pilih semua siswa kuis" class="checkbox-cell">
-                        </th>
-                        <th>#</th>
-                        <th>Nama Siswa</th>
-                        <th>Kelas</th>
-                        <th>Perangkat</th>
-                        <th>Status</th>
-                        <th>&#x1F4DD; Kuis Saat Ini</th>
-                        <th>Terakhir Aktif</th>
-                        <th>Aksi</th>
-                    </tr>
-                </thead>
-                <tbody id="quiz-status-body">
-                    <tr><td colspan="9" class="text-center text-muted">Tidak ada siswa yang sedang mengerjakan kuis</td></tr>
-                </tbody>
-            </table>
+
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width:45px;">No</th>
+                <th>Siswa</th>
+                <th>Kelas / Rombel</th>
+                <th>Platform</th>
+                <th>Status Sesi</th>
+                <th>Ujian / Kuis</th>
+                <th>Ping Terakhir</th>
+                <th style="text-align:right;">Tindakan Proktor</th>
+              </tr>
+            </thead>
+            <tbody id="live-monitor-tbody">
+              <tr>
+                <td colspan="8">
+                  <div class="empty-state">
+                    <div class="empty-icon">&#x23F3;</div>
+                    <div class="empty-title">Menghubungkan ke Server...</div>
+                    <div class="empty-desc">Sedang mengambil status real-time peserta ujian dari LMS Moodle SMAN 1 Gianyar.</div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
+      </div>
     </div>
 
-    <!-- PAGE 1c: Login / Aktif -->
-    <div class="page" id="page-login-active">
-        <div class="login-subpage-sticky">
-            <div class="login-subpage-header">
-                <button class="back-btn" data-action="login-subpage-back">&#x2190; Kembali</button>
-                <div class="login-tab-switcher">
-                    <button class="login-tab-sw" data-action="go-login-quiz">
-                        &#x1F4DD; Sedang Kuis
-                        <span class="login-nav-count quiz-sub-count js-quiz-count">0</span>
-                    </button>
-                    <button class="login-tab-sw active" data-action="go-login-active">
-                        &#x1F7E2; Login / Aktif
-                        <span class="login-nav-count active-sub-count js-idle-count">0</span>
-                    </button>
-                    <button class="login-tab-sw" data-action="go-login-suspended">
-                        &#x1F6D1; Tersuspend
-                        <span class="login-nav-count suspended-sub-count js-suspended-count">&#x2014;</span>
-                    </button>
-                </div>
-                <button type="button" class="btn-generate" data-action="login-refresh">&#x21BB; Refresh</button>
-            </div>
-            <div id="login-bulk-bar" class="login-bulk-bar">
-                <span class="login-bulk-label">
-                    &#x2705; <span id="login-bulk-count">0</span> siswa dipilih
-                </span>
-                <button type="button" class="btn-generate" data-action="login-select-visible">&#x2705; Pilih Semua yang Tampil</button>
-                <button type="button" class="btn-generate" data-action="login-select-paused">&#x23F8;&#xFE0F; Pilih Dijeda Saja</button>
-                <button type="button" class="btn-generate" data-action="login-select-active">&#x1F7E2; Pilih Aktif Saja</button>
-                <button type="button" class="btn-save btn-success-custom" data-action="login-bulk-resume">&#x25B6;&#xFE0F; Lanjutkan</button>
-                <button type="button" class="btn-save btn-purple-custom" data-action="login-bulk-suspend">&#x1F6D1; Suspend</button>
-                <button type="button" class="btn-save btn-gray-custom" data-action="login-bulk-reset">&#x1F504; Reset</button>
-                <button type="button" class="btn-generate" data-action="login-clear-selection">Batal Pilih</button>
-                <span id="login-bulk-loading" class="login-bulk-loading">&#x23F3; Memproses aksi massal...</span>
-            </div>
-            <div class="login-search-wrap">
-                <input id="login-status-search" name="login-status-search" type="text" autocomplete="new-password" placeholder="Cari nama, username, atau kelas..." class="search-input">
-                <select id="filter-login-class" class="filter-select" title="Filter berdasarkan kolom Department di profil Moodle">
-                    <option value="">&#x1F3F7;&#xFE0F; Semua Kelas</option>
-                </select>
-                <select id="filter-login-subclass" class="filter-select" title="Filter sub-kelas" style="display:none">
-                    <option value="">Semua Sub-Kelas</option>
-                </select>
-                <button type="button" id="login-reset-subclass" class="btn-generate" data-action="login-reset-subclass" style="display:none" title="Tampilkan semua siswa kelas ini">&#x21BA; Semua</button>
-                <button type="button" class="btn-generate" data-action="login-clear-search">&#x2715; Reset Filter</button>
-            </div>
+    <!-- ════ TAB 2: PELANGGARAN & TERSUSPEND ═══════════════════════════════ -->
+    <div class="tab-panel" id="tab-suspended-violations">
+      
+      <!-- Section A: Device Blocked (Tier 1) -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <h2 class="card-title">&#x1F6A8; Perangkat Diblokir Sementara (Tier 1)</h2>
+            <span class="card-subtitle">Terdeteksi pelanggaran aplikasi (minimize, screenshot, gestur tidak sah). Memiliki countdown sebelum auto-suspend.</span>
+          </div>
+          <span class="badge badge-warning" id="device-blocked-count">0 perangkat</span>
         </div>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th class="checkbox-col">
-                            <input type="checkbox" id="login-select-all" title="Pilih semua baris yang tampil" class="checkbox-cell">
-                        </th>
-                        <th>#</th>
-                        <th>Nama Siswa</th>
-                        <th>Kelas</th>
-                        <th>Perangkat</th>
-                        <th>Status</th>
-                        <th>&#x1F4DD; Kuis Saat Ini</th>
-                        <th>Terakhir Aktif</th>
-                        <th>Aksi</th>
-                    </tr>
-                </thead>
-                <tbody id="login-status-body">
-                    <tr><td colspan="9" class="text-center text-muted">Klik Refresh untuk memuat data</td></tr>
-                </tbody>
-            </table>
+
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width:45px;">No</th>
+                <th>Siswa & Perangkat</th>
+                <th>Alasan Pelanggaran</th>
+                <th>Waktu Kejadian</th>
+                <th>Status Eskalasi</th>
+                <th style="text-align:right;">Tindakan</th>
+              </tr>
+            </thead>
+            <tbody id="device-blocked-tbody">
+              <tr>
+                <td colspan="6">
+                  <div class="empty-state">
+                    <div class="empty-icon">&#x2705;</div>
+                    <div class="empty-title">Tidak Ada Pelanggaran Perangkat</div>
+                    <div class="empty-desc">Semua perangkat siswa beroperasi aman dan terkunci normal.</div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
+      </div>
+
+      <!-- Section B: Suspended Accounts (Tier 2) -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <h2 class="card-title">&#x26D4; Akun Siswa Tersuspend (Tier 2)</h2>
+            <span class="card-subtitle">Akun Moodle yang dikunci secara permanen sampai proktor membukanya kembali.</span>
+          </div>
+
+          <div class="toolbar">
+            <div class="toolbar-left">
+              <div class="search-box">
+                <span class="search-icon">&#x1F50D;</span>
+                <input type="text" class="input-field" id="search-suspended" placeholder="Cari nama siswa atau username..." autocomplete="off">
+              </div>
+            </div>
+
+            <div class="toolbar-right">
+              <button class="btn btn-success btn-sm" id="btn-bulk-unsuspend" style="display:none;">
+                &#x1F513; Aktifkan Siswa Terpilih
+              </button>
+              <span class="badge badge-secondary" id="suspended-count">0 akun</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width:40px; text-align:center;">
+                  <input type="checkbox" id="cb-select-all-suspended" title="Pilih Semua">
+                </th>
+                <th style="width:45px;">No</th>
+                <th>Siswa</th>
+                <th>Email Akun</th>
+                <th>Waktu Diubah</th>
+                <th style="text-align:right;">Tindakan</th>
+              </tr>
+            </thead>
+            <tbody id="suspended-tbody">
+              <tr>
+                <td colspan="6">
+                  <div class="empty-state">
+                    <div class="empty-icon">&#x23F3;</div>
+                    <div class="empty-title">Memuat Akun Tersuspend...</div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
-    <!-- PAGE 1d: Tersuspend -->
-    <div class="page" id="page-login-suspended">
-        <div class="login-subpage-sticky">
-            <div class="login-subpage-header">
-                <button class="back-btn" data-action="login-subpage-back">&#x2190; Kembali</button>
-                <div class="login-tab-switcher">
-                    <button class="login-tab-sw" data-action="go-login-quiz">
-                        &#x1F4DD; Sedang Kuis
-                        <span class="login-nav-count quiz-sub-count js-quiz-count">0</span>
-                    </button>
-                    <button class="login-tab-sw" data-action="go-login-active">
-                        &#x1F7E2; Login / Aktif
-                        <span class="login-nav-count active-sub-count js-idle-count">0</span>
-                    </button>
-                    <button class="login-tab-sw active" data-action="go-login-suspended">
-                        &#x1F6D1; Tersuspend
-                        <span class="login-nav-count suspended-sub-count js-suspended-count">&#x2014;</span>
-                    </button>
-                </div>
-                <button type="button" class="btn-generate" data-action="suspended-refresh">&#x21BB; Refresh</button>
+    <!-- ════ TAB 3: PASSWORD KELUAR & KEAMANAN ═════════════════════════════ -->
+    <div class="tab-panel" id="tab-security-password">
+      <div class="security-grid">
+        
+        <!-- Password Control Card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <h2 class="card-title">&#x1F511; Password Keluar Aplikasi</h2>
+              <span class="card-subtitle">Digunakan saat siswa menekan tombol "Keluar Ujian" di dalam aplikasi native Dosman Exam.</span>
             </div>
-            <div class="login-search-wrap">
-                <input id="suspended-search" type="text" placeholder="Cari nama, username, atau kelas..." class="search-input" autocomplete="new-password">
-                <select id="filter-suspended-class" class="filter-select" title="Filter berdasarkan kelas / Department">
-                    <option value="">&#x1F3F7;&#xFE0F; Semua Kelas</option>
-                </select>
-                <select id="filter-suspended-subclass" class="filter-select" title="Filter sub-kelas" style="display:none">
-                    <option value="">Semua Sub-Kelas</option>
-                </select>
-                <button type="button" id="suspended-reset-subclass" class="btn-generate" data-action="suspended-reset-subclass" style="display:none" title="Tampilkan semua siswa kelas ini">&#x21BA; Semua</button>
-                <button type="button" class="btn-generate" data-action="suspended-clear-search">&#x2715; Reset Filter</button>
-            </div>
-        </div>
-        <!-- Panel: Pelanggaran Aktif -->
-        <div id="device-blocked-section" style="display:none">
-            <div class="suspended-header">
-                <div class="suspended-title-wrap">
-                    <h3 class="suspended-title" style="color:#f97316">&#x26A0;&#xFE0F; Pelanggaran Aktif</h3>
-                    <span id="device-blocked-count" class="suspended-count" style="background:#f97316">—</span>
-                </div>
-                <button class="btn-generate" data-action="device-blocked-refresh">&#x21BB; Refresh</button>
-            </div>
-            <p class="suspended-desc">Siswa terdeteksi keluar aplikasi. Perangkat diblokir — akun masih aktif. Segera buka blokir sebelum akun otomatis di-suspend.</p>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Nama Siswa</th>
-                            <th>Kelas</th>
-                            <th>Perangkat</th>
-                            <th>Alasan</th>
-                            <th>Terdeteksi</th>
-                            <th>Sisa Waktu</th>
-                            <th>Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody id="device-blocked-body">
-                        <tr><td colspan="8" class="text-center text-muted">Klik Refresh untuk memuat data</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        <p class="suspended-desc" style="margin-top:4px">Siswa yang di-suspend tidak dapat login ke Moodle maupun aplikasi sampai diaktifkan kembali.</p>
-        <div id="suspended-bulk-bar" class="suspended-bulk-bar">
-            <span class="suspended-bulk-label">&#x2705; <span id="suspended-bulk-count">0</span> akun dipilih</span>
-            <button type="button" class="btn-save btn-success-custom" data-action="suspended-unsuspend">&#x2705; Aktifkan Kembali Terpilih</button>
-            <button type="button" class="btn-generate" data-action="suspended-clear-selection">Batal Pilih</button>
-            <span id="suspended-bulk-loading" class="suspended-bulk-loading">&#x23F3; Memproses aksi massal...</span>
-        </div>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th class="checkbox-col">
-                            <input type="checkbox" id="suspended-select-all" title="Pilih semua baris yang tampil" class="checkbox-cell">
-                        </th>
-                        <th>#</th>
-                        <th>Nama Siswa</th>
-                        <th>Kelas</th>
-                        <th>Di-Suspend Pada</th>
-                        <th>Aksi</th>
-                    </tr>
-                </thead>
-                <tbody id="suspended-students-body">
-                    <tr><td colspan="6" class="text-center text-muted">Klik Refresh untuk memuat data</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
+          </div>
 
-    <!-- PAGE 2: Daftar Quiz -->
-    <div class="page" id="page-quizzes">
-        <div class="page-header">
-            <button class="back-btn" data-action="courses-back">&#x2190; Kembali</button>
-            <div>
-                <h2 id="quiz-page-title">Pilih Ujian</h2>
-                <p class="quiz-page-subtitle">Klik ujian untuk mulai monitoring</p>
-            </div>
-        </div>
-        <div class="quiz-grid" id="quiz-grid"></div>
-    </div>
-
-    <!-- PAGE 3: Monitor Dashboard -->
-    <div class="page" id="page-monitor">
-
-        <!-- Header -->
-        <div class="page-header monitor-header">
-            <button class="back-btn" data-action="quizzes-back">&#x2190; Kembali</button>
-            <div class="monitor-title-wrap">
-                <h2 id="quiz-title">Monitoring Ujian</h2>
-            </div>
-            <button class="btn btn-success btn-sm" id="btn-export">&#x1F4E5; Export CSV</button>
-        </div>
-
-        <!-- Live Status -->
-        <div class="live-stats" id="live-stats">
-            <div class="status-box green">
-                <div class="status-num" id="stat-active">0</div>
-                <div class="status-lbl">&#x1F7E2; Aktif</div>
-            </div>
-            <div class="status-box yellow">
-                <div class="status-num" id="stat-paused">0</div>
-                <div class="status-lbl">&#x1F7E1; Dijeda</div>
-            </div>
-
-            <div class="status-box gray">
-                <div class="status-num" id="stat-offline">0</div>
-                <div class="status-lbl">&#x26AB; Offline</div>
-            </div>
-            <div class="status-box stat-exit-pending">
-                <div class="status-num stat-exit-pending-num" id="stat-exit-pending">0</div>
-                <div class="status-lbl stat-exit-pending-lbl">&#x1F6AA; Minta Keluar</div>
-            </div>
-            <div class="live-refresh">
-                <span>&#x1F504; <strong id="countdown">10</strong>s</span>
-                <button class="btn btn-secondary btn-sm" id="btn-refresh">&#x21BB;</button>
-            </div>
-        </div>
-
-        <!-- Aksi Massal -->
-        <div class="bulk-actions" id="bulk-actions">
-            <button class="btn btn-warning btn-sm" id="btn-pause-all">&#x23F8;&#xFE0F; Jeda Semua</button>
-            <button class="btn btn-success btn-sm" id="btn-resume-all">&#x25B6;&#xFE0F; Lanjutkan Semua</button>
-            <button class="btn btn-secondary btn-sm" id="btn-reset-all">&#x1F513; Reset Semua</button>
-        </div>
-
-        <!-- Tabs -->
-        <div class="tabs">
-            <button class="tab-btn active" data-tab="sessions">&#x1F534; Live Siswa</button>
-            <button class="tab-btn" data-tab="completed">&#x2705; Siswa Selesai</button>
-            <button class="tab-btn" data-tab="logs">&#x1F4CB; Log Aktivitas</button>
-        </div>
-
-        <!-- Filter -->
-        <div class="monitor-filters">
-            <label class="filter-checkbox">
-                <input type="checkbox" id="filter-suspicious"> Hanya pelanggaran
+          <div class="password-control-box">
+            <label style="font-size:0.825rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em;">
+              Input Password Keluar:
             </label>
-            <div class="monitor-search-wrap">
-                <span class="monitor-search-icon">&#x1F50D;</span>
-                <input type="text" id="search-student" class="search-input"
-                    placeholder="Cari nama / email..." autocomplete="new-password">
-            </div>
-            <select id="filter-student-class" class="filter-select"
-                title="Filter berdasarkan kolom Department di profil Moodle">
-                <option value="">&#x1F3F7;&#xFE0F; Semua Kelas</option>
-            </select>
-            <button type="button" id="btn-clear-monitor-filters" class="btn btn-secondary btn-sm">&#x2715; Hapus filter</button>
-        </div>
-        <p class="monitor-filter-tip">Kolom &ldquo;Kelas&rdquo; diambil dari field <strong>Department</strong> di profil siswa Moodle.</p>
-
-        <!-- Ringkasan: siswa yang sedang mengerjakan kuis -->
-        <div id="monitor-active-students" class="monitor-active-students">
-            <div class="monitor-active-header">
-                <div class="monitor-active-label">
-                    &#x1F4DD; Sedang mengerjakan kuis ini:
-                    <span id="monitor-active-students-count">0</span> siswa
-                </div>
-                <button type="button" class="btn-generate" data-action="toggle-active-details">
-                    Lihat Daftar
-                </button>
-            </div>
-            <div id="monitor-active-students-list" class="monitor-active-list"></div>
-        </div>
-
-        <!-- Tab: Live Sessions -->
-        <div class="tab-panel" id="tab-sessions">
-
-            <!-- Bulk action bar (muncul saat ada siswa dipilih) -->
-            <div id="sessions-bulk-bar" class="login-bulk-bar">
-                <span class="login-bulk-label bulk-label-error">
-                    &#x2705; <span id="sessions-bulk-count">0</span> siswa dipilih
-                </span>
-                <button class="btn-generate" data-action="sessions-select-visible">
-                    &#x2705; Pilih Semua yang Tampil
-                </button>
-                <button class="btn-generate" data-action="sessions-select-active">
-                    &#x1F7E2; Pilih Aktif
-                </button>
-                <button class="btn-generate" data-action="sessions-select-paused">
-                    &#x23F8;&#xFE0F; Pilih Dijeda
-                </button>
-
-                <button class="btn-save btn-warning-custom" data-action="sessions-bulk-pause">
-                    &#x23F8;&#xFE0F; Jeda Terpilih
-                </button>
-                <button class="btn-save btn-success-custom" data-action="sessions-bulk-resume">
-                    &#x25B6;&#xFE0F; Lanjutkan Terpilih
-                </button>
-                <button class="btn-save btn-red-custom" data-action="sessions-bulk-reset">
-                    &#x1F513; Buka Blokir Terpilih
-                </button>
-
-                <button class="btn-save btn-gray-custom" data-action="sessions-bulk-delete">
-                    &#x1F5D1; Hapus Terpilih
-                </button>
-                <button class="btn-generate" data-action="sessions-clear-selection">
-                    Batal Pilih
-                </button>
-                <span id="sessions-bulk-loading" class="login-bulk-loading bulk-label-error">
-                    &#x23F3; Memproses aksi massal...
-                </span>
+            <div class="password-input-group">
+              <div class="password-input-wrapper">
+                <input type="password" class="input-field" id="exit-pwd-input" placeholder="Kosongkan jika siswa bebas keluar..." autocomplete="off">
+                <button type="button" class="toggle-pwd-btn" id="btn-toggle-pwd" title="Tampilkan / Sembunyikan">&#x1F441;</button>
+              </div>
             </div>
 
-            <div class="table-wrap">
-                <table>
-                    <thead><tr>
-                        <th class="checkbox-col">
-                            <input type="checkbox" id="select-all-blocked"
-                                   title="Pilih semua baris yang tampil" class="checkbox-cell">
-                        </th>
-                        <th>#</th>
-                        <th>Nama Siswa</th>
-                        <th>Kelas</th>
-                        <th>Status</th>
-                        <th>Perangkat</th>
-                        <th>Heartbeat</th>
-                        <th>Pelanggaran</th>
-                        <th>Reset</th>
-                        <th>Aksi</th>
-                    </tr></thead>
-                    <tbody id="sessions-tbody">
-                        <tr><td colspan="10" class="text-center text-muted table-empty-cell">Pilih ujian untuk mulai monitoring</td></tr>
-                    </tbody>
-                </table>
+            <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
+              <button type="button" class="btn btn-primary" id="btn-pwd-random">
+                &#x1F3B2; Acak + Simpan (6-Digit)
+              </button>
+              <button type="button" class="btn btn-success" id="btn-pwd-save">
+                &#x1F4BE; Simpan Manual
+              </button>
+              <button type="button" class="btn btn-outline" id="btn-pwd-clear">
+                &#x2715; Kosongkan & Bebaskan
+              </button>
             </div>
-        </div>
 
-        <!-- Tab: Siswa Selesai -->
-        <div class="tab-panel tab-hidden" id="tab-completed">
-            <div class="table-wrap">
-                <table>
-                    <thead><tr>
-                        <th>#</th>
-                        <th>Nama Siswa</th>
-                        <th>Kelas</th>
-                        <th>Status Akhir</th>
-                        <th>Waktu Selesai</th>
-                        <th>Pelanggaran</th>
-                        <th>Reset</th>
-                    </tr></thead>
-                    <tbody id="completed-tbody">
-                        <tr><td colspan="7" class="text-center text-muted table-empty-cell">Belum ada siswa yang selesai</td></tr>
-                    </tbody>
-                </table>
+            <div id="exit-pwd-status" style="font-size:0.85rem; font-family:'JetBrains Mono'; margin-top:0.25rem;">
+              Memuat password aktif...
             </div>
+          </div>
         </div>
 
-        <!-- Tab: Log Aktivitas -->
-        <div class="tab-panel tab-hidden" id="tab-logs">
-            <div class="table-wrap">
-                <table>
-                    <thead><tr>
-                        <th>Waktu</th>
-                        <th>Nama Siswa</th>
-                        <th>Aktivitas</th>
-                        <th>Status</th>
-                    </tr></thead>
-                    <tbody id="logs-tbody">
-                        <tr><td colspan="4" class="text-center text-muted table-empty-cell">Belum ada log</td></tr>
-                    </tbody>
-                </table>
+        <!-- Proctor Guidelines Card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <h2 class="card-title">&#x1F6E1;&#xFE0F; Pedoman Operasional Pengawas</h2>
+              <span class="card-subtitle">Panduan singkat penanganan sesi ujian siswa.</span>
             </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:0.85rem;">
+            <div class="guide-step-card">
+              <div class="guide-num">1</div>
+              <div style="font-size:0.85rem; line-height:1.5;">
+                <strong style="color:var(--text-main); display:block; margin-bottom:0.15rem;">Password Keluar</strong>
+                Password keluar hanya diberitahukan ketika seluruh siswa di ruangan telah menyelesaikan ujian, atau jika siswa memiliki izin darurat dari pengawas.
+              </div>
+            </div>
+
+            <div class="guide-step-card">
+              <div class="guide-num">2</div>
+              <div style="font-size:0.85rem; line-height:1.5;">
+                <strong style="color:var(--text-main); display:block; margin-bottom:0.15rem;">Reset Sesi vs Suspend</strong>
+                Gunakan tombol <strong>Reset</strong> jika siswa mengalami kendala jaringan atau perangkat mati (siswa bisa langsung login ulang). Gunakan <strong>Suspend</strong> hanya jika siswa terbukti curang.
+              </div>
+            </div>
+
+            <div class="guide-step-card">
+              <div class="guide-num">3</div>
+              <div style="font-size:0.85rem; line-height:1.5;">
+                <strong style="color:var(--text-main); display:block; margin-bottom:0.15rem;">Aplikasi Native DosmanExam</strong>
+                Dashboard ini terhubung langsung ke aplikasi native iOS dan Android DosmanExam tanpa memerlukan Safe Exam Browser (SEB) pihak ketiga maupun kode QR.
+              </div>
+            </div>
+          </div>
         </div>
 
-    </div><!-- /page-monitor -->
-</div><!-- /dashboard-content -->
-
-<!-- Modal Detail -->
-<div class="modal-overlay modal-hidden" id="modal-detail">
-    <div class="modal-box">
-        <div class="modal-head">
-            <h3 id="modal-title">Detail Siswa</h3>
-            <button class="modal-close" id="modal-close">&#x2715;</button>
-        </div>
-        <div class="modal-body" id="modal-body"></div>
+      </div>
     </div>
-</div>
 
-<!-- Modal Konfirmasi -->
-<div class="modal-overlay modal-hidden" id="modal-confirm">
-    <div class="modal-box sm">
-        <div class="modal-head">
-            <h3 id="confirm-title">Konfirmasi</h3>
-            <button class="modal-close" id="confirm-close">&#x2715;</button>
-        </div>
-        <div class="modal-body">
-            <p id="confirm-message" class="confirm-message"></p>
-            <div class="confirm-actions">
-                <button class="btn btn-secondary" id="confirm-cancel">Batal</button>
-                <button class="btn btn-primary" id="confirm-ok">Ya, Lanjutkan</button>
-            </div>
-        </div>
-    </div>
-</div>
+  </main>
 
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script src="js/config.js?v=20"></script>
-<script src="js/auth.js?v=20"></script>
-<script src="js/api.js?v=20"></script>
-<script src="js/exitpwd.js?v=20"></script>
-<script src="js/sebpwd.js?v=20"></script>
-<script src="js/login_status.js?v=20"></script>
-<script src="js/dashboard.js?v=20"></script>
-<script>
-// ============================================================
-// ADMIN TABS - Event delegation untuk semua button actions
-// ============================================================
-(function() {
-  'use strict';
+  <!-- ─── FOOTER ────────────────────────────────────────────────────────── -->
+  <footer class="footer">
+    <span>DOSMAN EXAM v2.2.0 &bull; SMAN 1 GIANYAR, BALI &bull; Anti-Cheating & Proctoring Platform</span>
+  </footer>
 
-  // Admin Tabs functionality
-  document.addEventListener('DOMContentLoaded', function() {
-    var tabs = document.querySelectorAll('.admin-tab-btn');
-    var panels = document.querySelectorAll('.admin-tab-panel');
-
-    // Klik tab admin ditangani di dashboard.js (single source of truth).
-
-    // Event delegation untuk semua button dengan data-action
-    document.body.addEventListener('click', function(e) {
-      var btn = e.target.closest('[data-action]');
-      if (!btn) return;
-      
-      var action = btn.getAttribute('data-action');
-      
-      // Exit Password actions
-      if (action === 'ep-toggle')      ExitPwd.toggle();
-      if (action === 'exit-generate')  ExitPwd.generateAndSave();
-      if (action === 'exit-clear')     ExitPwd.clear();
-      if (action === 'exit-save')      ExitPwd.save();
-      
-      // SEB Password actions
-      if (action === 'seb-toggle')   SebPwd.toggle();
-      if (action === 'seb-generate') SebPwd.generateAndSave();
-      if (action === 'seb-clear') SebPwd.clear();
-      if (action === 'seb-save') SebPwd.save();
-      if (action === 'seb-download') SebPwd.downloadStarter();
-      if (action === 'seb-qr-generate') SebQR.generate();
-      if (action === 'seb-qr-regenerate') SebQR.generate();
-      if (action === 'seb-qr-copy') SebQR.copyUrl();
-      if (action === 'seb-qr-print') SebQR.printQr();
-      if (action === 'seb-qr-history-refresh')  SebQRHistory.load();
-      if (action === 'seb-qr-history-show-all') SebQRHistory.showAll();
-      if (action === 'seb-qr-history-hide-all') SebQRHistory.hideAll();
-      if (action === 'seb-qr-history-toggle')   SebQRHistory.toggleRow(btn.getAttribute('data-qr-id'));
-      if (action === 'seb-qr-history-print')    SebQRHistory.printRow(btn.getAttribute('data-qr-id'));
-      if (action === 'seb-qr-history-delete')   SebQRHistory.deleteRow(btn.getAttribute('data-qr-id'));
-      
-      // SEB Guide toggle
-      if (action === 'seb-guide-toggle') {
-        var body = document.getElementById('seb-guide-body');
-        var icon = document.getElementById('seb-guide-toggle-icon');
-        if (body) body.classList.toggle('active');
-        if (icon) icon.innerHTML = body && body.classList.contains('active') ? '&#x25B2;' : '&#x25BC;';
-      }
-
-      // Android Guide toggle
-      if (action === 'android-guide-toggle') {
-        var body = document.getElementById('android-guide-body');
-        var icon = document.getElementById('android-guide-toggle-icon');
-        if (body) body.classList.toggle('active');
-        if (icon) icon.innerHTML = body && body.classList.contains('active') ? '&#x25B2;' : '&#x25BC;';
-      }
-
-      // Login Status actions
-      if (action === 'login-refresh') LoginStatus.load();
-      if (action === 'login-clear-search') LoginStatus.clearSearch();
-      if (action === 'quiz-clear-search') LoginStatus.clearQuizSearch();
-      if (action === 'quiz-reset-subclass') LoginStatus.clearQuizSubclass();
-      if (action === 'login-reset-subclass') LoginStatus.clearLoginSubclass();
-      if (action === 'login-clear-class') { var lcs = document.getElementById('filter-login-class'); if (lcs) lcs.value = ''; LoginStatus.render(); }
-      if (action === 'login-select-visible') LoginStatus.selectVisibleOnly();
-      if (action === 'login-select-paused') LoginStatus.selectPausedOnly();
-      if (action === 'login-select-active') LoginStatus.selectActiveOnly();
-      if (action === 'login-bulk-resume') LoginStatus.bulkResume();
-      if (action === 'login-bulk-suspend') LoginStatus.bulkSuspend();
-      if (action === 'login-bulk-reset') LoginStatus.bulkReset();
-      if (action === 'login-clear-selection') LoginStatus.clearSelection();
-      
-      // Device Blocked (Tier 1) actions
-      if (action === 'device-blocked-refresh') LoginStatus.loadDeviceBlocked();
-
-      // Suspended actions
-      if (action === 'suspended-refresh') LoginStatus.loadSuspended();
-      if (action === 'suspended-clear-search') LoginStatus.clearSuspendedSearch();
-      if (action === 'suspended-reset-subclass') LoginStatus.clearSuspendedSubclass();
-      if (action === 'suspended-unsuspend') LoginStatus.bulkUnsuspend();
-      if (action === 'suspended-clear-selection') LoginStatus.clearSuspendedSelection();
-      
-      // Monitor actions
-      if (action === 'toggle-active-details') Dashboard.toggleActiveStudentsDetails();
-      if (action === 'sessions-select-visible') Dashboard.selectVisibleSessions();
-      if (action === 'sessions-select-active') Dashboard.selectActiveSessionsOnly();
-      if (action === 'sessions-select-paused') Dashboard.selectPausedSessionsOnly();
-      if (action === 'sessions-bulk-pause') Dashboard.bulkPauseSelected();
-      if (action === 'sessions-bulk-resume') Dashboard.bulkResumeSelected();
-      if (action === 'sessions-bulk-reset') Dashboard.bulkResetSelected();
-      if (action === 'sessions-bulk-delete') Dashboard.bulkForceLogoutSelected();
-      if (action === 'sessions-clear-selection') Dashboard.clearSessionSelection();
-      
-      // Courses actions
-      if (action === 'courses-reset') Dashboard.clearFilter();
-      if (action === 'courses-back') Dashboard.showCourses();
-      if (action === 'quizzes-back') Dashboard.showQuizzes();
-      if (action === 'courses-filter') Dashboard.filterCourses();
-    });
-
-    // Input event handlers - Enter key support
-    var epInput = document.getElementById('ep-input');
-    if (epInput) {
-      epInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') ExitPwd.save();
-      });
-    }
-
-    var sebInput = document.getElementById('seb-input');
-    if (sebInput) {
-      sebInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') SebPwd.save();
-      });
-    }
-
-    // Navigasi ke halaman tabel login
-    document.addEventListener('click', function(e) {
-      var btn = e.target.closest('[data-action]');
-      if (!btn) return;
-      var action = btn.getAttribute('data-action');
-      if (action === 'go-login-quiz')      { window.scrollTo(0,0); try { localStorage.setItem('dosman_login_subpage', 'quiz'); }      catch(_){} Dashboard.showPage('page-login-quiz'); }
-      if (action === 'go-login-active')    { window.scrollTo(0,0); try { localStorage.setItem('dosman_login_subpage', 'active'); }    catch(_){} Dashboard.showPage('page-login-active'); }
-      if (action === 'go-login-suspended') { window.scrollTo(0,0); try { localStorage.setItem('dosman_login_subpage', 'suspended'); } catch(_){} Dashboard.showPage('page-login-suspended'); }
-      if (action === 'login-subpage-back') {
-        window.scrollTo(0,0);
-        // Hanya tampilkan page-courses (login tab sudah aktif) — jangan panggil
-        // AdminCourseTabs.open('login') karena itu akan redirect kembali ke page-login-quiz.
-        Dashboard.showPage('page-courses');
-      }
-    }, true);
-
-    // Bersihkan pesan error duplikat saat judul/tanggal diubah
-    var qrTitleInput = document.getElementById('seb-qr-title');
-    var qrDateInput  = document.getElementById('seb-qr-exam-date');
-    if (qrDateInput && !qrDateInput.value) {
-      qrDateInput.value = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
-    }
-    function clearDupeError() {
-      var ws = document.getElementById('seb-status');
-      if (ws && ws.textContent.charAt(0) === '✗') ws.textContent = '';
-    }
-    if (qrTitleInput) qrTitleInput.addEventListener('input', clearDupeError);
-    if (qrDateInput)  qrDateInput.addEventListener('change', clearDupeError);
-  });
-})();
-</script>
-<!-- App footer — versi, fixed bottom, tidak menghalangi konten -->
-<footer class="app-footer">
-  <span class="app-footer-text">Dosman Exam</span>
-  <span class="app-footer-dot"></span>
-  <span class="app-footer-text">v2.1.6 (83)</span>
-  <span class="app-footer-dot"></span>
-  <span class="app-footer-text">Dashboard Guru &mdash; SMAN 1 Gianyar</span>
-</footer>
-
-<!-- Toastr container — fixed bottom-right, outside page flow -->
-<div id="alert-wrap"></div>
+  <!-- ─── SCRIPTS ───────────────────────────────────────────────────────── -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>

@@ -39,13 +39,10 @@ dosman-ujian-project/
 │   ├── pwd.php
 │   ├── test.html
 │   └── js/
-│       ├── auth.js
-│       ├── api.js
-│       ├── config.js
-│       ├── dashboard.js
-│       ├── exitpwd.js
-│       ├── login_status.js
-│       └── sebpwd.js
+│       ├── auth.js         # Token verification & session guard
+│       ├── config.js       # Endpoints & constants
+│       ├── api.js          # Helper API client
+│       └── app.js          # Unified modern proctoring dashboard controller (v2.2)
 └── moodle-plugin/
     └── local/dosman_ujian/
         ├── version.php
