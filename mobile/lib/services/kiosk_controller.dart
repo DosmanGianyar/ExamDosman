@@ -8,6 +8,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
+import 'auth_service.dart';
+import 'exam_service.dart';
+import '../screens/blocked_screen.dart';
 
 /// Respons [fetchExitPassword]. Hanya saat [success] == true nilai [password]
 /// boleh diartikan sebagai kebijakan server (kosong = admin tidak memakai password).
@@ -55,6 +58,7 @@ class KioskController {
           _unpinFlowBusy = false;
         }
       case 'onLockTaskLost':
+        _handleGlobalLockTaskLost();
         _notifyViolation('lock_task_lost');
       case 'onSplitScreenDetected':
         _notifyViolation('split_screen');
@@ -146,10 +150,47 @@ class KioskController {
     } catch (_) {}
   }
 
+  Future<void> _handleGlobalLockTaskLost() async {
+    final userId = await AuthService.getUserId();
+    if (userId > 0) {
+      try {
+        await ExamService.suspendStudent(
+          userId: userId,
+          reason: 'Siswa memaksa melepas pinned screen (alarm aktif)',
+        );
+      } catch (_) {}
+    }
+    await AuthService.saveBlockedStatus(true);
+    await AuthService.saveSuspendedByAdmin(true);
+
+    final ctx = _rootNavigatorKey?.currentContext;
+    if (ctx != null && ctx.mounted) {
+      Navigator.of(ctx).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => BlockedScreen(
+            userId: userId,
+            reason: 'Akun Anda ditangguhkan karena Anda memaksa melepas kuncian layar (pinned screen). Harap segera melapor ke pengawas ujian.',
+          ),
+        ),
+        (route) => false,
+      );
+    }
+  }
+
+  /// Daftarkan userId siswa ke native layer agar tersimpan saat terjadi pelanggaran mendadak.
+  Future<void> setUserId(int userId) async {
+    try {
+      await _channel.invokeMethod('setUserId', {'userId': userId});
+    } catch (_) {}
+  }
+
   /// Aktifkan kunci penuh — dipanggil tepat setelah login berhasil.
-  Future<void> lock() async {
+  Future<void> lock({int? userId}) async {
     try { await _channel.invokeMethod('enableLockdown'); }   catch (_) {}
-    try { await _channel.invokeMethod('enterLockTask'); }    catch (_) {}
+    try {
+      final effectiveId = (userId != null && userId > 0) ? userId : await AuthService.getUserId();
+      await _channel.invokeMethod('enterLockTask', {'userId': effectiveId});
+    } catch (_) {}
     try { await _channel.invokeMethod('lockBackButton'); }   catch (_) {}
     try { await _channel.invokeMethod('keepScreenOn'); }     catch (_) {}
     _active           = true;

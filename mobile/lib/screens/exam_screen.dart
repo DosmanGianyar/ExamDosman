@@ -177,17 +177,30 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
 
   /// Dipanggil KioskController saat native mendeteksi pelanggaran (split-screen, unpin, dll.).
   void _onNativeViolation(String reason) {
-    // Semua native violation hanya dicatat (log) — TIDAK memulai timer suspend.
-    //
-    // Alasan: native violation (split-screen, overlay, screencast) terjadi saat
-    // siswa MASIH di dalam aplikasi. Memanggil _onAppBackground() di sini akan
-    // memulai timer 45 detik yang tidak pernah dibatalkan (karena _onAppResumed()
-    // hanya dipanggil saat lifecycle benar-benar berubah ke paused→resumed).
-    // Akibatnya: siswa tersuspend padahal masih mengerjakan kuis.
-    //
-    // Suspend tetap terjadi secara otomatis jika siswa benar-benar meninggalkan
-    // aplikasi (lifecycle → paused) setelah melakukan pelanggaran ini.
     _logViolation(reason, data: {'phase': _webPhase});
+
+    // Jika lock task / pinned screen dilepas (alarm aktif) → langsung suspend akun siswa
+    if (reason == 'lock_task_lost' || reason.contains('unpin')) {
+      _handleUnpinSuspension();
+    }
+  }
+
+  Future<void> _handleUnpinSuspension() async {
+    final userId = widget.userId;
+    if (userId > 0) {
+      try {
+        await ExamService.suspendStudent(
+          userId: userId,
+          reason: 'Siswa memaksa melepas pinned screen saat kuis aktif (alarm aktif)',
+        );
+      } catch (_) {}
+    }
+    await AuthService.saveBlockedStatus(true);
+    await AuthService.saveSuspendedByAdmin(true);
+    if (!mounted) return;
+    await _goToBlockedScreen(
+      'Akun Anda ditangguhkan karena memaksa melepas kuncian layar (pinned screen) saat kuis berlangsung.',
+    );
   }
 
   // ─── App Lifecycle: deteksi minimize / background ────────────────────────

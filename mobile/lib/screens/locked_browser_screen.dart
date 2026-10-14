@@ -53,7 +53,8 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
     _loadCachedUserId();
     _clearClipboard();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await KioskController.instance.lock();
+      await _loadCachedUserId();
+      await KioskController.instance.lock(userId: _cachedUserId);
       if (!mounted) return;
       await _checkBlockedOnStart();
       if (!mounted) return;
@@ -676,8 +677,6 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
   Future<void> _doBlockStudent({String violationReason = 'exit_during_browser'}) async {
     final userId = await _getEffectiveUserId();
 
-    // Browser mode: cukup logout, TIDAK suspend akun.
-    // Suspend hanya dilakukan oleh ExamScreen saat siswa keluar di tengah kuis aktif.
     _pingTimer?.cancel();
 
     if (userId > 0) {
@@ -686,6 +685,34 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
       } catch (_) {}
     }
 
+    // Jika pelanggaran adalah melepas pinned screen (alarm aktif) → suspend akun siswa
+    if (violationReason == 'lock_task_lost' || violationReason.contains('unpin')) {
+      if (userId > 0) {
+        try {
+          await ExamService.suspendStudent(
+            userId: userId,
+            reason: 'Siswa memaksa melepas pinned screen (alarm aktif)',
+          );
+        } catch (_) {}
+      }
+      await AuthService.saveBlockedStatus(true);
+      await AuthService.saveSuspendedByAdmin(true);
+
+      if (!mounted) return;
+      KioskController.instance.unlock();
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => BlockedScreen(
+            userId: userId,
+            reason: 'Akun Anda ditangguhkan karena Anda memaksa melepas kuncian layar (pinned screen). Harap segera melapor ke pengawas ujian.',
+          ),
+        ),
+        (route) => false,
+      );
+      return;
+    }
+
+    // Standar keluar browser biasa tanpa pelanggaran unpin:
     await AuthService.saveBlockedStatus(false);
     await AuthService.logout();
 

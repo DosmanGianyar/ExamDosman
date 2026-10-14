@@ -34,6 +34,9 @@ class MainActivity : FlutterActivity() {
     private var backLocked            = false   // Back button dikunci
     private var pinLoopOn             = false   // loop 1-detik berjalan
     private var wasPinnedSuccessfully = false   // true setelah lock task pertama kali aktif
+    private var currentUserId: Int    = 0       // ID siswa yang sedang login
+    private var alarmToneGenerator: ToneGenerator? = null
+    private var unpinAlarmCount       = 0
 
     // Debounce startLockTask(): cegah pesan "App pinned" muncul berkali-kali saat startup.
     private var lastStartLockTaskMs     = 0L
@@ -116,17 +119,18 @@ class MainActivity : FlutterActivity() {
             if (!kioskActive || !pinLoopOn) return
             if (!isLockTaskActive()) {
                 if (wasPinnedSuccessfully) {
-                    // Siswa berhasil mencabut pin → bunyikan alarm dan tutup app.
+                    // Siswa berhasil mencabut pin → bunyikan alarm keras dan suspend akun siswa!
                     forceMaxVolume()
                     playUnpinAlert()
+
+                    // Kirim HTTP POST suspend akun siswa dari native thread sebagai pengaman utama
+                    triggerNativeStudentSuspension(currentUserId)
+
+                    // Beritahu Flutter agar UI beralih ke BlockedScreen dan memproses suspensi
                     mainHandler.post {
                         flutterChannel?.invokeMethod("onLockTaskLost", null)
                     }
                     stopKiosk()
-                    // Beri 500ms agar alarm sempat berbunyi sebelum app ditutup.
-                    mainHandler.postDelayed({
-                        try { finishAndRemoveTask() } catch (_: Exception) { finish() }
-                    }, 500L)
                     return
                 }
                 // Belum pernah berhasil pinned — masih dalam proses aktivasi awal, tunggu.
@@ -170,23 +174,65 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
-     * Putar nada alarm mendesak saat siswa mencoba mencabut pin (pertama kali terdeteksi).
-     * Menggunakan STREAM_ALARM agar berbunyi meski HP di-silent.
+     * Putar nada alarm mendesak dan berulang saat siswa mencabut pin.
+     * Menggunakan STREAM_ALARM volume maksimal agar terdengar jelas oleh pengawas di ruangan.
      */
     private fun playUnpinAlert() {
         try {
-            val tg = ToneGenerator(AudioManager.STREAM_ALARM, 100)
-            // Tiga nada panjang berurutan (total ~2850 ms, 3x lebih panjang dari sebelumnya)
+            forceMaxVolume()
+            alarmToneGenerator?.release()
+            alarmToneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, 100)
+            unpinAlarmCount = 0
             val handler = Handler(Looper.getMainLooper())
-            tg.startTone(ToneGenerator.TONE_CDMA_EMERGENCY_RINGBACK, 750)
-            handler.postDelayed({
-                try { tg.startTone(ToneGenerator.TONE_CDMA_EMERGENCY_RINGBACK, 750) } catch (_: Exception) {}
-            }, 1050)
-            handler.postDelayed({
-                try { tg.startTone(ToneGenerator.TONE_CDMA_EMERGENCY_RINGBACK, 750) } catch (_: Exception) {}
-                try { tg.release() } catch (_: Exception) {}
-            }, 2100)
+            val alarmRunnable = object : Runnable {
+                override fun run() {
+                    if (unpinAlarmCount < 10) { // Bunyikan 10 kali berulang (~11 detik)
+                        try {
+                            forceMaxVolume()
+                            alarmToneGenerator?.startTone(ToneGenerator.TONE_CDMA_EMERGENCY_RINGBACK, 850)
+                        } catch (_: Exception) {}
+                        unpinAlarmCount++
+                        handler.postDelayed(this, 1100L)
+                    } else {
+                        try { alarmToneGenerator?.release() } catch (_: Exception) {}
+                        alarmToneGenerator = null
+                    }
+                }
+            }
+            handler.post(alarmRunnable)
         } catch (_: Exception) {}
+    }
+
+    /**
+     * Kirim permintaan suspend akun siswa langsung dari native background thread.
+     */
+    private fun triggerNativeStudentSuspension(userId: Int) {
+        if (userId <= 0) return
+        Thread {
+            try {
+                val url = java.net.URL("https://lms.sman1-gianyar.sch.id:9443/local/dosman_ujian/suspend_student.php")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                conn.connectTimeout = 6000
+                conn.readTimeout = 6000
+                conn.doOutput = true
+
+                val json = org.json.JSONObject().apply {
+                    put("apikey", "dosman-exam-sman1gianyar-2024")
+                    put("userid", userId)
+                    put("reason", "Siswa memaksa melepas pinned screen (alarm aktif)")
+                }
+
+                conn.outputStream.use { os ->
+                    os.write(json.toString().toByteArray(Charsets.UTF_8))
+                }
+                val code = conn.responseCode
+                android.util.Log.i("DosmanExam", "Native suspend student $userId HTTP status: $code")
+            } catch (e: Exception) {
+                android.util.Log.e("DosmanExam", "Native suspend student error", e)
+            }
+        }.start()
     }
 
     // ── DND (Do Not Disturb) ──────────────────────────────────────────────────
@@ -367,7 +413,15 @@ class MainActivity : FlutterActivity() {
                     }
                 }
 
+                "setUserId" -> {
+                    val uid = call.argument<Int>("userId") ?: 0
+                    if (uid > 0) currentUserId = uid
+                    result.success(true)
+                }
+
                 "enterLockTask" -> {
+                    val uid = call.argument<Int>("userId") ?: 0
+                    if (uid > 0) currentUserId = uid
                     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
                         result.success(false); return@setMethodCallHandler
                     }

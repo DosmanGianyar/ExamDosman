@@ -23,13 +23,19 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+define('DOSMAN_EXIT_API_KEY', 'dosman-exam-sman1gianyar-2024');
+
 $body   = json_decode(file_get_contents('php://input'), true) ?: [];
 $token  = trim((string)($body['token']  ?? ''));
+$apikey = trim((string)($body['apikey'] ?? ''));
 $userid = (int)($body['userid'] ?? 0);
+$reason = trim((string)($body['reason'] ?? 'Siswa memaksa melepas pinned screen (alarm aktif)'));
 
-if ($token === '' || $userid <= 0) {
+$isApiKeyValid = ($apikey !== '' && hash_equals(DOSMAN_EXIT_API_KEY, $apikey));
+
+if (($token === '' && !$isApiKeyValid) || $userid <= 0) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'Parameter tidak lengkap']);
+    echo json_encode(['success' => false, 'message' => 'Parameter tidak lengkap atau tidak valid']);
     exit;
 }
 
@@ -53,19 +59,21 @@ try {
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     ]);
 
-    // Validasi token admin
-    $stmtTok = $pdo->prepare(
-        "SELECT userid FROM {$prefix}external_tokens
-          WHERE token = ?
-            AND (validuntil = 0 OR validuntil > UNIX_TIMESTAMP())
-          LIMIT 1"
-    );
-    $stmtTok->execute([$token]);
-    $adminId = $stmtTok->fetchColumn();
-    if ($adminId === false) {
-        http_response_code(401);
-        echo json_encode(['success' => false, 'message' => 'Token tidak valid']);
-        exit;
+    if (!$isApiKeyValid) {
+        // Validasi token admin / guru
+        $stmtTok = $pdo->prepare(
+            "SELECT userid FROM {$prefix}external_tokens
+              WHERE token = ?
+                AND (validuntil = 0 OR validuntil > UNIX_TIMESTAMP())
+              LIMIT 1"
+        );
+        $stmtTok->execute([$token]);
+        $adminId = $stmtTok->fetchColumn();
+        if ($adminId === false) {
+            http_response_code(401);
+            echo json_encode(['success' => false, 'message' => 'Token tidak valid']);
+            exit;
+        }
     }
 
     // Pastikan target bukan site admin Moodle (dicatat di mdl_config, bukan role_assignments)
@@ -159,10 +167,10 @@ try {
     $pdo->prepare(
         "UPDATE {$prefix}local_dosman_ujian_devices
             SET status = 'blocked',
-                block_reason = 'Akun di-suspend karena pelanggaran ujian',
+                block_reason = ?,
                 blocked_at = UNIX_TIMESTAMP()
           WHERE userid = ? AND status = 'active'"
-    )->execute([$userid]);
+    )->execute([$reason, $userid]);
 
     $pdo->commit();
 

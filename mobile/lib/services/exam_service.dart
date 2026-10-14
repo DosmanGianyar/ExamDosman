@@ -306,13 +306,13 @@ class ExamService {
   }
 
   /// Suspend akun siswa di server (paksa logout dari app/web).
-  /// Endpoint memerlukan token aktif dari user yang sedang login.
+  /// Menggunakan apikey internal dan token siswa jika ada.
   static Future<bool> suspendStudent({
     required int userId,
+    String reason = 'Siswa memaksa melepas pinned screen (alarm aktif)',
   }) async {
     try {
       final token = await AuthService.getToken();
-      if (token == null || token.isEmpty) return false;
       final uri = Uri.parse(
         '${AppConfig.moodleUrl}/local/dosman_ujian/suspend_student.php',
       );
@@ -321,8 +321,10 @@ class ExamService {
             uri,
             headers: {'Content-Type': 'application/json'},
             body: json.encode({
-              'token': token,
+              'token': token ?? '',
+              'apikey': AppConfig.exitPwdApiKey,
               'userid': userId,
+              'reason': reason,
             }),
           )
           .timeout(const Duration(seconds: 6));
