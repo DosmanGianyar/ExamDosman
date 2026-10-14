@@ -62,6 +62,8 @@ class KioskController {
         _notifyViolation('overlay');
       case 'onScreenCastDetected':
         _notifyViolation('screen_cast');
+      case 'onScreenshotDetected':
+        _notifyViolation('screenshot_attempt');
     }
     return null;
   }
@@ -117,13 +119,23 @@ class KioskController {
     }
   }
 
-  /// True jika screen pin / lock task Android aktif. Non-Android mengembalikan true.
+  /// True jika screen pin / lock task Android atau Guided Access iOS aktif.
   Future<bool> isLockTaskPinned() async {
     try {
       final res = await _channel.invokeMethod<bool>('isLockTaskActive');
-      return res ?? true;
+      return res ?? false;
     } catch (_) {
-      return true;
+      return false;
+    }
+  }
+
+  /// Khusus iOS: Cek apakah fitur Akses Terpandu (Guided Access) sedang aktif.
+  Future<bool> isGuidedAccessActive() async {
+    try {
+      final res = await _channel.invokeMethod<bool>('isGuidedAccessActive');
+      return res ?? false;
+    } catch (_) {
+      return false;
     }
   }
 

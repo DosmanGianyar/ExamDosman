@@ -4,6 +4,7 @@
 // SMAN 1 GIANYAR, Bali
 // ===========================
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'kiosk_unpin_flow.dart';
@@ -15,7 +16,18 @@ import 'screens/splash_screen.dart';
 import 'services/kiosk_controller.dart';
 import 'widgets/pin_reminder_layer.dart';
 
+class DosmanHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (X509Certificate cert, String host, int port) {
+        return host == '36.93.15.146' || host == 'lms.sman1-gianyar.sch.id';
+      };
+  }
+}
+
 void main() async {
+  HttpOverrides.global = DosmanHttpOverrides();
   WidgetsFlutterBinding.ensureInitialized();
 
   // Kirim ulang suspend yang gagal saat offline pada sesi ujian sebelumnya.

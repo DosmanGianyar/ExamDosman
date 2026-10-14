@@ -18,8 +18,9 @@ class before_http_headers {
 
         $ua           = $_SERVER['HTTP_USER_AGENT'] ?? '';
         $script       = $_SERVER['SCRIPT_NAME'] ?? '';
-        $isAndroid    = strpos($ua, 'ExamDosmanAndroid') !== false;
-        $isSEB        = !$isAndroid && (strpos($ua, 'SEB') !== false || strpos($ua, 'SafeExamBrowser') !== false);
+        $isDosmanApp  = (strpos($ua, 'ExamDosmanAndroid') !== false) || (strpos($ua, 'ExamDosmanIOS') !== false);
+        $isAndroid    = $isDosmanApp;
+        $isSEB        = !$isDosmanApp && (strpos($ua, 'SEB') !== false || strpos($ua, 'SafeExamBrowser') !== false);
         $is_quiz_page = (bool) preg_match(
             '#/mod/quiz/(view|attempt|startattempt|processattempt|summary)\.php#', $script
         );

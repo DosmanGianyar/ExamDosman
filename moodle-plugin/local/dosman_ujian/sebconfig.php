@@ -9,9 +9,9 @@
  */
 
 // Nilai default (fallback jika config.php tidak dapat dibaca)
-$moodle_base      = 'https://lms.sman1-gianyar.sch.id';
-$allowed_host_raw = 'lms.sman1-gianyar.sch.id';
-$allowed_pat_raw  = '^https://([a-z0-9-]+\.)?lms\.sman1-gianyar\.sch\.id(/|$)';
+$moodle_base      = 'https://lms.sman1-gianyar.sch.id:9443';
+$allowed_host_raw = 'lms.sman1-gianyar.sch.id:9443';
+$allowed_pat_raw  = '^https://lms\.sman1-gianyar\.sch\.id:9443(/|$)';
 
 $hashed_pwd = '';   // default: tidak perlu password untuk quit
 $qr_secret  = '';   // secret untuk validasi QR harian (opsional)

@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html>
     <head>
         <meta charset="UTF-8" />
@@ -86,10 +86,10 @@
                 localStorage.getItem("dosman_username") || "TIDAK ADA";
 
             var TOKEN = localStorage.getItem("dosman_token") || "";
-            var MOODLE = "https://lms.sman1-gianyar.sch.id";
+            var MOODLE = "https://lms.sman1-gianyar.sch.id:9443";
 
             function useProxy() {
-                return window.location.hostname === "lms.sman1-gianyar.sch.id";
+                return window.location.hostname === "36.93.15.146" || window.location.hostname === "lms.sman1-gianyar.sch.id";
             }
 
             function buildUrl(endpoint, params) {

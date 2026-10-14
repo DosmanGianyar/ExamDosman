@@ -1,4 +1,4 @@
-﻿// ===========================
+// ===========================
 // DOSMAN UJIAN - Locked Browser Screen
 // Browser terkunci — hanya bisa akses lms.sman1-gianyar.sch.id
 // ===========================
@@ -1150,6 +1150,13 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
                                 disableContextMenu: true,
                                 disableLongPressContextMenuOnLinks: true,
                               ),
+                              onReceivedServerTrustAuthRequest: (controller, challenge) async {
+                                final host = challenge.protectionSpace.host;
+                                if (host == '36.93.15.146' || host == 'lms.sman1-gianyar.sch.id') {
+                                  return ServerTrustAuthResponse(action: ServerTrustAuthResponseAction.PROCEED);
+                                }
+                                return ServerTrustAuthResponse(action: ServerTrustAuthResponseAction.CANCEL);
+                              },
                               onWebViewCreated: (ctrl) {
                                 _webController = ctrl;
                               },

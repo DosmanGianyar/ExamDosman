@@ -4,7 +4,7 @@
 
 var API = {
   useProxy: function () {
-    return window.location.hostname === "lms.sman1-gianyar.sch.id";
+    return window.location.hostname === "36.93.15.146" || window.location.hostname === "lms.sman1-gianyar.sch.id";
   },
 
   buildUrl: function (endpoint, params) {

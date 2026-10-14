@@ -16,9 +16,9 @@ require_once(__DIR__ . '/../../config.php');
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache');
 
-// Hanya untuk Dosman Exam app
+// Hanya untuk Dosman Exam app (Android & iOS)
 $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
-if (strpos($ua, 'ExamDosmanAndroid') === false) {
+if (strpos($ua, 'ExamDosmanAndroid') === false && strpos($ua, 'ExamDosmanIOS') === false) {
     echo json_encode(['status' => 'ignored']);
     exit;
 }

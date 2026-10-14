@@ -14,14 +14,15 @@ class before_footer {
     public static function callback(\core\hook\output\before_footer_html_generation $hook): void {
         global $CFG, $USER, $DB;
 
-        $ua        = $_SERVER['HTTP_USER_AGENT'] ?? '';
-        $isAndroid = strpos($ua, 'ExamDosmanAndroid') !== false;
-        $isSEB     = !$isAndroid && (
+        $ua          = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        $isDosmanApp = (strpos($ua, 'ExamDosmanAndroid') !== false) || (strpos($ua, 'ExamDosmanIOS') !== false);
+        $isAndroid   = $isDosmanApp;
+        $isSEB       = !$isDosmanApp && (
             strpos($ua, 'SEB') !== false ||
             strpos($ua, 'SafeExamBrowser') !== false
         );
 
-        if (!$isAndroid && !$isSEB) return;
+        if (!$isDosmanApp && !$isSEB) return;
 
         // ── SEB (iOS): Floating Back Button ───────────────────────────────────
         // Tombol "Kembali" memanggil history.back() di dalam SEB — tidak bisa

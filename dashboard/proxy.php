@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * CORS Proxy - Dosman Ujian Dashboard v5.0
  * Fix: loopback issue — server tidak bisa koneksi ke domain publik sendiri
@@ -13,7 +13,7 @@ ini_set('display_startup_errors', '0');
 
 header('Content-Type: application/json; charset=utf-8');
 
-$MOODLE_HOST = 'lms.sman1-gianyar.sch.id';
+$MOODLE_HOST = 'lms.sman1-gianyar.sch.id:9443';
 $MOODLE_URL  = 'https://' . $MOODLE_HOST;
 
 function loadDbConfigFromMoodle(): array {

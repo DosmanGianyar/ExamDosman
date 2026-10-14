@@ -1,4 +1,4 @@
-﻿// ===========================
+// ===========================
 // DOSMAN UJIAN - AUTH
 // ===========================
 
@@ -9,7 +9,7 @@ var Auth = {
   getMoodleUrl: function () {
     return (
       localStorage.getItem("dosman_moodle_url") ||
-      "https://lms.sman1-gianyar.sch.id"
+      "https://lms.sman1-gianyar.sch.id:9443"
     );
   },
   getUsername: function () {

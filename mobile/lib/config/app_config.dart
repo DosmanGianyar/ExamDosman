@@ -1,10 +1,12 @@
+import 'package:flutter/foundation.dart';
+
 // ===========================
 // DOSMAN UJIAN - App Config
 // ===========================
 
 class AppConfig {
   // URL Moodle server
-  static const String moodleUrl = 'https://lms.sman1-gianyar.sch.id';
+  static const String moodleUrl = 'https://lms.sman1-gianyar.sch.id:9443';
 
   /// Host/domain yang diizinkan dibuka dari WebView saat ujian.
   /// Minimal harus mencakup host dari [moodleUrl].
@@ -12,22 +14,29 @@ class AppConfig {
   /// Tambahkan host lain jika Moodle memuat asset/SSO dari domain berbeda
   /// (mis. CDN sekolah, domain auth, atau storage internal).
   static const List<String> allowedHosts = [
+    '36.93.15.146',
+    '36.93.15.146:9443',
     'lms.sman1-gianyar.sch.id',
+    'lms.sman1-gianyar.sch.id:9443',
   ];
 
   // Nama service Moodle Web Service — gunakan official mobile service agar
   // token dapat dibuat tanpa perlu capability moodle/webservice:createtoken.
   static const String serviceName = 'moodle_mobile_app';
 
-  // MethodChannel untuk komunikasi Flutter <-> Android native
+  // MethodChannel untuk komunikasi Flutter <-> Android/iOS native
   static const String lockdownChannel = 'com.dosman.ujian/lockdown';
 
   // Interval heartbeat (detik)
   static const int heartbeatInterval = 10;
 
-  // User agent WebView ujian — kata kunci ExamDosmanAndroid dikenali server Moodle.
-  static const String examBrowserUserAgent =
-      'Mozilla/5.0 (Linux; Android) ExamDosmanAndroid';
+  // User agent WebView ujian — kata kunci dikenali server Moodle.
+  static String get examBrowserUserAgent {
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      return 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) ExamDosmanIOS';
+    }
+    return 'Mozilla/5.0 (Linux; Android) ExamDosmanAndroid';
+  }
 
   // API key statis untuk endpoint exitpwd.php — harus sama dengan nilai di server.
   static const String exitPwdApiKey = 'dosman-exam-sman1gianyar-2024';

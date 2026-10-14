@@ -387,6 +387,23 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
       return;
     }
 
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      if (!_immersiveUiActive) {
+        try {
+          await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+          _immersiveUiActive = true;
+        } catch (e) {
+          debugPrint('[Kiosk] iOS immersive: $e');
+        }
+      }
+
+      final isGuided = await KioskController.instance.isGuidedAccessActive();
+      if (!isGuided && mounted) {
+        await _showGuidedAccessPrompt();
+      }
+      return;
+    }
+
     if (_immersiveUiActive) return;
     try {
       await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -394,6 +411,90 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('[Kiosk] immersive: $e');
     }
+  }
+
+  /// Dialog panduan aktivasi Akses Terpandu (Guided Access) resmi Apple untuk siswa iOS.
+  Future<void> _showGuidedAccessPrompt() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.lock_person_rounded, color: Color(0xFF38BDF8), size: 28),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Aktifkan Akses Terpandu',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: const Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Demi keamanan ujian, perangkat iOS (iPhone/iPad) wajib mengaktifkan Akses Terpandu (Guided Access):',
+                style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
+              ),
+              SizedBox(height: 12),
+              Text(
+                '1. Tekan tombol samping (Power) 3 kali cepat.\n'
+                '2. Ketuk "Mulai" di sudut kanan atas.\n'
+                '3. Masukkan kode sandi ujian dari pengawas.',
+                style: TextStyle(
+                  color: Color(0xFFBAE6FD),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  height: 1.6,
+                ),
+              ),
+              SizedBox(height: 12),
+              Text(
+                'Catatan: Jika belum diaktifkan di sistem, buka Pengaturan iPhone → Aksesibilitas → Akses Terpandu.',
+                style: TextStyle(color: Colors.white54, fontSize: 11, fontStyle: FontStyle.italic),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton.icon(
+              onPressed: () async {
+                final active = await KioskController.instance.isGuidedAccessActive();
+                if (active) {
+                  if (ctx.mounted) Navigator.of(ctx).pop();
+                } else {
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(
+                        content: Text('Akses Terpandu belum aktif. Silakan tekan tombol samping 3 kali.'),
+                        backgroundColor: Color(0xFFDC2626),
+                      ),
+                    );
+                  }
+                }
+              },
+              icon: const Icon(Icons.check_circle_outline, size: 18),
+              label: const Text('Cek Status & Lanjutkan'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0284C7),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _exitExamKioskMode() async {
@@ -1180,6 +1281,13 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
                 // agar skrip server dapat mengenali request dari aplikasi ini.
                 userAgent: AppConfig.examBrowserUserAgent,
               ),
+              onReceivedServerTrustAuthRequest: (controller, challenge) async {
+                final host = challenge.protectionSpace.host;
+                if (host == '36.93.15.146' || host == 'lms.sman1-gianyar.sch.id') {
+                  return ServerTrustAuthResponse(action: ServerTrustAuthResponseAction.PROCEED);
+                }
+                return ServerTrustAuthResponse(action: ServerTrustAuthResponseAction.CANCEL);
+              },
               onWebViewCreated: (ctrl) {
                 _webCtrl = ctrl;
 

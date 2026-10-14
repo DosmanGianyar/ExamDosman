@@ -127,6 +127,8 @@ class get_sessions extends external_api {
             $ua = $r->useragent ?? '';
             if (stripos($ua, 'ExamDosmanAndroid') !== false) {
                 $clientType = 'android';
+            } elseif (stripos($ua, 'ExamDosmanIOS') !== false) {
+                $clientType = 'ios';
             } elseif (stripos($ua, 'SafeExamBrowser') !== false || stripos($ua, '/SEB') !== false || stripos($ua, ' SEB/') !== false) {
                 $clientType = 'seb';
             } elseif ($ua !== '') {

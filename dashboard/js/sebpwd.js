@@ -162,7 +162,7 @@ var SebPwd = {
       '<dict>',
       '    <!-- Fallback URL jika fetch sebConfigURL gagal -->',
       '    <key>startURL</key>',
-      '    <string>https://lms.sman1-gianyar.sch.id/login/index.php</string>',
+      '    <string>https://lms.sman1-gianyar.sch.id:9443/login/index.php</string>',
       '    <!-- Suffix UA resmi SEB (bukan browserUserAgentiOS) agar Moodle mengenali iOS -->',
       '    <key>browserUserAgent</key>',
       '    <string> ExamDosmanIOS</string>',

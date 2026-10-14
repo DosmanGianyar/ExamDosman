@@ -341,7 +341,7 @@
     </div>
 
     <!-- Tombol ke LMS -->
-    <a href="https://lms.sman1-gianyar.sch.id" target="_blank" class="btn-home">
+    <a href="https://lms.sman1-gianyar.sch.id:9443" target="_blank" class="btn-home">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
         </svg>
@@ -411,7 +411,7 @@
 </div>
 
 <script>
-var MOODLE_URL = 'https://lms.sman1-gianyar.sch.id';
+var MOODLE_URL = 'https://lms.sman1-gianyar.sch.id:9443';
 var _pwdVisible = false;
 
 if (localStorage.getItem('dosman_token')) {
@@ -453,7 +453,7 @@ function setLoading(v) {
 
 function buildUrl(endpoint, params) {
     var query = new URLSearchParams(params);
-    if (window.location.hostname === 'lms.sman1-gianyar.sch.id') {
+    if (window.location.hostname === '36.93.15.146' || window.location.hostname === 'lms.sman1-gianyar.sch.id') {
         query.set('_endpoint', endpoint);
         return 'proxy.php?' + query.toString();
     }
