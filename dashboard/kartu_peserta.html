@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cetak Kartu Peserta Ujian CBT — SMAN 1 Gianyar</title>
+  <link rel="icon" type="image/png" href="assets/logo_sekolah.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <script src="js/qrcode.min.js"></script>
+
+  <style>
+    /* ==========================================================================
+       CSS STYLING: KARTU PESERTA UJIAN CBT SMAN 1 GIANYAR
+       ========================================================================== */
+    :root {
+      --bg-dark: #090d16;
+      --card-bg: #111827;
+      --border-dark: #1e293b;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --accent: #0ea5e9;
+      --success: #10b981;
+      --text-light: #f8fafc;
+      --text-dim: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-light);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── TOOLBAR KONTROL ADMIN (NO-PRINT) ─── */
+    .admin-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 999;
+      background: rgba(17, 24, 39, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-dark);
+      padding: 14px 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .toolbar-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      object-fit: contain;
+    }
+
+    .brand-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      color: #fff;
+    }
+
+    .brand-subtitle {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+    }
+
+    .toolbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.825rem;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: #1e293b;
+      color: var(--text-light);
+      border: 1px solid #334155;
+    }
+    .btn-secondary:hover {
+      background: #334155;
+    }
+
+    .btn-success {
+      background: #059669;
+      color: #fff;
+    }
+    .btn-success:hover {
+      background: #047857;
+    }
+
+    /* ─── KONTROL INPUT DINAMIS ─── */
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      background: rgba(15, 23, 42, 0.6);
+      padding: 12px 16px;
+      border-radius: 10px;
+      border: 1px solid #1e293b;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .form-label {
+      font-size: 0.725rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .form-input, .form-select {
+      background: #0b1120;
+      border: 1px solid #334155;
+      color: #fff;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-input:focus, .form-select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
+    }
+
+    /* ─── PREVIEW CONTAINER ─── */
+    .preview-container {
+      padding: 30px 20px 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .preview-notice {
+      background: rgba(37, 99, 235, 0.1);
+      border: 1px solid rgba(37, 99, 235, 0.3);
+      color: #93c5fd;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 0.825rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      max-width: 900px;
+      width: 100%;
+    }
+
+    /* ─── A4 PAGE SHEET LAYOUT ─── */
+    .a4-sheet {
+      width: 210mm;
+      min-height: 297mm;
+      background: #ffffff;
+      color: #0f172a;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      margin: 0 auto 30px;
+      padding: 10mm 9mm;
+      box-sizing: border-box;
+      position: relative;
+      page-break-after: always;
+    }
+
+    /* Grid Layout: 2 Kolom x 4 Baris = 8 Kartu per A4 */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-auto-rows: 66mm;
+      gap: 4mm 5mm;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Grid Layout 6 Kartu (2 x 3) */
+    .cards-grid.layout-6 {
+      grid-auto-rows: 88mm;
+      gap: 6mm 6mm;
+    }
+
+    /* ─── CARD ITEM DESIGN (KARTU PESERTA) ─── */
+    .exam-card {
+      border: 1.5px dashed #475569;
+      border-radius: 6px;
+      padding: 7px 9px 6px;
+      background: #ffffff;
+      color: #0f172a;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+
+    /* Decorative Watermark Sekolah */
+    .exam-card::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 130px;
+      height: 130px;
+      background: url('assets/logo_sekolah.png') no-repeat center;
+      background-size: contain;
+      opacity: 0.045;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Ikon gunting potong */
+    .exam-card::before {
+      content: '✂';
+      position: absolute;
+      top: -6px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 8px;
+      color: #94a3b8;
+      background: #fff;
+      padding: 0 4px;
+      line-height: 1;
+    }
+
+    /* Header / Kop Kartu */
+    .card-header-kop {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding-bottom: 4px;
+      border-bottom: 1.8px double #0f172a;
+      margin-bottom: 5px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .card-kop-logo {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+
+    .card-kop-text {
+      flex: 1;
+      text-align: center;
+    }
+
+    .kop-prov {
+      font-size: 6.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: #334155;
+      line-height: 1.1;
+    }
+
+    .kop-school {
+      font-size: 9.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: #0f172a;
+      line-height: 1.15;
+    }
+
+    .kop-title {
+      font-size: 8px;
+      font-weight: 700;
+      color: #1e3a8a;
+      text-transform: uppercase;
+      margin-top: 1px;
+      line-height: 1.1;
+    }
+
+    .kop-ta {
+      font-size: 6.5px;
+      font-weight: 600;
+      color: #475569;
+      line-height: 1.1;
+    }
+
+    /* Body Kartu (Data Siswa & QR Code) */
+    .card-body-content {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+      flex: 1;
+      position: relative;
+      z-index: 1;
+    }
+
+    .student-info-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-around;
+      font-size: 7.5px;
+      line-height: 1.35;
+    }
+
+    .info-row {
+      display: flex;
+      align-items: baseline;
+    }
+
+    .info-label {
+      width: 65px;
+      flex-shrink: 0;
+      color: #475569;
+      font-weight: 600;
+    }
+
+    .info-colon {
+      width: 8px;
+      flex-shrink: 0;
+      text-align: center;
+      color: #475569;
+    }
+
+    .info-value {
+      flex: 1;
+      font-weight: 700;
+      color: #0f172a;
+      word-break: break-word;
+    }
+
+    .info-value.student-name-val {
+      font-size: 8.5px;
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1.2;
+    }
+
+    .info-value.badge-class {
+      display: inline-block;
+      background: #e0f2fe;
+      color: #0369a1;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 7.5px;
+      font-weight: 800;
+      border: 0.5px solid #bae6fd;
+    }
+
+    .login-box {
+      margin-top: 2px;
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      padding: 3px 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .login-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .login-label {
+      font-size: 5.5px;
+      color: #64748b;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .login-cred {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 7.5px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    /* Kolom QR Code */
+    .qr-col {
+      width: 64px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding-left: 4px;
+      border-left: 1px dashed #cbd5e1;
+    }
+
+    .qr-code-box {
+      width: 58px;
+      height: 58px;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+    }
+
+    .qr-code-box img, .qr-code-box canvas {
+      width: 100% !important;
+      height: 100% !important;
+      display: block;
+    }
+
+    .qr-caption {
+      font-size: 5.5px;
+      font-weight: 700;
+      color: #2563eb;
+      text-transform: uppercase;
+      margin-top: 2px;
+      letter-spacing: 0.3px;
+      text-align: center;
+    }
+
+    /* Footer Kartu & Tanda Tangan */
+    .card-footer-sign {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding-top: 3px;
+      border-top: 0.5px solid #e2e8f0;
+      margin-top: 4px;
+      font-size: 6px;
+      color: #475569;
+      position: relative;
+      z-index: 1;
+    }
+
+    .card-note {
+      font-size: 5.5px;
+      font-style: italic;
+      color: #64748b;
+      max-width: 55%;
+      line-height: 1.1;
+    }
+
+    .card-sign-box {
+      text-align: right;
+      line-height: 1.15;
+    }
+
+    .card-sign-role {
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .card-sign-name {
+      font-weight: 800;
+      text-decoration: underline;
+      color: #0f172a;
+      margin-top: 8px;
+    }
+
+    /* ─── MEDIA PRINT (PRESISI A4) ─── */
+    @page {
+      size: A4 portrait;
+      margin: 8mm 8mm 8mm 8mm;
+    }
+
+    @media print {
+      body {
+        background: #ffffff !important;
+        color: #000000 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+
+      .no-print, .admin-toolbar, .preview-notice {
+        display: none !important;
+      }
+
+      .preview-container {
+        padding: 0 !important;
+        gap: 0 !important;
+      }
+
+      .a4-sheet {
+        box-shadow: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        min-height: auto !important;
+        page-break-after: always !important;
+      }
+
+      .exam-card {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       TOOLBAR PENGATURAN KARTU (TAMPIL DI LAYAR, HILANG SAAT DICETAK)
+       ══════════════════════════════════════════════════════════════════════ -->
+  <header class="admin-toolbar no-print">
+    <div class="toolbar-top">
+      <div class="brand-wrap">
+        <img src="assets/logo_sekolah.png" alt="Logo SMAN 1 Gianyar" class="brand-logo">
+        <div>
+          <h1 class="brand-title">Pencetakan Kartu Peserta Ujian CBT</h1>
+          <span class="brand-subtitle">SMAN 1 Gianyar &bull; Format Standar Kertas A4 &amp; Barcode Login Otomatis</span>
+        </div>
+      </div>
+
+      <div class="toolbar-actions">
+        <a href="index.html" class="btn btn-secondary">
+          <span>&larr; Dashboard</span>
+        </a>
+        <button class="btn btn-secondary" onclick="loadStudentData()" title="Muat ulang seluruh data siswa dari Moodle">
+          <span>&#x1F504; Reload Data</span>
+        </button>
+        <button class="btn btn-primary" onclick="window.print()" title="Cetak atau Simpan ke PDF">
+          <span>&#x1F5A8;&#xFE0F; Cetak Kartu (A4)</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Parameter yang bisa diubah-ubah oleh admin sesuai kebutuhan ujian -->
+    <div class="controls-grid">
+      <div class="form-group" style="grid-column: span 2;">
+        <label class="form-label" for="input-card-title">&#x1F4DD; Judul Kartu Ujian (Dapat Diganti)</label>
+        <input type="text" id="input-card-title" class="form-input" 
+               value="KARTU PESERTA ASESMEN SUMATIF (CBT)" 
+               placeholder="Contoh: KARTU PESERTA ASESMEN SUMATIF AKHIR SEMESTER" 
+               oninput="updateCardTitles()">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="input-card-ta">&#x1F4C5; Tahun Pelajaran / Semester</label>
+        <input type="text" id="input-card-ta" class="form-input" 
+               value="TAHUN AJARAN 2025/2026" 
+               placeholder="Contoh: TAHUN AJARAN 2025/2026" 
+               oninput="updateCardTitles()">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="input-default-pass">&#x1F511; Default Password QR &amp; Login</label>
+        <input type="text" id="input-default-pass" class="form-input" 
+               value="siswa123" 
+               placeholder="Password default login" 
+               oninput="regenerateAllCards()">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="input-sign-role">&#x270D;&#xFE0F; Jabatan Penandatangan</label>
+        <input type="text" id="input-sign-role" class="form-input" 
+               value="Kepala SMAN 1 Gianyar" 
+               placeholder="Contoh: Kepala Sekolah / Proktor Utama" 
+               oninput="updateCardTitles()">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="input-sign-name">&#x1F464; Nama Pejabat &amp; NIP</label>
+        <input type="text" id="input-sign-name" class="form-input" 
+               value="I Wayan Sueta, S.Pd., M.Pd." 
+               placeholder="Nama Pejabat Penandatangan" 
+               oninput="updateCardTitles()">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="select-grade">&#x1F393; Filter Tingkat (Grade)</label>
+        <select id="select-grade" class="form-select" onchange="onGradeFilterChange()">
+          <option value="">Semua Tingkat</option>
+          <option value="Kelas X">Kelas X (Grade 10)</option>
+          <option value="Kelas XI">Kelas XI (Grade 11)</option>
+          <option value="Kelas XII">Kelas XII (Grade 12)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="select-class">&#x1F3EB; Filter Kelas (Cohort)</label>
+        <select id="select-class" class="form-select" onchange="renderCards()">
+          <option value="">Semua Kelas</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="input-search">&#x1F50D; Cari Siswa / NIS</label>
+        <input type="text" id="input-search" class="form-input" 
+               placeholder="Ketik nama atau NIS siswa..." 
+               oninput="renderCards()">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="select-layout">&#x1F4D0; Tata Letak Lembar A4</label>
+        <select id="select-layout" class="form-select" onchange="updateLayoutGrid()">
+          <option value="8">8 Kartu / Lembar A4 (2 x 4 Grid) — Standar Saku</option>
+          <option value="6">6 Kartu / Lembar A4 (2 x 3 Grid) — Sedang</option>
+        </select>
+      </div>
+
+      <div class="form-group" style="display:flex; justify-content:center; align-items:flex-start; margin-top:16px;">
+        <label style="font-size:0.75rem; color:#fff; display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" id="cb-show-pwd" checked onchange="togglePasswordVisibility()">
+          <span>Cetak teks password di kartu</span>
+        </label>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       AREA PREVIEW LEMBAR A4 & KARTU PESERTA
+       ══════════════════════════════════════════════════════════════════════ -->
+  <main class="preview-container">
+    <div class="preview-notice no-print">
+      <span>&#x1F4A1;</span>
+      <span id="card-stats-text">Memuat data peserta dari LMS Moodle...</span>
+    </div>
+
+    <!-- Lembar A4 akan digenerate secara dinamis di sini -->
+    <div id="sheets-wrapper" style="width: 100%;"></div>
+  </main>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       LOGIKA JAVASCRIPT: DATA LOADER & GENERATOR QR BARCODE
+       ══════════════════════════════════════════════════════════════════════ -->
+  <script>
+    let allStudents = [];
+    const API_KEY = 'dosman-exam-sman1gianyar-2024';
+
+    async function loadStudentData() {
+      const statsEl = document.getElementById('card-stats-text');
+      if (statsEl) statsEl.textContent = 'Menghubungkan ke server Moodle...';
+
+      const token = localStorage.getItem('token') || '';
+
+      try {
+        const url = `../local/dosman_ujian/get_students_for_cards.php?token=${encodeURIComponent(token)}&apikey=${encodeURIComponent(API_KEY)}`;
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        if (data.students && Array.isArray(data.students)) {
+          allStudents = data.students;
+          if (statsEl) {
+            statsEl.innerHTML = `<strong>${allStudents.length} siswa</strong> berhasil dimuat dari Moodle. Siap dicetak ke kertas A4.`;
+          }
+          populateClassFilter();
+          renderCards();
+        } else {
+          throw new Error(data.error || 'Format data siswa tidak valid');
+        }
+      } catch (err) {
+        console.warn('Gagal memuat data siswa via get_students_for_cards:', err);
+        // Fallback ke get_app_users.php jika endpoint kartu belum di-refresh
+        loadFromAppUsersFallback(token);
+      }
+    }
+
+    async function loadFromAppUsersFallback(token) {
+      try {
+        const res = await fetch(`../local/dosman_ujian/get_app_users.php?token=${encodeURIComponent(token)}&apikey=${encodeURIComponent(API_KEY)}`);
+        const data = await res.json();
+        if (data.users && Array.isArray(data.users)) {
+          // Filter hanya siswa (bukan guru)
+          allStudents = data.users.filter(u => u.grade !== 'Guru / Staf').map(u => ({
+            userid: u.userid,
+            firstname: u.firstname,
+            name: (u.firstname || '').replace(/^\d+\s*/, ''),
+            no_absen: ((u.firstname || '').match(/^(\d+)/) || [])[1] || '',
+            lastname: u.lastname,
+            username: u.username,
+            idnumber: u.idnumber,
+            grade: u.grade,
+            class_name: u.class_name,
+            department: u.department,
+          }));
+          const statsEl = document.getElementById('card-stats-text');
+          if (statsEl) statsEl.innerHTML = `<strong>${allStudents.length} siswa</strong> dimuat dari Moodle CBT.`;
+          populateClassFilter();
+          renderCards();
+        }
+      } catch (e) {
+        const statsEl = document.getElementById('card-stats-text');
+        if (statsEl) statsEl.textContent = 'Gagal memuat data: ' + e.message;
+      }
+    }
+
+    function populateClassFilter() {
+      const classSelect = document.getElementById('select-class');
+      const gradeSelect = document.getElementById('select-grade');
+      if (!classSelect) return;
+
+      const selectedGrade = gradeSelect ? gradeSelect.value : '';
+      const currentVal = classSelect.value;
+      const classes = new Set();
+
+      allStudents.forEach(s => {
+        if (selectedGrade && s.grade !== selectedGrade) return;
+        if (s.class_name && s.class_name !== 'Tidak Ada Kelas') {
+          classes.add(s.class_name);
+        }
+      });
+
+      const sorted = Array.from(classes).sort((a, b) => a.localeCompare(b, 'id', { numeric: true }));
+
+      let html = '<option value="">Semua Kelas</option>';
+      sorted.forEach(c => {
+        html += `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`;
+      });
+
+      classSelect.innerHTML = html;
+      if (currentVal && sorted.includes(currentVal)) {
+        classSelect.value = currentVal;
+      }
+    }
+
+    function onGradeFilterChange() {
+      populateClassFilter();
+      renderCards();
+    }
+
+    function getFilteredStudents() {
+      const grade = (document.getElementById('select-grade')?.value || '').trim();
+      const cls = (document.getElementById('select-class')?.value || '').trim();
+      const q = (document.getElementById('input-search')?.value || '').trim().toLowerCase();
+
+      return allStudents.filter(s => {
+        if (grade && s.grade !== grade) return false;
+        if (cls && s.class_name !== cls) return false;
+        if (q) {
+          const name = (s.firstname || '').toLowerCase();
+          const cleanQ = q.replace(/[\s\-_.,]+/g, '');
+          const cleanName = name.replace(/[\s\-_.,]+/g, '');
+          const uname = (s.username || '').toLowerCase();
+          const nis = (s.idnumber || '').toLowerCase();
+          const cname = (s.class_name || '').toLowerCase();
+          if (!name.includes(q) && !cleanName.includes(cleanQ) && !uname.includes(q) && !nis.includes(q) && !cname.includes(q)) {
+            return false;
+          }
+        }
+        return true;
+      });
+    }
+
+    function renderCards() {
+      const wrapper = document.getElementById('sheets-wrapper');
+      if (!wrapper) return;
+
+      const students = getFilteredStudents();
+      const statsEl = document.getElementById('card-stats-text');
+      const layoutSelect = document.getElementById('select-layout');
+      const cardsPerPage = parseInt(layoutSelect ? layoutSelect.value : '8', 10);
+      const isLayout6 = cardsPerPage === 6;
+
+      const totalSheets = Math.ceil(students.length / cardsPerPage);
+      if (statsEl) {
+        statsEl.innerHTML = `Menampilkan <strong>${students.length} kartu siswa</strong> &bull; Total <strong>${totalSheets} lembar A4</strong> (Format ${cardsPerPage} kartu per lembar).`;
+      }
+
+      if (students.length === 0) {
+        wrapper.innerHTML = `
+          <div style="background:#1e293b; color:#94a3b8; padding:40px; border-radius:12px; text-align:center; max-width:600px; margin:0 auto;">
+            <div style="font-size:32px; margin-bottom:10px;">&#x1F4CB;</div>
+            <h3 style="color:#fff; margin-bottom:6px;">Tidak Ada Siswa Sesuai Filter</h3>
+            <p style="font-size:13px;">Silakan sesuaikan pilihan Tingkat, Kelas, atau kata kunci pencarian Anda.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const cardTitle = document.getElementById('input-card-title')?.value || 'KARTU PESERTA ASESMEN SUMATIF (CBT)';
+      const cardTA = document.getElementById('input-card-ta')?.value || 'TAHUN AJARAN 2025/2026';
+      const defaultPass = document.getElementById('input-default-pass')?.value || 'siswa123';
+      const signRole = document.getElementById('input-sign-role')?.value || 'Kepala SMAN 1 Gianyar';
+      const signName = document.getElementById('input-sign-name')?.value || 'I Wayan Sueta, S.Pd., M.Pd.';
+      const showPassword = document.getElementById('cb-show-pwd')?.checked ?? true;
+
+      const today = new Date();
+      const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+      const dateStr = `${today.getDate()} ${months[today.getMonth()]} ${today.getFullYear()}`;
+
+      let sheetsHtml = '';
+
+      for (let sheetIdx = 0; sheetIdx < totalSheets; sheetIdx++) {
+        const start = sheetIdx * cardsPerPage;
+        const pageStudents = students.slice(start, start + cardsPerPage);
+
+        let cardsHtml = '';
+        pageStudents.forEach((s, idxInPage) => {
+          const globalIdx = start + idxInPage;
+          const qrId = `qr-box-${s.userid}-${globalIdx}`;
+          const passDisplay = showPassword ? escapeHtml(defaultPass) : '&bull;&bull;&bull;&bull;&bull;&bull;';
+
+          cardsHtml += `
+            <div class="exam-card">
+              <!-- Kop Kartu -->
+              <div class="card-header-kop">
+                <img src="assets/logo_sekolah.png" alt="Logo" class="card-kop-logo">
+                <div class="card-kop-text">
+                  <div class="kop-prov">Pemerintah Provinsi Bali &bull; Disdikpora</div>
+                  <div class="kop-school">SMA NEGERI 1 GIANYAR</div>
+                  <div class="kop-title dyn-card-title">${escapeHtml(cardTitle)}</div>
+                  <div class="kop-ta dyn-card-ta">${escapeHtml(cardTA)}</div>
+                </div>
+              </div>
+
+              <!-- Body Kartu -->
+              <div class="card-body-content">
+                <div class="student-info-col">
+                  <div class="info-row">
+                    <span class="info-label">Nama Peserta</span>
+                    <span class="info-colon">:</span>
+                    <span class="info-value student-name-val">${escapeHtml(s.firstname || 'Siswa')}</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-label">NIS / NISN</span>
+                    <span class="info-colon">:</span>
+                    <span class="info-value">${escapeHtml(s.idnumber || '—')}</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-label">Kelas / Rombel</span>
+                    <span class="info-colon">:</span>
+                    <span class="info-value">
+                      <span class="badge-class">${escapeHtml(s.class_name || s.grade || '—')}</span>
+                    </span>
+                  </div>
+
+                  <!-- Kotak Kredensial Login -->
+                  <div class="login-box">
+                    <div class="login-item">
+                      <span class="login-label">Username CBT</span>
+                      <span class="login-cred">${escapeHtml(s.username)}</span>
+                    </div>
+                    <div class="login-item" style="text-align:right;">
+                      <span class="login-label">Password</span>
+                      <span class="login-cred dyn-pwd-text">${passDisplay}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- QR Barcode Scanner Area -->
+                <div class="qr-col">
+                  <div class="qr-code-box" id="${qrId}" data-username="${escapeHtml(s.username)}"></div>
+                  <span class="qr-caption">Scan Login</span>
+                </div>
+              </div>
+
+              <!-- Footer & Tanda Tangan -->
+              <div class="card-footer-sign">
+                <div class="card-note">
+                  *Wajib dibawa selama ujian. Dilarang meminjamkan kartu ke peserta lain.
+                </div>
+                <div class="card-sign-box">
+                  <div>Gianyar, ${dateStr}</div>
+                  <div class="card-sign-role dyn-sign-role">${escapeHtml(signRole)}</div>
+                  <div class="card-sign-name dyn-sign-name">${escapeHtml(signName)}</div>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+
+        sheetsHtml += `
+          <div class="a4-sheet">
+            <div class="cards-grid ${isLayout6 ? 'layout-6' : ''}">
+              ${cardsHtml}
+            </div>
+          </div>
+        `;
+      }
+
+      wrapper.innerHTML = sheetsHtml;
+
+      // Generate QR Code untuk setiap kartu secara offline
+      setTimeout(() => {
+        document.querySelectorAll('.qr-code-box[data-username]').forEach(el => {
+          const uname = el.getAttribute('data-username');
+          if (!uname) return;
+
+          // Payload QR format kompatibel dengan Flutter QR Scanner
+          const payload = `DOSMAN_LOGIN:${uname}:${defaultPass}`;
+
+          el.innerHTML = '';
+          try {
+            new QRCode(el, {
+              text: payload,
+              width: 58,
+              height: 58,
+              colorDark: "#0f172a",
+              colorLight: "#ffffff",
+              correctLevel: QRCode.CorrectLevel.M
+            });
+          } catch (e) {
+            console.error('QRCode generation error:', e);
+          }
+        });
+      }, 50);
+    }
+
+    function updateCardTitles() {
+      const cardTitle = document.getElementById('input-card-title')?.value || 'KARTU PESERTA ASESMEN SUMATIF (CBT)';
+      const cardTA = document.getElementById('input-card-ta')?.value || 'TAHUN AJARAN 2025/2026';
+      const signRole = document.getElementById('input-sign-role')?.value || 'Kepala SMAN 1 Gianyar';
+      const signName = document.getElementById('input-sign-name')?.value || 'I Wayan Sueta, S.Pd., M.Pd.';
+
+      document.querySelectorAll('.dyn-card-title').forEach(el => el.textContent = cardTitle);
+      document.querySelectorAll('.dyn-card-ta').forEach(el => el.textContent = cardTA);
+      document.querySelectorAll('.dyn-sign-role').forEach(el => el.textContent = signRole);
+      document.querySelectorAll('.dyn-sign-name').forEach(el => el.textContent = signName);
+    }
+
+    function togglePasswordVisibility() {
+      const showPassword = document.getElementById('cb-show-pwd')?.checked ?? true;
+      const defaultPass = document.getElementById('input-default-pass')?.value || 'siswa123';
+      const passText = showPassword ? defaultPass : '••••••';
+
+      document.querySelectorAll('.dyn-pwd-text').forEach(el => {
+        el.textContent = passText;
+      });
+    }
+
+    function updateLayoutGrid() {
+      renderCards();
+    }
+
+    function regenerateAllCards() {
+      renderCards();
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // Jalankan saat halaman siap
+    document.addEventListener('DOMContentLoaded', () => {
+      loadStudentData();
+    });
+  </script>
+</body>
+</html>
