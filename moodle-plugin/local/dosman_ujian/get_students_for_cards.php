@@ -82,12 +82,16 @@ try {
                AND u.id > 1 
                AND u.username NOT IN ('guest', 'admin')
                AND u.id NOT IN (2, 580)
+               AND (u.lastname IS NULL OR u.lastname != 'Guru')
+               AND u.username NOT LIKE 'smp%'
+               AND (c.name IS NULL OR (c.name NOT LIKE '%Guru%' AND c.name NOT LIKE '%Tim IT%'))
                AND (
-                   r.id IS NOT NULL 
-                   OR c.id IS NOT NULL 
-                   OR sc.id IS NOT NULL 
-                   OR u.lastname LIKE '| %'
+                   u.lastname LIKE '| %'
+                   OR c.name LIKE 'Kelas %'
+                   OR c.name LIKE 'XI %'
+                   OR c.name LIKE 'XII %'
                    OR u.username LIKE 'daput%'
+                   OR sc.id IS NOT NULL
                )
              GROUP BY u.id
              ORDER BY u.lastname ASC, u.firstname ASC";
@@ -164,6 +168,29 @@ try {
             'meja'        => (string)($r->meja ?? ''),
         ];
     }
+
+    // Urutkan siswa berdasarkan Tingkat -> Kelas / Rombel -> No Absen -> Nama
+    usort($students, function($a, $b) {
+        $gradeOrder = ['Kelas X' => 1, 'Kelas XI' => 2, 'Kelas XII' => 3];
+        $ga = $gradeOrder[$a['grade']] ?? 99;
+        $gb = $gradeOrder[$b['grade']] ?? 99;
+        if ($ga !== $gb) {
+            return $ga <=> $gb;
+        }
+
+        $cmpClass = strnatcasecmp($a['class_name'], $b['class_name']);
+        if ($cmpClass !== 0) {
+            return $cmpClass;
+        }
+
+        $na = (int)($a['no_absen'] ?: 999);
+        $nb = (int)($b['no_absen'] ?: 999);
+        if ($na !== $nb) {
+            return $na <=> $nb;
+        }
+
+        return strcasecmp($a['name'], $b['name']);
+    });
 
     echo json_encode([
         'success'  => true,
