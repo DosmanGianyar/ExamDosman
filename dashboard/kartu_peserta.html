@@ -25,6 +25,28 @@
       --success: #10b981;
       --text-light: #f8fafc;
       --text-dim: #94a3b8;
+      --exam-card-bg: linear-gradient(135deg, #ffffff 0%, #f8faff 35%, #edf3fb 75%, #e1ebf7 100%);
+      --exam-card-border-top: 3.5px solid #1e3a8a;
+    }
+
+    [data-card-bg="blue-grad"] {
+      --exam-card-bg: linear-gradient(135deg, #ffffff 0%, #f8faff 35%, #edf3fb 75%, #e1ebf7 100%);
+      --exam-card-border-top: 3.5px solid #1e3a8a;
+    }
+
+    [data-card-bg="warm-grad"] {
+      --exam-card-bg: linear-gradient(135deg, #ffffff 0%, #fffdfa 35%, #fbf6ec 75%, #f4ebd6 100%);
+      --exam-card-border-top: 3.5px solid #b45309;
+    }
+
+    [data-card-bg="slate-grad"] {
+      --exam-card-bg: linear-gradient(135deg, #ffffff 0%, #f9fafb 35%, #f1f5f9 75%, #e2e8f0 100%);
+      --exam-card-border-top: 3.5px solid #334155;
+    }
+
+    [data-card-bg="white-plain"] {
+      --exam-card-bg: #ffffff;
+      --exam-card-border-top: 1.2px dashed #475569;
     }
 
     * {
@@ -321,10 +343,11 @@
 
     /* ─── CARD ITEM DESIGN (KARTU PESERTA MODERN) ─── */
     .exam-card {
-      border: 1.2px dashed #475569;
+      border: 1.2px dashed #94a3b8;
+      border-top: var(--exam-card-border-top);
       border-radius: 8px;
       padding: 7px 10px 6px;
-      background: #ffffff;
+      background: var(--exam-card-bg);
       color: #0f172a;
       display: flex;
       flex-direction: column;
@@ -334,6 +357,9 @@
       box-sizing: border-box;
       font-family: 'Plus Jakarta Sans', Arial, sans-serif;
       height: 67.5mm;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
 
     /* Decorative Watermark Logo Sekolah */
@@ -347,7 +373,7 @@
       height: 140px;
       background: url('assets/logo_sekolah.png') no-repeat center;
       background-size: contain;
-      opacity: 0.04;
+      opacity: 0.065;
       pointer-events: none;
       z-index: 0;
     }
@@ -723,7 +749,9 @@
       .exam-card {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
-        border: 1px dashed #64748b !important;
+        background: var(--exam-card-bg) !important;
+        border: 1px dashed #94a3b8 !important;
+        border-top: var(--exam-card-border-top) !important;
       }
 
       .login-cred-container {
@@ -808,6 +836,16 @@
                    value="I Wayan Sudra Astra, S.Pd., M.Pd." 
                    placeholder="Nama Pejabat Penandatangan" 
                    oninput="updateCardTitles()">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="select-card-bg">Degradasi Latar Kartu</label>
+            <select id="select-card-bg" class="form-select" onchange="updateCardBackgroundTheme()">
+              <option value="blue-grad">Gradasi Biru Elegan (Rekomendasi)</option>
+              <option value="warm-grad">Gradasi Hangat / Soft Gold</option>
+              <option value="slate-grad">Gradasi Abu-abu Modern</option>
+              <option value="white-plain">Putih Bersih (Tanpa Gradasi)</option>
+            </select>
           </div>
         </div>
 
@@ -1329,6 +1367,14 @@
       }
     }
 
+    function updateCardBackgroundTheme() {
+      const val = document.getElementById('select-card-bg')?.value || 'blue-grad';
+      document.documentElement.setAttribute('data-card-bg', val);
+      try {
+        localStorage.setItem('cbt_card_bg_theme', val);
+      } catch (e) {}
+    }
+
     function escapeHtml(str) {
       if (!str) return '';
       return String(str)
@@ -1349,6 +1395,13 @@
       if (dateInput && !dateInput.value) {
         dateInput.value = defaultDateStr;
       }
+
+      try {
+        const savedTheme = localStorage.getItem('cbt_card_bg_theme') || 'blue-grad';
+        const bgSelect = document.getElementById('select-card-bg');
+        if (bgSelect) bgSelect.value = savedTheme;
+        document.documentElement.setAttribute('data-card-bg', savedTheme);
+      } catch (e) {}
 
       loadStudentData();
     });
