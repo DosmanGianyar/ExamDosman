@@ -799,7 +799,10 @@
 
         <!-- Section: Pengaturan Kartu Ujian -->
         <div class="sidebar-section">
-          <div class="section-title">⚙️ Pengaturan Kartu</div>
+          <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>⚙️ Pengaturan Kartu</span>
+            <span id="save-server-indicator" style="font-size:0.6rem; font-weight:700; color:#10b981; text-transform:none; letter-spacing:0;">☁️ Server synced</span>
+          </div>
 
           <div class="form-group">
             <label class="form-label" for="input-card-title">Judul Kartu Ujian</label>
@@ -1277,27 +1280,78 @@
       }, 50);
     }
 
-    function saveCardSettings() {
-      try {
-        const title = document.getElementById('input-card-title')?.value;
-        const ta = document.getElementById('input-card-ta')?.value;
-        const date = document.getElementById('input-card-date')?.value;
-        const signRole = document.getElementById('input-sign-role')?.value;
-        const signName = document.getElementById('input-sign-name')?.value;
-        const bg = document.getElementById('select-card-bg')?.value;
+    let saveServerTimer = null;
 
+    function saveCardSettings() {
+      const title = document.getElementById('input-card-title')?.value;
+      const ta = document.getElementById('input-card-ta')?.value;
+      const date = document.getElementById('input-card-date')?.value;
+      const signRole = document.getElementById('input-sign-role')?.value;
+      const signName = document.getElementById('input-sign-name')?.value;
+      const bg = document.getElementById('select-card-bg')?.value;
+
+      // 1. Simpan instan ke localStorage browser sebagai cache lokal
+      try {
         if (title !== undefined) localStorage.setItem('cbt_card_title', title);
         if (ta !== undefined) localStorage.setItem('cbt_card_ta', ta);
         if (date !== undefined) localStorage.setItem('cbt_card_date', date);
         if (signRole !== undefined) localStorage.setItem('cbt_card_sign_role', signRole);
         if (signName !== undefined) localStorage.setItem('cbt_card_sign_name', signName);
         if (bg !== undefined) localStorage.setItem('cbt_card_bg_theme', bg);
-      } catch (e) {
-        console.warn('Gagal menyimpan pengaturan kartu ke localStorage:', e);
+      } catch (e) {}
+
+      // 2. Tampilkan indikator proses
+      const indicator = document.getElementById('save-server-indicator');
+      if (indicator) {
+        indicator.textContent = '⏳ Menyimpan...';
+        indicator.style.color = '#f59e0b';
       }
+
+      // 3. Debounce 600ms kirim ke Database Server
+      clearTimeout(saveServerTimer);
+      saveServerTimer = setTimeout(async () => {
+        try {
+          const token = localStorage.getItem('token') || '';
+          const payload = {
+            apikey: API_KEY,
+            token: token,
+            settings: {
+              cbt_card_title: title || '',
+              cbt_card_ta: ta || '',
+              cbt_card_date: date || '',
+              cbt_card_sign_role: signRole || '',
+              cbt_card_sign_name: signName || '',
+              cbt_card_bg_theme: bg || 'blue-grad'
+            }
+          };
+
+          const res = await fetch('../local/dosman_ujian/card_settings.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && indicator) {
+              indicator.textContent = '☁️ Tersimpan di server';
+              indicator.style.color = '#10b981';
+            }
+          } else {
+            throw new Error(`HTTP ${res.status}`);
+          }
+        } catch (err) {
+          console.warn('Gagal menyimpan ke server database:', err);
+          if (indicator) {
+            indicator.textContent = '💾 Tersimpan lokal';
+            indicator.style.color = '#38bdf8';
+          }
+        }
+      }, 600);
     }
 
-    function loadCardSettings() {
+    async function loadCardSettings() {
+      // 1. Baca dulu dari cache lokal agar instan tanpa jeda layar
       try {
         const title = localStorage.getItem('cbt_card_title');
         if (title !== null) {
@@ -1335,8 +1389,61 @@
           if (el) el.value = bg;
           document.documentElement.setAttribute('data-card-bg', bg);
         }
-      } catch (e) {
-        console.warn('Gagal memuat pengaturan kartu dari localStorage:', e);
+      } catch (e) {}
+
+      // 2. Ambil pengaturan resmi terbaru dari Database Server (agar otomatis sinkron antar PC/Laptop)
+      try {
+        const token = localStorage.getItem('token') || '';
+        const url = `../local/dosman_ujian/card_settings.php?apikey=${encodeURIComponent(API_KEY)}&token=${encodeURIComponent(token)}&_t=${Date.now()}`;
+        const res = await fetch(url, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.settings && Object.keys(data.settings).length > 0) {
+            const s = data.settings;
+            if (s.cbt_card_title) {
+              const el = document.getElementById('input-card-title');
+              if (el) el.value = s.cbt_card_title;
+              localStorage.setItem('cbt_card_title', s.cbt_card_title);
+            }
+            if (s.cbt_card_ta) {
+              const el = document.getElementById('input-card-ta');
+              if (el) el.value = s.cbt_card_ta;
+              localStorage.setItem('cbt_card_ta', s.cbt_card_ta);
+            }
+            if (s.cbt_card_date) {
+              const el = document.getElementById('input-card-date');
+              if (el) el.value = s.cbt_card_date;
+              localStorage.setItem('cbt_card_date', s.cbt_card_date);
+            }
+            if (s.cbt_card_sign_role) {
+              const el = document.getElementById('input-sign-role');
+              if (el) el.value = s.cbt_card_sign_role;
+              localStorage.setItem('cbt_card_sign_role', s.cbt_card_sign_role);
+            }
+            if (s.cbt_card_sign_name) {
+              const el = document.getElementById('input-sign-name');
+              if (el) el.value = s.cbt_card_sign_name;
+              localStorage.setItem('cbt_card_sign_name', s.cbt_card_sign_name);
+            }
+            if (s.cbt_card_bg_theme) {
+              const el = document.getElementById('select-card-bg');
+              if (el) el.value = s.cbt_card_bg_theme;
+              document.documentElement.setAttribute('data-card-bg', s.cbt_card_bg_theme);
+              localStorage.setItem('cbt_card_bg_theme', s.cbt_card_bg_theme);
+            }
+
+            const indicator = document.getElementById('save-server-indicator');
+            if (indicator) {
+              indicator.textContent = '☁️ Terhubung ke server';
+              indicator.style.color = '#10b981';
+            }
+
+            // Perbarui kartu jika sudah terender
+            updateCardTitles();
+          }
+        }
+      } catch (err) {
+        console.warn('Gagal memuat pengaturan kartu dari server:', err);
       }
     }
 
