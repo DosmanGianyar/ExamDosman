@@ -1211,7 +1211,7 @@
               <!-- Kotak Kredensial Login Siswa (Username & Password) -->
               <div class="login-cred-container">
                 <div class="cred-item">
-                  <span class="cred-label">USERNAME CBT</span>
+                  <span class="cred-label">USERNAME</span>
                   <span class="cred-val mono">${escapeHtml(s.username)}</span>
                 </div>
                 <div class="cred-item cred-pass" style="text-align:right;">
@@ -1277,6 +1277,69 @@
       }, 50);
     }
 
+    function saveCardSettings() {
+      try {
+        const title = document.getElementById('input-card-title')?.value;
+        const ta = document.getElementById('input-card-ta')?.value;
+        const date = document.getElementById('input-card-date')?.value;
+        const signRole = document.getElementById('input-sign-role')?.value;
+        const signName = document.getElementById('input-sign-name')?.value;
+        const bg = document.getElementById('select-card-bg')?.value;
+
+        if (title !== undefined) localStorage.setItem('cbt_card_title', title);
+        if (ta !== undefined) localStorage.setItem('cbt_card_ta', ta);
+        if (date !== undefined) localStorage.setItem('cbt_card_date', date);
+        if (signRole !== undefined) localStorage.setItem('cbt_card_sign_role', signRole);
+        if (signName !== undefined) localStorage.setItem('cbt_card_sign_name', signName);
+        if (bg !== undefined) localStorage.setItem('cbt_card_bg_theme', bg);
+      } catch (e) {
+        console.warn('Gagal menyimpan pengaturan kartu ke localStorage:', e);
+      }
+    }
+
+    function loadCardSettings() {
+      try {
+        const title = localStorage.getItem('cbt_card_title');
+        if (title !== null) {
+          const el = document.getElementById('input-card-title');
+          if (el) el.value = title;
+        }
+
+        const ta = localStorage.getItem('cbt_card_ta');
+        if (ta !== null) {
+          const el = document.getElementById('input-card-ta');
+          if (el) el.value = ta;
+        }
+
+        const date = localStorage.getItem('cbt_card_date');
+        if (date !== null) {
+          const el = document.getElementById('input-card-date');
+          if (el) el.value = date;
+        }
+
+        const signRole = localStorage.getItem('cbt_card_sign_role');
+        if (signRole !== null) {
+          const el = document.getElementById('input-sign-role');
+          if (el) el.value = signRole;
+        }
+
+        const signName = localStorage.getItem('cbt_card_sign_name');
+        if (signName !== null) {
+          const el = document.getElementById('input-sign-name');
+          if (el) el.value = signName;
+        }
+
+        const bg = localStorage.getItem('cbt_card_bg_theme');
+        if (bg !== null) {
+          const el = document.getElementById('select-card-bg');
+          if (el) el.value = bg;
+          document.documentElement.setAttribute('data-card-bg', bg);
+        }
+      } catch (e) {
+        console.warn('Gagal memuat pengaturan kartu dari localStorage:', e);
+      }
+    }
+
     function updateCardTitles() {
       const cardTitle = document.getElementById('input-card-title')?.value || 'KARTU PESERTA ASESMEN SUMATIF (CBT)';
       const cardTA = document.getElementById('input-card-ta')?.value || 'TAHUN AJARAN 2025/2026';
@@ -1289,6 +1352,8 @@
       document.querySelectorAll('.dyn-sign-role').forEach(el => el.textContent = signRole);
       document.querySelectorAll('.dyn-sign-name').forEach(el => el.textContent = signName);
       document.querySelectorAll('.dyn-card-date').forEach(el => el.textContent = cardDate);
+
+      saveCardSettings();
     }
 
     function togglePasswordVisibility() {
@@ -1372,9 +1437,7 @@
     function updateCardBackgroundTheme() {
       const val = document.getElementById('select-card-bg')?.value || 'blue-grad';
       document.documentElement.setAttribute('data-card-bg', val);
-      try {
-        localStorage.setItem('cbt_card_bg_theme', val);
-      } catch (e) {}
+      saveCardSettings();
     }
 
     function escapeHtml(str) {
@@ -1398,12 +1461,8 @@
         dateInput.value = defaultDateStr;
       }
 
-      try {
-        const savedTheme = localStorage.getItem('cbt_card_bg_theme') || 'blue-grad';
-        const bgSelect = document.getElementById('select-card-bg');
-        if (bgSelect) bgSelect.value = savedTheme;
-        document.documentElement.setAttribute('data-card-bg', savedTheme);
-      } catch (e) {}
+      // Restore teks & pengaturan terakhir yang pernah diedit oleh pengguna
+      loadCardSettings();
 
       loadStudentData();
     });
