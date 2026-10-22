@@ -13,6 +13,7 @@ workflows:
       vars:
         BUNDLE_ID: "com.sman1-gianyar.examdosman"
         APP_STORE_APPLE_ID: 6823572758
+        APPLE_TEAM_ID: "3RQKPHDMC8"
       flutter: stable
       xcode: latest
       cocoapods: default
@@ -32,59 +33,10 @@ workflows:
           flutter build ipa --release --no-codesign
       - name: Export and sign IPA for App Store
         script: |
-          python3 -c '
-          import glob, os, plistlib, subprocess, re
-
-          team_id = ""
-          # 1. Coba ekstrak Team ID dari provisioning profile yang diunduh
-          profiles = glob.glob(os.path.expanduser("~/Library/MobileDevice/Provisioning Profiles/*.mobileprovision"))
-          for p in profiles:
-              try:
-                  out = subprocess.check_output(["security", "cms", "-D", "-i", p])
-                  data = plistlib.loads(out)
-                  teams = data.get("TeamIdentifier", [])
-                  if teams:
-                      team_id = teams[0]
-                      print(f"Detected Apple Team ID from profile: {team_id}")
-                      break
-              except Exception:
-                  pass
-
-          # 2. Jika belum ketemu, ekstrak dari sertifikat di keychain
-          if not team_id:
-              try:
-                  out = subprocess.check_output(["security", "find-identity", "-v", "-p", "codesigning"]).decode("utf-8")
-                  m = re.search(r"\(([A-Z0-9]{10})\)", out)
-                  if m:
-                      team_id = m.group(1)
-                      print(f"Detected Apple Team ID from keychain: {team_id}")
-              except Exception:
-                  pass
-
-          # 3. Perbarui export_options.plist dengan teamID yang valid
-          for plist_path in ["/Users/builder/export_options.plist", "ios/ExportOptions.plist"]:
-              if os.path.exists(plist_path):
-                  with open(plist_path, "rb") as f:
-                      d = plistlib.load(f)
-                  if team_id:
-                      d["teamID"] = team_id
-                  d["method"] = "app-store"
-                  d["destination"] = "export"
-                  d["signingStyle"] = "automatic"
-                  if "provisioningProfiles" in d and isinstance(d["provisioningProfiles"], list):
-                      del d["provisioningProfiles"]
-                  with open(plist_path, "wb") as f:
-                      plistlib.dump(d, f)
-                  print(f"Updated {plist_path} with teamID: {team_id}")
-          '
-          PLIST_PATH="/Users/builder/export_options.plist"
-          if [ ! -f "$PLIST_PATH" ]; then
-            PLIST_PATH="ios/ExportOptions.plist"
-          fi
           xcodebuild -exportArchive \
             -archivePath build/ios/archive/Runner.xcarchive \
             -exportPath build/ios/ipa \
-            -exportOptionsPlist "$PLIST_PATH" \
+            -exportOptionsPlist ios/ExportOptions.plist \
             -allowProvisioningUpdates
 
     artifacts:
