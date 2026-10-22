@@ -1,51 +1,48 @@
 workflows:
   ios-workflow:
-    name: iOS Build Workflow
+    name: iOS Build & TestFlight
     instance_type: mac_mini_m2
     max_build_duration: 60
     working_directory: mobile
+
+    # Menghubungkan API Key yang baru saja Anda simpan di Codemagic
+    integrations:
+      app_store_connect: "Codemagic API Key"
+
     environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.dosman.dosmanUjian
+      vars:
+        BUNDLE_ID: "com.dosman.dosmanUjian"
       flutter: stable
       xcode: latest
       cocoapods: default
-      # Jika ingin signing otomatis dengan sertifikat Apple Developer di Codemagic:
-      # groups:
-      #   - apple_credentials
-      # vars:
-      #   APP_STORE_APPLE_ID: 123456789
+
     scripts:
-      - name: Set up code signing settings on Xcode project (Optional)
+      - name: Set up keychain and fetch signing files
         script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+          keychain add-certificates
           xcode-project use-profiles
-        ignore_failure: true
       - name: Get Flutter dependencies
         script: |
           flutter packages pub get
-      - name: Build iOS IPA
+      - name: Build signed iOS IPA
         script: |
-          flutter build ipa --release --no-codesign
-      - name: Package unsigned IPA (if needed)
-        script: |
-          set -e
-          ARCHIVE_APP="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app"
-          if [ -d "$ARCHIVE_APP" ]; then
-            echo "Packaging Runner.xcarchive into Runner.ipa..."
-            IPA_DIR="$(pwd)/build/ios/ipa"
-            mkdir -p "$IPA_DIR"
-            TEMP_DIR="$(mktemp -d)"
-            mkdir -p "$TEMP_DIR/Payload"
-            cp -R "$ARCHIVE_APP" "$TEMP_DIR/Payload/"
-            (cd "$TEMP_DIR" && zip -qr "$IPA_DIR/Runner.ipa" Payload)
-            rm -rf "$TEMP_DIR"
-            echo "Runner.ipa created successfully at $IPA_DIR/Runner.ipa"
-          fi
+          flutter build ipa --release --export-options-plist=/Users/builder/export_options.plist
+
     artifacts:
       - mobile/build/ios/ipa/*.ipa
-      - mobile/build/ios/archive/*.xcarchive
       - build/ios/ipa/*.ipa
-      - build/ios/archive/*.xcarchive
       - /tmp/xcodebuild_logs/*.log
+
     publishing:
+      # Upload otomatis ke TestFlight
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
       email:
         recipients:
           - tailscaledosman@gmail.com
