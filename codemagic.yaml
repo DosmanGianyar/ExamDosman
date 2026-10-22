@@ -10,6 +10,9 @@ workflows:
       app_store_connect: "Codemagic API Key"
 
     environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.sman1-gianyar.examdosman
       vars:
         BUNDLE_ID: "com.sman1-gianyar.examdosman"
         APP_STORE_APPLE_ID: 6823572758
@@ -19,21 +22,13 @@ workflows:
       cocoapods: default
 
     scripts:
-      - name: Set up keychain and fetch signing files
+      - name: Set up code signing settings on Xcode project
         script: |
-          keychain initialize
-          ssh-keygen -t rsa -b 2048 -m PEM -f /tmp/cert_key -q -N ""
-          app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --type IOS_APP_STORE \
-            --certificate-key=@file:/tmp/cert_key \
-            --create
-          keychain add-certificates
           xcode-project use-profiles --archive-method=app-store
-          security find-identity -v -p codesigning
       - name: Get Flutter dependencies
         script: |
           flutter packages pub get
-      - name: Build Flutter iOS archive
+      - name: Build signed iOS IPA for TestFlight
         script: |
           LATEST_BUILD=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || echo 138)
           if [ -z "$LATEST_BUILD" ] || [ "$LATEST_BUILD" -lt 138 ] 2>/dev/null; then
@@ -42,14 +37,9 @@ workflows:
           NEXT_BUILD_NUMBER=$((LATEST_BUILD + 1))
           echo "Previous build number: $LATEST_BUILD"
           echo "Building with incremented build number: $NEXT_BUILD_NUMBER"
-          flutter build ipa --release --no-codesign --build-number=$NEXT_BUILD_NUMBER
-      - name: Export and sign IPA for App Store
-        script: |
-          xcodebuild -exportArchive \
-            -archivePath build/ios/archive/Runner.xcarchive \
-            -exportPath build/ios/ipa \
-            -exportOptionsPlist ios/ExportOptions.plist \
-            -allowProvisioningUpdates
+          flutter build ipa --release \
+            --export-options-plist=/Users/builder/export_options.plist \
+            --build-number=$NEXT_BUILD_NUMBER
 
     artifacts:
       - mobile/build/ios/ipa/*.ipa
