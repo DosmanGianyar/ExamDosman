@@ -27,9 +27,31 @@ workflows:
       - name: Get Flutter dependencies
         script: |
           flutter packages pub get
-      - name: Build signed iOS IPA
+      - name: Build Flutter iOS archive
         script: |
-          flutter build ipa --release --export-options-plist=/Users/builder/export_options.plist
+          flutter build ipa --release --no-codesign
+      - name: Export and sign IPA for App Store
+        script: |
+          PLIST_PATH="/Users/builder/export_options.plist"
+          if [ ! -f "$PLIST_PATH" ]; then
+            PLIST_PATH="$(pwd)/ExportOptions.plist"
+            cat <<EOF > "$PLIST_PATH"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>app-store</string>
+    <key>destination</key>
+    <string>export</string>
+</dict>
+</plist>
+EOF
+          fi
+          xcodebuild -exportArchive \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            -exportPath build/ios/ipa \
+            -exportOptionsPlist "$PLIST_PATH"
 
     artifacts:
       - mobile/build/ios/ipa/*.ipa
