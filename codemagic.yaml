@@ -34,19 +34,7 @@ workflows:
         script: |
           PLIST_PATH="/Users/builder/export_options.plist"
           if [ ! -f "$PLIST_PATH" ]; then
-            PLIST_PATH="$(pwd)/ExportOptions.plist"
-            cat <<EOF > "$PLIST_PATH"
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>
-    <string>app-store</string>
-    <key>destination</key>
-    <string>export</string>
-</dict>
-</plist>
-EOF
+            PLIST_PATH="ios/ExportOptions.plist"
           fi
           xcodebuild -exportArchive \
             -archivePath build/ios/archive/Runner.xcarchive \
