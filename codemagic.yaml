@@ -1,0 +1,70 @@
+workflows:
+  ios-workflow:
+    name: iOS Build Workflow
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    working_directory: mobile
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      # Catatan: Jika sudah setup Apple Developer Account di Codemagic UI,
+      # aktifkan groups dan kode signing berikut:
+      # groups:
+      #   - apple_credentials
+      # vars:
+      #   APP_STORE_APPLE_ID: 123456789
+    scripts:
+      - name: Get Flutter dependencies
+        script: |
+          flutter packages pub get
+      - name: Install CocoaPods
+        script: |
+          cd ios && pod install
+      - name: Build iOS IPA
+        script: |
+          # Opsi 1: Build tanpa codesign (untuk testing / jika belum ada sertifikat Apple)
+          flutter build ipa --release --no-codesign
+          
+          # Opsi 2: Jika sudah setup signing di Codemagic, gunakan baris berikut:
+          # flutter build ipa --release
+    artifacts:
+      - mobile/build/ios/ipa/*.ipa
+      - mobile/build/ios/archive/*.xcarchive
+      - build/ios/ipa/*.ipa
+    publishing:
+      email:
+        recipients:
+          - admin@dosman.sch.id # Ubah dengan email Anda
+        notify:
+          success: true
+          failure: true
+
+  android-workflow:
+    name: Android Build Workflow
+    instance_type: linux_x2
+    max_build_duration: 30
+    working_directory: mobile
+    environment:
+      flutter: stable
+      java: 17
+    scripts:
+      - name: Get Flutter dependencies
+        script: |
+          flutter packages pub get
+      - name: Build Android APK & App Bundle
+        script: |
+          flutter build apk --release
+          flutter build appbundle --release
+    artifacts:
+      - mobile/build/app/outputs/flutter-apk/*.apk
+      - mobile/build/app/outputs/bundle/release/*.aab
+      - build/app/outputs/flutter-apk/*.apk
+      - build/app/outputs/bundle/release/*.aab
+    publishing:
+      email:
+        recipients:
+          - admin@dosman.sch.id # Ubah dengan email Anda
+        notify:
+          success: true
+          failure: true
