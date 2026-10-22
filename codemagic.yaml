@@ -27,16 +27,17 @@ workflows:
       - name: Package unsigned IPA (if needed)
         script: |
           set -e
-          # Jika flutter build ipa --no-codesign hanya menghasilkan .xcarchive, bungkus Runner.app menjadi file .ipa
-          if [ -d "build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app" ] && [ ! -f "build/ios/ipa/*.ipa" ]; then
+          ARCHIVE_APP="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app"
+          if [ -d "$ARCHIVE_APP" ]; then
             echo "Packaging Runner.xcarchive into Runner.ipa..."
-            mkdir -p build/ios/ipa
-            cd build/ios/archive/Runner.xcarchive/Products/Applications
-            mkdir -p Payload
-            cp -r Runner.app Payload/
-            zip -qr ../../../../../build/ios/ipa/Runner.ipa Payload
-            rm -rf Payload
-            echo "Runner.ipa created successfully."
+            IPA_DIR="$(pwd)/build/ios/ipa"
+            mkdir -p "$IPA_DIR"
+            TEMP_DIR="$(mktemp -d)"
+            mkdir -p "$TEMP_DIR/Payload"
+            cp -R "$ARCHIVE_APP" "$TEMP_DIR/Payload/"
+            (cd "$TEMP_DIR" && zip -qr "$IPA_DIR/Runner.ipa" Payload)
+            rm -rf "$TEMP_DIR"
+            echo "Runner.ipa created successfully at $IPA_DIR/Runner.ipa"
           fi
     artifacts:
       - mobile/build/ios/ipa/*.ipa
