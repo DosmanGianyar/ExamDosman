@@ -32,6 +32,18 @@ workflows:
           flutter build ipa --release --no-codesign
       - name: Export and sign IPA for App Store
         script: |
+          python3 -c '
+          import plistlib, os
+          path = "/Users/builder/export_options.plist"
+          if os.path.exists(path):
+              with open(path, "rb") as f:
+                  d = plistlib.load(f)
+              if "provisioningProfiles" in d and isinstance(d["provisioningProfiles"], list):
+                  del d["provisioningProfiles"]
+                  with open(path, "wb") as f:
+                      plistlib.dump(d, f)
+                  print("Fixed: removed invalid provisioningProfiles array from export_options.plist")
+          '
           PLIST_PATH="/Users/builder/export_options.plist"
           if [ ! -f "$PLIST_PATH" ]; then
             PLIST_PATH="ios/ExportOptions.plist"
@@ -39,7 +51,8 @@ workflows:
           xcodebuild -exportArchive \
             -archivePath build/ios/archive/Runner.xcarchive \
             -exportPath build/ios/ipa \
-            -exportOptionsPlist "$PLIST_PATH"
+            -exportOptionsPlist "$PLIST_PATH" \
+            -allowProvisioningUpdates
 
     artifacts:
       - mobile/build/ios/ipa/*.ipa
