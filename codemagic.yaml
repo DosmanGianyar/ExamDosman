@@ -8,34 +8,46 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
-      # Catatan: Jika sudah setup Apple Developer Account di Codemagic UI,
-      # aktifkan groups dan kode signing berikut:
+      # Jika ingin signing otomatis dengan sertifikat Apple Developer di Codemagic:
       # groups:
       #   - apple_credentials
       # vars:
       #   APP_STORE_APPLE_ID: 123456789
     scripts:
+      - name: Set up code signing settings on Xcode project (Optional)
+        script: |
+          xcode-project use-profiles
+        ignore_failure: true
       - name: Get Flutter dependencies
         script: |
           flutter packages pub get
-      - name: Install CocoaPods
-        script: |
-          cd ios && pod install
       - name: Build iOS IPA
         script: |
-          # Opsi 1: Build tanpa codesign (untuk testing / jika belum ada sertifikat Apple)
           flutter build ipa --release --no-codesign
-          
-          # Opsi 2: Jika sudah setup signing di Codemagic, gunakan baris berikut:
-          # flutter build ipa --release
+      - name: Package unsigned IPA (if needed)
+        script: |
+          set -e
+          # Jika flutter build ipa --no-codesign hanya menghasilkan .xcarchive, bungkus Runner.app menjadi file .ipa
+          if [ -d "build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app" ] && [ ! -f "build/ios/ipa/*.ipa" ]; then
+            echo "Packaging Runner.xcarchive into Runner.ipa..."
+            mkdir -p build/ios/ipa
+            cd build/ios/archive/Runner.xcarchive/Products/Applications
+            mkdir -p Payload
+            cp -r Runner.app Payload/
+            zip -qr ../../../../../build/ios/ipa/Runner.ipa Payload
+            rm -rf Payload
+            echo "Runner.ipa created successfully."
+          fi
     artifacts:
       - mobile/build/ios/ipa/*.ipa
       - mobile/build/ios/archive/*.xcarchive
       - build/ios/ipa/*.ipa
+      - build/ios/archive/*.xcarchive
+      - /tmp/xcodebuild_logs/*.log
     publishing:
       email:
         recipients:
-          - admin@dosman.sch.id # Ubah dengan email Anda
+          - tailscaledosman@gmail.com
         notify:
           success: true
           failure: true
@@ -64,7 +76,7 @@ workflows:
     publishing:
       email:
         recipients:
-          - admin@dosman.sch.id # Ubah dengan email Anda
+          - tailscaledosman@gmail.com
         notify:
           success: true
           failure: true
