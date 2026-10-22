@@ -35,7 +35,14 @@ workflows:
           flutter packages pub get
       - name: Build Flutter iOS archive
         script: |
-          flutter build ipa --release --no-codesign
+          LATEST_BUILD=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || echo 138)
+          if [ -z "$LATEST_BUILD" ] || [ "$LATEST_BUILD" -lt 138 ] 2>/dev/null; then
+            LATEST_BUILD=138
+          fi
+          NEXT_BUILD_NUMBER=$((LATEST_BUILD + 1))
+          echo "Previous build number: $LATEST_BUILD"
+          echo "Building with incremented build number: $NEXT_BUILD_NUMBER"
+          flutter build ipa --release --no-codesign --build-number=$NEXT_BUILD_NUMBER
       - name: Export and sign IPA for App Store
         script: |
           python3 -c '
