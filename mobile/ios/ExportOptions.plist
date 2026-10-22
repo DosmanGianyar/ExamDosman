@@ -8,8 +8,6 @@
     <string>3RQKPHDMC8</string>
     <key>destination</key>
     <string>export</string>
-    <key>signingStyle</key>
-    <string>automatic</string>
     <key>uploadSymbols</key>
     <true/>
 </dict>
