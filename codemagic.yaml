@@ -28,7 +28,7 @@ workflows:
             --certificate-key=@file:/tmp/cert_key \
             --create
           keychain add-certificates
-          xcode-project use-profiles
+          xcode-project use-profiles --archive-method=app-store
           security find-identity -v -p codesigning
       - name: Get Flutter dependencies
         script: |
@@ -45,28 +45,10 @@ workflows:
           flutter build ipa --release --no-codesign --build-number=$NEXT_BUILD_NUMBER
       - name: Export and sign IPA for App Store
         script: |
-          python3 -c '
-          import plistlib, os
-          path = "/Users/builder/export_options.plist"
-          if os.path.exists(path):
-              with open(path, "rb") as f:
-                  d = plistlib.load(f)
-              d["teamID"] = "3RQKPHDMC8"
-              if "signingStyle" in d and d["signingStyle"] == "automatic":
-                  del d["signingStyle"]
-              if "provisioningProfiles" in d and isinstance(d["provisioningProfiles"], list):
-                  del d["provisioningProfiles"]
-              with open(path, "wb") as f:
-                  plistlib.dump(d, f)
-          '
-          PLIST_PATH="/Users/builder/export_options.plist"
-          if [ ! -f "$PLIST_PATH" ]; then
-            PLIST_PATH="ios/ExportOptions.plist"
-          fi
           xcodebuild -exportArchive \
             -archivePath build/ios/archive/Runner.xcarchive \
             -exportPath build/ios/ipa \
-            -exportOptionsPlist "$PLIST_PATH" \
+            -exportOptionsPlist ios/ExportOptions.plist \
             -allowProvisioningUpdates
 
     artifacts:
