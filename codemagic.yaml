@@ -12,9 +12,10 @@ workflows:
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.dosman.dosmanUjian
+        bundle_identifier: com.sman1-gianyar.examdosman
       vars:
-        BUNDLE_ID: "com.dosman.dosmanUjian"
+        BUNDLE_ID: "com.sman1-gianyar.examdosman"
+        APP_STORE_APPLE_ID: 6823572758
       flutter: stable
       xcode: latest
       cocoapods: default
