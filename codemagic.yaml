@@ -10,9 +10,8 @@ workflows:
       app_store_connect: "Codemagic API Key"
 
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.sman1-gianyar.examdosman
+      groups:
+        - ios_creds
       vars:
         BUNDLE_ID: "com.sman1-gianyar.examdosman"
         APP_STORE_APPLE_ID: 6823572758
@@ -22,6 +21,17 @@ workflows:
       cocoapods: default
 
     scripts:
+      - name: Set up keychain
+        script: |
+          keychain initialize
+      - name: Fetch signing files from Apple
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+      - name: Add certificates to keychain
+        script: |
+          keychain add-certificates
       - name: Set up code signing settings on Xcode project
         script: |
           xcode-project use-profiles --archive-method=app-store
