@@ -99,6 +99,15 @@ try {
         exit;
     }
 
+    // Pastikan target bukan akun reviewer App Store / Play Store
+    $stmtUser = $pdo->prepare("SELECT username FROM {$prefix}user WHERE id = ? LIMIT 1");
+    $stmtUser->execute([$userid]);
+    $targetUsername = strtolower(trim((string)$stmtUser->fetchColumn()));
+    if (in_array($targetUsername, ['appstore.review', 'playstore.review'], true)) {
+        echo json_encode(['success' => false, 'message' => 'Akun reviewer kebal dari suspend']);
+        exit;
+    }
+
     // Ambil service id sebelum transaksi (baca-only, aman di luar)
     $svcStmt = $pdo->prepare(
         "SELECT id FROM {$prefix}external_services

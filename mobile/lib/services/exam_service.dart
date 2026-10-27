@@ -318,6 +318,11 @@ class ExamService {
     String reason = 'Siswa memaksa melepas pinned screen (alarm aktif)',
   }) async {
     try {
+      final username = (await AuthService.getUsername()).toLowerCase().trim();
+      if (username == 'playstore.review' || username == 'appstore.review') {
+        return false;
+      }
+
       final token = await AuthService.getToken();
       final uri = Uri.parse(
         '${AppConfig.moodleUrl}/local/dosman_ujian/suspend_student.php',

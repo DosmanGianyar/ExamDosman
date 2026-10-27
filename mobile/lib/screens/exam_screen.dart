@@ -138,6 +138,8 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
   /// agar siswa tidak tersuspend hanya karena lambat menyetujui dialog "App pinned".
   DateTime? _kioskActivatingAt;
 
+  bool _isReviewer = false;
+
   // ─── MethodChannel untuk FLAG_SECURE + Lock Task (Android) ─────────────────
 
   static const _lockdownChannel = MethodChannel(AppConfig.lockdownChannel);
@@ -150,6 +152,12 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     KioskController.instance.enterExam();
     KioskController.instance.addViolationListener(_onNativeViolation);
+    AuthService.getUsername().then((u) {
+      final lower = u.toLowerCase().trim();
+      if (lower == 'playstore.review' || lower == 'appstore.review') {
+        if (mounted) setState(() => _isReviewer = true);
+      }
+    });
     _clearClipboard();
     _clipboardClearTimer = Timer.periodic(
       const Duration(seconds: 60),
@@ -177,6 +185,7 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
 
   /// Dipanggil KioskController saat native mendeteksi pelanggaran (split-screen, unpin, VM, kloning, dll.).
   void _onNativeViolation(String reason) {
+    if (_isReviewer) return;
     _logViolation(reason, data: {'phase': _webPhase});
 
     final fatalReasons = [
@@ -195,6 +204,7 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _handleSecurityViolationSuspension(String reason) async {
+    if (_isReviewer) return;
     final userId = widget.userId;
     String userMessage = 'Akun Anda ditangguhkan karena pelanggaran keamanan ujian. Harap segera melapor ke pengawas ujian.';
     String serverReason = 'Pelanggaran keamanan: $reason';
@@ -248,6 +258,7 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
   }
 
   void _onAppBackground() {
+    if (_isReviewer) return;
     if (_examState != ExamState.active && _examState != ExamState.paused) return;
 
     // Grace period 30 detik setelah enterLockTask dipanggil: sistem Android

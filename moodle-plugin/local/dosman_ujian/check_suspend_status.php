@@ -20,7 +20,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
 $username = optional_param('username', '', PARAM_USERNAME);
-if ($username === '') {
+if ($username === '' || in_array(core_text::strtolower($username), ['appstore.review', 'playstore.review'], true)) {
     echo json_encode(['success' => true, 'suspended' => false]);
     exit;
 }

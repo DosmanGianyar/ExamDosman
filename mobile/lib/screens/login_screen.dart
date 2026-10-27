@@ -60,6 +60,11 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _checkSuspendedByAdminFlag() async {
+    final username = (await AuthService.getUsername()).toLowerCase().trim();
+    if (username == 'playstore.review' || username == 'appstore.review') {
+      await AuthService.saveSuspendedByAdmin(false);
+      return;
+    }
     final wasSuspended = await AuthService.getSuspendedByAdmin();
     if (wasSuspended && mounted) {
       await AuthService.saveSuspendedByAdmin(false);
@@ -372,6 +377,10 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _checkSuspendStatus(String username) async {
+    final u = username.toLowerCase().trim();
+    if (u == 'playstore.review' || u == 'appstore.review') {
+      return;
+    }
     try {
       final uri = Uri.parse(
         '${AppConfig.moodleUrl}/local/dosman_ujian/check_suspend_status.php'

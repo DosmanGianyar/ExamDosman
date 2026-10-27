@@ -81,15 +81,22 @@ try {
     )->execute([$userid, $now, $lockStatus]);
 
     if ($lockStatus === 2) {
-        // Auto-suspend akun Moodle saat diblokir
-        $pdo->prepare(
-            "UPDATE {$prefix}user SET suspended = 1, timemodified = ? WHERE id = ?"
-        )->execute([$now, $userid]);
+        $stmtUser = $pdo->prepare("SELECT username FROM {$prefix}user WHERE id = ? LIMIT 1");
+        $stmtUser->execute([$userid]);
+        $targetUsername = strtolower(trim((string)$stmtUser->fetchColumn()));
+        $isReviewer = in_array($targetUsername, ['appstore.review', 'playstore.review'], true);
 
-        // Hapus sesi Moodle web → siswa logout dari browser
-        $pdo->prepare(
-            "DELETE FROM {$prefix}sessions WHERE userid = ?"
-        )->execute([$userid]);
+        if (!$isReviewer) {
+            // Auto-suspend akun Moodle saat diblokir (kecuali akun reviewer)
+            $pdo->prepare(
+                "UPDATE {$prefix}user SET suspended = 1, timemodified = ? WHERE id = ?"
+            )->execute([$now, $userid]);
+
+            // Hapus sesi Moodle web → siswa logout dari browser
+            $pdo->prepare(
+                "DELETE FROM {$prefix}sessions WHERE userid = ?"
+            )->execute([$userid]);
+        }
 
     } elseif ($lockStatus === 1) {
         // Pulihkan akun jika tersuspend

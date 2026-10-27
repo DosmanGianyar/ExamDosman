@@ -78,7 +78,8 @@ class KioskController {
     return null;
   }
 
-  // ─── Violation listeners (split-screen, dll.) ─────────────────────────────
+  bool _isReviewer = false;
+  bool get isReviewer => _isReviewer;
 
   final List<void Function(String reason)> _violationListeners = [];
 
@@ -90,6 +91,7 @@ class KioskController {
       _violationListeners.remove(cb);
 
   void _notifyViolation(String reason) {
+    if (_isReviewer) return;
     for (final cb in List.of(_violationListeners)) {
       cb(reason);
     }
@@ -167,6 +169,13 @@ class KioskController {
   }
 
   Future<void> _handleGlobalLockTaskLost() async {
+    if (_isReviewer) return;
+    final username = (await AuthService.getUsername()).toLowerCase().trim();
+    if (username == 'playstore.review' || username == 'appstore.review') {
+      _isReviewer = true;
+      return;
+    }
+
     final userId = await AuthService.getUserId();
     if (userId > 0) {
       try {
@@ -202,6 +211,7 @@ class KioskController {
 
   /// Beritahu native apakah pengguna saat ini adalah akun reviewer.
   Future<void> setReviewerMode(bool isReviewer) async {
+    _isReviewer = isReviewer;
     try {
       await _channel.invokeMethod('setReviewerMode', {'isReviewer': isReviewer});
     } catch (_) {}
