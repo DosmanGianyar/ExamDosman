@@ -40,9 +40,9 @@ workflows:
           flutter packages pub get
       - name: Build signed iOS IPA for TestFlight
         script: |
-          LATEST_BUILD=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || echo 140)
-          if [ -z "$LATEST_BUILD" ] || [ "$LATEST_BUILD" -lt 140 ] 2>/dev/null; then
-            LATEST_BUILD=140
+          LATEST_BUILD=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || echo 141)
+          if [ -z "$LATEST_BUILD" ] || [ "$LATEST_BUILD" -lt 141 ] 2>/dev/null; then
+            LATEST_BUILD=141
           fi
           NEXT_BUILD_NUMBER=$((LATEST_BUILD + 1))
           echo "Previous build number: $LATEST_BUILD"

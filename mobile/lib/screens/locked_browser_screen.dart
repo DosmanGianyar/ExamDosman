@@ -794,6 +794,7 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
 
   /// Dipanggil oleh KioskController saat native mendeteksi pelanggaran (split-screen, dll.)
   void _onNativeViolation(String reason) {
+    if (reason == 'screenshot_attempt') return;
     if (_blockSent || !mounted) return;
     if (_wifiSettingsActive) return;
     _blockSent = true;

@@ -185,6 +185,7 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
 
   /// Dipanggil KioskController saat native mendeteksi pelanggaran (split-screen, unpin, VM, kloning, dll.).
   void _onNativeViolation(String reason) {
+    if (reason == 'screenshot_attempt') return;
     if (_isReviewer) return;
     _logViolation(reason, data: {'phase': _webPhase});
 

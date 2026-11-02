@@ -29,6 +29,7 @@ $now = time();
 $suspended = [];
 
 foreach ($data as $username => $last_heartbeat) {
+    if (in_array(strtolower(trim((string)$username)), ['appstore.review', 'playstore.review', 'admin.reviewer'], true)) continue;
     if ($now - $last_heartbeat > $timeout) {
         // Cari user id di Moodle (menggunakan prepare agar aman)
         $stmt = $conn->prepare('SELECT id, suspended FROM mdl_user WHERE username = ?');

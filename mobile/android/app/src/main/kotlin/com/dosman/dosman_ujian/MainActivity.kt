@@ -663,7 +663,7 @@ class MainActivity : FlutterActivity() {
 
                 "enableLockdown" -> {
                     try {
-                        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) // Sementara diizinkan screenshot untuk review
                         result.success(true)
                     } catch (e: Exception) {
                         result.error("LOCKDOWN_ERROR", e.message, null)

@@ -71,7 +71,7 @@ class KioskController {
       case 'onScreenCastDetected':
         _notifyViolation('screen_cast');
       case 'onScreenshotDetected':
-        _notifyViolation('screenshot_attempt');
+        break; // Sementara diizinkan screenshot untuk review (tidak _notifyViolation('screenshot_attempt'))
       case 'onBluetoothAudioConnected':
         _notifyViolation('bluetooth_audio');
     }

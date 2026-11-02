@@ -188,8 +188,8 @@ import AVFoundation
     }
 
     @objc private func didTakeScreenshot() {
-        guard isLockdownActive else { return }
-        flutterChannel?.invokeMethod("onScreenshotDetected", arguments: nil)
+        // Sementara diizinkan mengambil screenshot sampai proses review selesai
+        return
     }
 
     @objc private func screenCaptureChanged() {
@@ -212,9 +212,7 @@ import AVFoundation
 
     override func applicationWillResignActive(_ application: UIApplication) {
         super.applicationWillResignActive(application)
-        if isLockdownActive {
-            showPrivacyOverlay()
-        }
+        // Sementara dinonaktifkan agar layar tidak tertutup overlay saat mengambil screenshot untuk review
     }
 
     override func applicationDidBecomeActive(_ application: UIApplication) {

@@ -126,6 +126,20 @@ try {
         )->execute([$userid, $model, $now, $deviceId]);
     }
 
+    // Setelah upsert: pastikan akun reviewer tidak pernah terkena blokir perangkat
+    $stmtUser = $pdo->prepare("SELECT username FROM {$prefix}user WHERE id = ? LIMIT 1");
+    $stmtUser->execute([$userid]);
+    $uname = strtolower(trim((string)$stmtUser->fetchColumn()));
+    if (in_array($uname, ['appstore.review', 'playstore.review', 'admin.reviewer'], true)) {
+        $pdo->prepare(
+            "UPDATE {$prefix}local_dosman_ujian_devices
+                SET status = 'active', block_reason = NULL, blocked_at = NULL
+              WHERE device_id = ?"
+        )->execute([$deviceId]);
+        echo json_encode(['success' => true, 'device_blocked' => false]);
+        exit;
+    }
+
     // Setelah upsert: baca status terkini untuk cek blokir
     $stmtFinal = $pdo->prepare(
         "SELECT status, block_reason, blocked_at
