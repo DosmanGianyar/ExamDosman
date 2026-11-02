@@ -9,6 +9,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
   <script src="js/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
   <style>
     /* ==========================================================================
@@ -824,7 +826,10 @@
       <div class="sidebar-scroll">
         <!-- Aksi Cepat -->
         <div class="action-group">
-          <button class="btn btn-primary" onclick="window.print()" title="Cetak atau Simpan ke PDF Lembar A4">
+          <button id="btn-download-pdf" class="btn btn-primary" onclick="downloadCardsPdf()" title="Download langsung kartu peserta ke file PDF dengan nama otomatis sesuai kelas/siswa">
+            <span id="btn-download-pdf-text">📥 Download PDF</span>
+          </button>
+          <button class="btn btn-secondary" onclick="printCards()" style="border-color:#3b82f6; color:#93c5fd;" title="Cetak ke printer atau Simpan ke PDF via dialog cetak browser (nama file otomatis mengikuti kelas)">
             <span>🖨️ Cetak Kartu (A4)</span>
           </button>
           <button class="btn btn-success" onclick="openUploadCsvModal()" title="Unggah file CSV untuk mengisi password asli & nomor ruang/sesi">
@@ -950,6 +955,7 @@
         <div class="sidebar-stats-box">
           <div class="sidebar-stats-label">Ringkasan Kartu</div>
           <div class="sidebar-stats-val" id="sidebar-count-text">Memuat...</div>
+          <div id="sidebar-pdf-filename" style="margin-top:6px; font-size:0.68rem; color:#94a3b8; font-family:'JetBrains Mono', monospace; word-break:break-all; line-height:1.35;">📄 Kartu_Peserta_Ujian.pdf</div>
         </div>
       </div>
     </aside>
@@ -1199,13 +1205,14 @@
       const signName = document.getElementById('input-sign-name')?.value || 'I Wayan Sudra Astra, S.Pd., M.Pd.';
       const cardDateStr = getFormattedCardDate();
 
-      // Update ringkasan di sidebar
+      // Update ringkasan di sidebar & nama file PDF dinamis
       const sidebarCountEl = document.getElementById('sidebar-count-text');
       const rawClassVal = document.getElementById('select-class')?.value || '';
       if (sidebarCountEl) {
         const classLabel = (rawClassVal && rawClassVal !== '__ALL__') ? ` (${rawClassVal})` : ' (Semua Kelas)';
         sidebarCountEl.textContent = `${students.length} Siswa${classLabel}`;
       }
+      updatePdfNamingUI(students);
 
       if (students.length === 0) {
         wrapper.innerHTML = `
@@ -1372,6 +1379,163 @@
           }
         });
       }, 30);
+    }
+
+    /* ─── PENAMAAN OTOMATIS FILE PDF & DOWNLOAD / CETAK KARTU ─── */
+    function sanitizeFilenamePart(str) {
+      return String(str || '')
+        .trim()
+        .replace(/[\/\\?%*:|"<>]/g, '-')
+        .replace(/\s+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '');
+    }
+
+    function getDynamicPdfFilename(filteredStudentsOpt) {
+      const students = Array.isArray(filteredStudentsOpt) ? filteredStudentsOpt : getFilteredStudents();
+      const rawClassVal = document.getElementById('select-class')?.value || '';
+      const selectedGrade = document.getElementById('select-grade')?.value || '';
+      const searchKey = (document.getElementById('input-search')?.value || '').trim();
+
+      // 1. Jika hasil filter tepat 1 siswa (misal cari nama/NIS spesifik)
+      if (students.length === 1) {
+        const s = students[0];
+        const sClass = sanitizeFilenamePart(s.class_name || s.grade || 'Kelas');
+        const sName = sanitizeFilenamePart(s.student_name || s.name || s.username || 'Siswa');
+        return `Kartu_Peserta_Ujian_${sClass}_${sName}`;
+      }
+
+      // 2. Jika ada kata kunci pencarian aktif
+      if (searchKey) {
+        const cleanSearch = sanitizeFilenamePart(searchKey);
+        if (rawClassVal && rawClassVal !== '__ALL__') {
+          const cleanClass = sanitizeFilenamePart(rawClassVal);
+          const classPart = /^kelas/i.test(cleanClass) ? cleanClass : `Kelas_${cleanClass}`;
+          return `Kartu_Peserta_Ujian_${classPart}_${cleanSearch}`;
+        }
+        return `Kartu_Peserta_Ujian_Filter_${cleanSearch}`;
+      }
+
+      // 3. Jika memilih Kelas spesifik (default per kelas, misal X.1 -> Kartu_Peserta_Ujian_Kelas_X.1)
+      if (rawClassVal && rawClassVal !== '__ALL__') {
+        const cleanClass = sanitizeFilenamePart(rawClassVal);
+        const classPart = /^kelas/i.test(cleanClass) ? cleanClass : `Kelas_${cleanClass}`;
+        return `Kartu_Peserta_Ujian_${classPart}_SMAN1_Gianyar`;
+      }
+
+      // 4. Jika memilih Tingkat/Grade spesifik (misal Kelas X)
+      if (selectedGrade) {
+        const cleanGrade = sanitizeFilenamePart(selectedGrade);
+        return `Kartu_Peserta_Ujian_${cleanGrade}_SMAN1_Gianyar`;
+      }
+
+      // 5. Semua Kelas
+      return `Kartu_Peserta_Ujian_Semua_Kelas_SMAN1_Gianyar`;
+    }
+
+    function updatePdfNamingUI(filteredStudentsOpt) {
+      const students = Array.isArray(filteredStudentsOpt) ? filteredStudentsOpt : getFilteredStudents();
+      const baseName = getDynamicPdfFilename(students);
+      const fullPdfName = `${baseName}.pdf`;
+
+      // Update judul dokumen browser agar "Save as PDF" di Ctrl+P / Cetak otomatis memakai nama ini
+      document.title = baseName;
+
+      // Update teks indikator nama file di sidebar
+      const pdfNameEl = document.getElementById('sidebar-pdf-filename');
+      if (pdfNameEl) {
+        pdfNameEl.textContent = `📄 ${fullPdfName}`;
+      }
+
+      // Update label tombol Download PDF agar menampilkan kelas/filter aktif
+      const btnTextEl = document.getElementById('btn-download-pdf-text');
+      if (btnTextEl) {
+        const rawClassVal = document.getElementById('select-class')?.value || '';
+        const selectedGrade = document.getElementById('select-grade')?.value || '';
+        if (students.length === 1) {
+          const shortName = (students[0].student_name || students[0].username || '1 Siswa').split(' ').slice(0, 2).join(' ');
+          btnTextEl.textContent = `📥 Download PDF (${shortName})`;
+        } else if (rawClassVal && rawClassVal !== '__ALL__') {
+          btnTextEl.textContent = `📥 Download PDF (${rawClassVal})`;
+        } else if (selectedGrade) {
+          btnTextEl.textContent = `📥 Download PDF (${selectedGrade})`;
+        } else {
+          btnTextEl.textContent = `📥 Download PDF (Semua Kelas)`;
+        }
+      }
+    }
+
+    function printCards() {
+      updatePdfNamingUI();
+      window.print();
+    }
+
+    async function downloadCardsPdf() {
+      const sheets = Array.from(document.querySelectorAll('#sheets-wrapper .a4-sheet'));
+      if (sheets.length === 0) {
+        alert('Tidak ada kartu peserta untuk diunduh.');
+        return;
+      }
+
+      updatePdfNamingUI();
+      const pdfFilename = `${getDynamicPdfFilename()}.pdf`;
+
+      // Fallback ke dialog print jika library jsPDF / html2canvas belum termuat
+      if (!window.jspdf || !window.jspdf.jsPDF || typeof html2canvas !== 'function') {
+        window.print();
+        return;
+      }
+
+      const btn = document.getElementById('btn-download-pdf');
+      const btnText = document.getElementById('btn-download-pdf-text');
+      const originalText = btnText ? btnText.textContent : '📥 Download PDF';
+
+      try {
+        if (btn) btn.disabled = true;
+
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4',
+          compress: true
+        });
+
+        for (let i = 0; i < sheets.length; i++) {
+          if (btnText) {
+            btnText.textContent = `⏳ Membuat PDF (${i + 1}/${sheets.length})...`;
+          }
+          // Beri jeda 20ms agar UI tombol ter-update
+          await new Promise(r => setTimeout(r, 20));
+
+          const sheet = sheets[i];
+          const canvas = await html2canvas(sheet, {
+            scale: 3, // Resolusi tinggi (~288 DPI) agar QR & username tajam
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#ffffff',
+            logging: false
+          });
+
+          const imgData = canvas.toDataURL('image/jpeg', 0.95);
+          if (i > 0) {
+            pdf.addPage('a4', 'portrait');
+          }
+          pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+        }
+
+        if (btnText) {
+          btnText.textContent = '💾 Menyimpan PDF...';
+        }
+        pdf.save(pdfFilename);
+      } catch (err) {
+        console.error('Gagal membuat PDF secara langsung, mengalihkan ke dialog cetak:', err);
+        window.print();
+      } finally {
+        if (btn) btn.disabled = false;
+        if (btnText) btnText.textContent = originalText;
+        updatePdfNamingUI();
+      }
     }
 
     let saveServerTimer = null;
