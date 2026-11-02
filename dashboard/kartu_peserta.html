@@ -341,14 +341,14 @@
       height: 100%;
     }
 
-    /* ─── CARD ITEM DESIGN (KARTU PESERTA MODERN) ─── */
+    /* ─── CARD ITEM DESIGN (KARTU PESERTA MODERN — TAJAM SAAT CETAK) ─── */
     .exam-card {
-      border: 1.2px dashed #94a3b8;
+      border: 1.4px dashed #475569;
       border-top: var(--exam-card-border-top);
       border-radius: 8px;
       padding: 7px 10px 6px;
       background: var(--exam-card-bg);
-      color: #0f172a;
+      color: #000000;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
@@ -357,7 +357,7 @@
       box-sizing: border-box;
       font-family: 'Plus Jakarta Sans', Arial, sans-serif;
       height: 67.5mm;
-      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+      text-rendering: geometricPrecision;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -366,14 +366,14 @@
     .exam-card::after {
       content: '';
       position: absolute;
-      top: 50%;
+      top: 46%;
       left: 36%;
       transform: translate(-50%, -50%);
-      width: 140px;
-      height: 140px;
+      width: 130px;
+      height: 130px;
       background: url('assets/logo_sekolah.png') no-repeat center;
       background-size: contain;
-      opacity: 0.065;
+      opacity: 0.05;
       pointer-events: none;
       z-index: 0;
     }
@@ -386,7 +386,7 @@
       left: 50%;
       transform: translateX(-50%);
       font-size: 8px;
-      color: #94a3b8;
+      color: #475569;
       background: #fff;
       padding: 0 4px;
       line-height: 1;
@@ -398,38 +398,38 @@
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      gap: 10px;
+      gap: 9px;
       position: relative;
       z-index: 1;
     }
 
     .card-meta-brand {
       flex: 1;
+      min-width: 0;
       display: flex;
       flex-direction: column;
-      gap: 3px;
+      gap: 2px;
     }
 
     /* Brand Header Pill */
     .brand-pill {
       display: inline-flex;
       align-items: center;
-      gap: 7px;
-      margin-bottom: 3px;
+      gap: 6px;
+      margin-bottom: 2px;
     }
 
     .brand-pill-logo {
-      width: 27px;
-      height: 27px;
+      width: 26px;
+      height: 26px;
       object-fit: contain;
-      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.08));
     }
 
     .brand-pill-text {
-      font-size: 11.5px;
+      font-size: 12px;
       font-weight: 800;
-      letter-spacing: 0.4px;
-      color: #0f172a;
+      letter-spacing: 0.3px;
+      color: #000000;
     }
 
     .brand-pill-badge {
@@ -438,63 +438,66 @@
       color: #ffffff;
       font-size: 7.5px;
       font-weight: 800;
-      padding: 2px 7px;
+      padding: 2px 6px;
       border-radius: 4px;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.4px;
       text-transform: uppercase;
     }
 
     .exam-title-text {
-      font-size: 8.5px;
+      font-size: 9.2px;
       font-weight: 800;
-      color: #1e40af;
+      color: #1e3a8a;
       text-transform: uppercase;
       line-height: 1.2;
     }
 
     .exam-ta-text {
-      font-size: 7px;
-      font-weight: 600;
-      color: #64748b;
-      margin-bottom: 4px;
+      font-size: 7.8px;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 2px;
     }
 
     /* Student Name Box */
     .student-name-box {
-      margin-top: 2px;
+      margin-top: 1px;
+      background: rgba(255, 255, 255, 0.85);
+      border-left: 3px solid #1e3a8a;
+      padding: 2px 6px;
+      border-radius: 0 4px 4px 0;
     }
 
     .student-name-label {
       display: block;
-      font-size: 6.5px;
-      font-weight: 700;
-      color: #64748b;
+      font-size: 6.8px;
+      font-weight: 800;
+      color: #334155;
       text-transform: uppercase;
       letter-spacing: 0.4px;
     }
 
     .student-name-text {
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 800;
-      color: #0f172a;
-      line-height: 1.25;
+      color: #000000;
+      line-height: 1.2;
       word-break: break-word;
     }
 
-    /* ─── POJOK KANAN ATAS: BIG QR BARCODE (2.5x - 3x LIPAT) ─── */
+    /* ─── POJOK KANAN ATAS: HIGH-DPI QR BARCODE ─── */
     .qr-top-right-box {
       display: flex;
       flex-direction: column;
       align-items: center;
       flex-shrink: 0;
-      background: #f8fafc;
-      border: 1.5px solid #cbd5e1;
-      border-radius: 8px;
-      padding: 5px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      background: #ffffff;
+      border: 1.5px solid #1e293b;
+      border-radius: 7px;
+      padding: 4px;
     }
 
-    /* Ukuran Barcode Besar 82px di Pojok Kanan Atas */
+    /* Ukuran Barcode 82px dengan resolusi render 320x320 High-DPI */
     .qr-code-box {
       width: 82px;
       height: 82px;
@@ -508,25 +511,28 @@
       width: 100% !important;
       height: 100% !important;
       display: block;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+      image-rendering: pixelated;
     }
 
     .qr-scan-badge {
       display: inline-flex;
       align-items: center;
       gap: 3px;
-      font-size: 6.5px;
+      font-size: 7px;
       font-weight: 800;
-      color: #1e3a8a;
+      color: #000000;
       letter-spacing: 0.3px;
-      margin-top: 3px;
+      margin-top: 2px;
       text-transform: uppercase;
     }
 
     .qr-scan-dot {
-      width: 4px;
-      height: 4px;
+      width: 4.5px;
+      height: 4.5px;
       border-radius: 50%;
-      background: #10b981;
+      background: #059669;
     }
 
     /* ─── CHIPS METADATA (ABSEN, KELAS, RUANG/SESI, NO PESERTA) ─── */
@@ -534,33 +540,33 @@
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 4px;
-      margin: 6px 0;
+      margin: 4px 0;
       position: relative;
       z-index: 1;
     }
 
     .meta-chip {
-      background: #f1f5f9;
-      border: 0.8px solid #cbd5e1;
+      background: #ffffff;
+      border: 1px solid #64748b;
       border-radius: 5px;
-      padding: 3px 5px;
+      padding: 2.5px 5px;
       display: flex;
       flex-direction: column;
       align-items: flex-start;
     }
 
     .chip-label {
-      font-size: 5.5px;
-      font-weight: 700;
-      color: #64748b;
+      font-size: 6.5px;
+      font-weight: 800;
+      color: #334155;
       text-transform: uppercase;
       letter-spacing: 0.3px;
     }
 
     .chip-val {
-      font-size: 8px;
+      font-size: 9.2px;
       font-weight: 800;
-      color: #0f172a;
+      color: #000000;
       line-height: 1.2;
       white-space: nowrap;
       overflow: hidden;
@@ -569,56 +575,77 @@
     }
 
     .chip-val.highlight {
-      color: #1e40af;
-      font-size: 9px;
+      color: #1e3a8a;
+      font-size: 10px;
     }
 
     .chip-val.class-val {
-      color: #0369a1;
+      color: #0f172a;
     }
 
     .chip-val.mono {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 7.5px;
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      font-size: 8.8px;
     }
 
-    /* ─── KOTAK KREDENSIAL LOGIN (USERNAME & PASSWORD) ─── */
+    /* ─── KOTAK KREDENSIAL LOGIN (USERNAME & PASSWORD) — KONTRAS TINGGI CETAK ─── */
     .login-cred-container {
-      background: #0f172a;
-      color: #ffffff;
+      background: #ffffff;
+      border: 1.8px solid #0f172a;
       border-radius: 6px;
-      padding: 4px 8px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin: 4px 0 5px;
+      padding: 0;
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      align-items: stretch;
+      margin: 3px 0 4px;
       position: relative;
       z-index: 1;
+      overflow: hidden;
     }
 
     .cred-item {
       display: flex;
       flex-direction: column;
+      justify-content: center;
+      padding: 4px 8px;
+      min-width: 0;
+    }
+
+    .cred-item + .cred-item {
+      border-left: 1.5px solid #0f172a;
+      background: #fefce8;
     }
 
     .cred-label {
-      font-size: 5.5px;
-      font-weight: 700;
-      color: #94a3b8;
+      font-size: 6.8px;
+      font-weight: 800;
+      color: #1e3a8a;
       text-transform: uppercase;
-      letter-spacing: 0.4px;
+      letter-spacing: 0.5px;
+      line-height: 1.1;
+      margin-bottom: 1px;
+    }
+
+    .cred-pass .cred-label {
+      color: #9a3412;
     }
 
     .cred-val {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 8.5px;
+      font-family: 'JetBrains Mono', Consolas, 'Courier New', monospace;
+      font-size: 11px;
       font-weight: 800;
-      color: #ffffff;
-      letter-spacing: 0.3px;
+      color: #000000;
+      letter-spacing: 0.35px;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .cred-pass .cred-val {
-      color: #fde047; /* Password kuning cerah agar mudah dibaca */
+      font-size: 11.5px;
+      color: #000000;
+      letter-spacing: 0.5px;
     }
 
     /* ─── FOOTER & TANDA TANGAN ─── */
@@ -626,24 +653,26 @@
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
-      border-top: 0.8px solid #e2e8f0;
+      border-top: 1px solid #94a3b8;
       padding-top: 3px;
       position: relative;
       z-index: 1;
     }
 
     .card-rules-note {
-      font-size: 5.5px;
-      color: #64748b;
+      font-size: 6.5px;
+      font-weight: 600;
+      color: #1e293b;
       font-style: italic;
-      max-width: 58%;
+      max-width: 56%;
       line-height: 1.2;
     }
 
     .card-signature {
       text-align: right;
-      font-size: 6px;
-      color: #334155;
+      font-size: 7px;
+      font-weight: 600;
+      color: #0f172a;
       display: flex;
       flex-direction: column;
       align-items: flex-end;
@@ -652,7 +681,7 @@
 
     .sign-name {
       font-weight: 800;
-      color: #0f172a;
+      color: #000000;
       text-decoration: underline;
       margin-top: 2px;
     }
@@ -752,13 +781,24 @@
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
         background: var(--exam-card-bg) !important;
-        border: 1px dashed #94a3b8 !important;
+        border: 1.4px dashed #334155 !important;
         border-top: var(--exam-card-border-top) !important;
+        box-shadow: none !important;
       }
 
       .login-cred-container {
-        background: #0f172a !important;
-        color: #ffffff !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        border: 1.8px solid #000000 !important;
+      }
+
+      .cred-item + .cred-item {
+        border-left: 1.5px solid #000000 !important;
+        background: #fefce8 !important;
+      }
+
+      .cred-val, .cred-pass .cred-val {
+        color: #000000 !important;
       }
     }
   </style>
@@ -876,10 +916,18 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="select-class">Filter Kelas (Cohort)</label>
+            <label class="form-label" for="select-class">Filter Kelas / Rombel (Default Per Kelas)</label>
             <select id="select-class" class="form-select" onchange="renderCards()">
-              <option value="">Semua Kelas</option>
+              <option value="">Memuat Kelas...</option>
             </select>
+            <div class="btn-row" style="margin-top:4px;">
+              <button type="button" class="btn btn-secondary" style="padding:5px 8px; font-size:0.72rem;" onclick="stepClassFilter(-1)" title="Pilih Kelas Sebelumnya">
+                <span>◀ Kelas Sblm</span>
+              </button>
+              <button type="button" class="btn btn-secondary" style="padding:5px 8px; font-size:0.72rem;" onclick="stepClassFilter(1)" title="Pilih Kelas Berikutnya">
+                <span>Kelas Brkt ▶</span>
+              </button>
+            </div>
           </div>
 
           <div class="form-group">
@@ -1037,43 +1085,73 @@
       const currentVal = selectClass.value;
       const selectedGrade = document.getElementById('select-grade')?.value || '';
 
-      const classSet = new Set();
+      const classCounts = new Map();
       allStudents.forEach(s => {
         if (!selectedGrade || s.grade === selectedGrade) {
-          if (s.class_name && s.class_name.trim() !== '') {
-            classSet.add(s.class_name.trim());
+          const cls = (s.class_name || '').trim();
+          if (cls !== '') {
+            classCounts.set(cls, (classCounts.get(cls) || 0) + 1);
           }
         }
       });
 
-      const sortedClasses = Array.from(classSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      const sortedClasses = Array.from(classCounts.keys()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
-      let html = '<option value="">Semua Kelas</option>';
+      let html = '';
       sortedClasses.forEach(cls => {
-        html += `<option value="${escapeHtml(cls)}">${escapeHtml(cls)}</option>`;
+        const count = classCounts.get(cls) || 0;
+        html += `<option value="${escapeHtml(cls)}">${escapeHtml(cls)} (${count} Siswa)</option>`;
       });
+      html += '<option value="__ALL__">— Semua Kelas (Tampilkan Semua) —</option>';
       selectClass.innerHTML = html;
 
-      if (sortedClasses.includes(currentVal)) {
+      if (currentVal === '__ALL__') {
+        selectClass.value = '__ALL__';
+      } else if (sortedClasses.includes(currentVal)) {
         selectClass.value = currentVal;
+      } else if (sortedClasses.length > 0) {
+        // Default otomatis ke kelas pertama agar ringan saat generate barcode
+        selectClass.value = sortedClasses[0];
+      } else {
+        selectClass.value = '__ALL__';
       }
     }
 
+    function stepClassFilter(direction) {
+      const selectClass = document.getElementById('select-class');
+      if (!selectClass || selectClass.options.length === 0) return;
+      const maxIdx = selectClass.options.length - 1; // opsi terakhir adalah __ALL__
+      const classCount = maxIdx > 0 ? maxIdx : selectClass.options.length;
+      if (classCount <= 0) return;
+
+      let nextIdx = selectClass.selectedIndex + direction;
+      if (nextIdx < 0) nextIdx = classCount - 1;
+      if (nextIdx >= classCount) nextIdx = 0;
+      selectClass.selectedIndex = nextIdx;
+      renderCards();
+    }
+
     function onGradeFilterChange() {
+      const selectClass = document.getElementById('select-class');
+      if (selectClass && selectClass.value === '__ALL__') {
+        selectClass.value = '';
+      }
       populateClassFilter();
       renderCards();
     }
 
     function getFilteredStudents() {
       const selectedGrade = (document.getElementById('select-grade')?.value || '').toLowerCase();
-      const selectedClass = (document.getElementById('select-class')?.value || '').toLowerCase();
+      const rawClassVal = document.getElementById('select-class')?.value || '';
+      const selectedClass = rawClassVal === '__ALL__' ? '' : rawClassVal.toLowerCase();
       const searchKey = (document.getElementById('input-search')?.value || '').toLowerCase().trim();
 
       return allStudents.filter(s => {
         if (selectedGrade && (s.grade || '').toLowerCase() !== selectedGrade) {
           return false;
         }
-        if (selectedClass && (s.class_name || '').toLowerCase() !== selectedClass) {
+        // Jika pengguna sedang mencari nama/NIS spesifik di kotak pencarian, cari di seluruh kelas (atau kelas terpilih)
+        if (!searchKey && selectedClass && (s.class_name || '').toLowerCase() !== selectedClass) {
           return false;
         }
         if (searchKey) {
@@ -1120,8 +1198,10 @@
 
       // Update ringkasan di sidebar
       const sidebarCountEl = document.getElementById('sidebar-count-text');
+      const rawClassVal = document.getElementById('select-class')?.value || '';
       if (sidebarCountEl) {
-        sidebarCountEl.textContent = `${students.length} Siswa Terpilih`;
+        const classLabel = (rawClassVal && rawClassVal !== '__ALL__') ? ` (${rawClassVal})` : ' (Semua Kelas)';
+        sidebarCountEl.textContent = `${students.length} Siswa${classLabel}`;
       }
 
       if (students.length === 0) {
@@ -1177,7 +1257,7 @@
                   </div>
                 </div>
 
-                <!-- POJOK KANAN ATAS: QR Barcode Besar (2.5x - 3x Lipat) -->
+                <!-- POJOK KANAN ATAS: QR Barcode High-DPI -->
                 <div class="qr-top-right-box">
                   <div class="qr-code-box" id="${qrId}" 
                        data-username="${escapeHtml(s.username)}" 
@@ -1211,15 +1291,15 @@
                 </div>
               </div>
 
-              <!-- Kotak Kredensial Login Siswa (Username & Password) -->
+              <!-- Kotak Kredensial Login Siswa (Username & Password — Kontras Tinggi Cetak) -->
               <div class="login-cred-container">
                 <div class="cred-item">
-                  <span class="cred-label">USERNAME</span>
+                  <span class="cred-label">👤 USERNAME</span>
                   <span class="cred-val mono">${escapeHtml(s.username)}</span>
                 </div>
-                <div class="cred-item cred-pass" style="text-align:right;">
-                  <span class="cred-label">PASSWORD UJIAN</span>
-                  <span class="cred-val mono dyn-pwd-text" style="${!studentPass ? 'color:#94a3b8;font-style:italic;' : ''}">${escapeHtml(passDisplay)}</span>
+                <div class="cred-item cred-pass">
+                  <span class="cred-label">🔑 PASSWORD UJIAN</span>
+                  <span class="cred-val mono dyn-pwd-text" style="${!studentPass ? 'color:#64748b;font-style:italic;' : ''}">${escapeHtml(passDisplay)}</span>
                 </div>
               </div>
 
@@ -1248,9 +1328,9 @@
 
       wrapper.innerHTML = sheetsHtml;
 
-      // Generate QR Code Besar untuk setiap kartu secara offline
+      // Generate QR Code High-DPI (320x320 px -> >350 DPI saat cetak) untuk setiap kartu secara offline
       setTimeout(() => {
-        const qrSize = 82;
+        const qrRenderSize = 320;
 
         document.querySelectorAll('.qr-code-box[data-username]').forEach(el => {
           const uname = el.getAttribute('data-username');
@@ -1267,9 +1347,9 @@
           try {
             new QRCode(el, {
               text: payload,
-              width: qrSize,
-              height: qrSize,
-              colorDark: "#0f172a",
+              width: qrRenderSize,
+              height: qrRenderSize,
+              colorDark: "#000000",
               colorLight: "#ffffff",
               correctLevel: QRCode.CorrectLevel.M
             });
@@ -1277,7 +1357,7 @@
             console.error('QRCode generation error:', e);
           }
         });
-      }, 50);
+      }, 30);
     }
 
     let saveServerTimer = null;
