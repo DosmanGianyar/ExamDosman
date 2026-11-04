@@ -91,10 +91,12 @@ try {
             ruang VARCHAR(50) DEFAULT '',
             sesi VARCHAR(50) DEFAULT '',
             meja VARCHAR(50) DEFAULT '',
+            no_absen VARCHAR(50) DEFAULT '',
             created_at INT NOT NULL,
             updated_at INT NOT NULL,
             INDEX idx_username (username)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+        try { $pdo->exec("ALTER TABLE {$prefix}local_dosman_student_cards ADD COLUMN no_absen VARCHAR(50) DEFAULT '' AFTER meja"); } catch (Throwable $e) {}
     ");
 
     $items = [];
@@ -135,6 +137,7 @@ try {
         $rIdx = $headerMap['ruang'] ?? ($headerMap['ruangan'] ?? ($headerMap['room'] ?? null));
         $sIdx = $headerMap['sesi'] ?? ($headerMap['session'] ?? null);
         $mIdx = $headerMap['meja'] ?? ($headerMap['nomeja'] ?? null);
+        $abIdx = $headerMap['absen'] ?? ($headerMap['noabsen'] ?? ($headerMap['nomorabsen'] ?? null));
 
         if ($uIdx === null || $pIdx === null) {
             throw new RuntimeException('CSV wajib memiliki kolom "username" dan "password". Kolom terdeteksi: ' . implode(', ', $headers));
@@ -156,6 +159,7 @@ try {
                 'ruang'      => $rIdx !== null ? trim((string)($row[$rIdx] ?? '')) : '',
                 'sesi'       => $sIdx !== null ? trim((string)($row[$sIdx] ?? '')) : '',
                 'meja'       => $mIdx !== null ? trim((string)($row[$mIdx] ?? '')) : '',
+                'no_absen'   => $abIdx !== null ? trim((string)($row[$abIdx] ?? '')) : '',
             ];
         }
     } 
@@ -173,6 +177,7 @@ try {
                 'ruang'      => trim((string)($s['ruang'] ?? '')),
                 'sesi'       => trim((string)($s['sesi'] ?? '')),
                 'meja'       => trim((string)($s['meja'] ?? '')),
+                'no_absen'   => trim((string)($s['no_absen'] ?? ($s['absen'] ?? ''))),
             ];
         }
     } else {
@@ -187,7 +192,7 @@ try {
     $now = time();
     $sql = "
         INSERT INTO {$prefix}local_dosman_student_cards
-            (username, plain_password, no_peserta, ruang, sesi, meja, created_at, updated_at)
+            (username, plain_password, no_peserta, ruang, sesi, meja, no_absen, created_at, updated_at)
         VALUES
             (?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
@@ -196,6 +201,7 @@ try {
             ruang          = IF(VALUES(ruang) != '', VALUES(ruang), ruang),
             sesi           = IF(VALUES(sesi) != '', VALUES(sesi), sesi),
             meja           = IF(VALUES(meja) != '', VALUES(meja), meja),
+            no_absen       = IF(VALUES(no_absen) != '', VALUES(no_absen), no_absen),
             updated_at     = VALUES(updated_at)
     ";
 

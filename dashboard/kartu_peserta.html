@@ -7,7 +7,9 @@
   <link rel="icon" type="image/png" href="assets/logo_sekolah.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,500;0,700;0,800;1,500;1,700;1,800&family=Plus+Jakarta+Sans:ital,wght@0,500;0,600;0,700;0,800;1,500;1,600;1,700;1,800&display=swap" rel="stylesheet">
   <script src="js/qrcode.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -27,28 +29,8 @@
       --success: #10b981;
       --text-light: #f8fafc;
       --text-dim: #94a3b8;
-      --exam-card-bg: linear-gradient(135deg, #ffffff 0%, #f8faff 35%, #edf3fb 75%, #e1ebf7 100%);
+      --exam-card-bg: linear-gradient(180deg, #ffffff 0%, #f8faff 60%, #edf3fb 100%);
       --exam-card-border-top: 3.5px solid #1e3a8a;
-    }
-
-    [data-card-bg="blue-grad"] {
-      --exam-card-bg: linear-gradient(135deg, #ffffff 0%, #f8faff 35%, #edf3fb 75%, #e1ebf7 100%);
-      --exam-card-border-top: 3.5px solid #1e3a8a;
-    }
-
-    [data-card-bg="warm-grad"] {
-      --exam-card-bg: linear-gradient(135deg, #ffffff 0%, #fffdfa 35%, #fbf6ec 75%, #f4ebd6 100%);
-      --exam-card-border-top: 3.5px solid #b45309;
-    }
-
-    [data-card-bg="slate-grad"] {
-      --exam-card-bg: linear-gradient(135deg, #ffffff 0%, #f9fafb 35%, #f1f5f9 75%, #e2e8f0 100%);
-      --exam-card-border-top: 3.5px solid #334155;
-    }
-
-    [data-card-bg="white-plain"] {
-      --exam-card-bg: #ffffff;
-      --exam-card-border-top: 1.2px dashed #475569;
     }
 
     * {
@@ -343,7 +325,7 @@
       height: 100%;
     }
 
-    /* ─── CARD ITEM DESIGN (KARTU PESERTA MODERN — TAJAM SAAT CETAK) ─── */
+    /* ─── CARD ITEM DESIGN (KARTU PESERTA MODERN, ELEGAN & KEKINIAN — HIGH PRINT READABILITY) ─── */
     .exam-card {
       border: 1.4px dashed #475569;
       border-top: var(--exam-card-border-top);
@@ -362,20 +344,21 @@
       text-rendering: geometricPrecision;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
     }
 
     /* Decorative Watermark Logo Sekolah */
     .exam-card::after {
       content: '';
       position: absolute;
-      top: 46%;
-      left: 36%;
+      top: 48%;
+      left: 38%;
       transform: translate(-50%, -50%);
-      width: 125px;
-      height: 125px;
+      width: 130px;
+      height: 130px;
       background: url('assets/logo_sekolah.png') no-repeat center;
       background-size: contain;
-      opacity: 0.05;
+      opacity: 0.045;
       pointer-events: none;
       z-index: 0;
     }
@@ -387,7 +370,7 @@
       top: -6px;
       left: 50%;
       transform: translateX(-50%);
-      font-size: 8px;
+      font-size: 8.5px;
       color: #475569;
       background: #fff;
       padding: 0 4px;
@@ -418,73 +401,81 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      margin-bottom: 1px;
+      margin-bottom: 1.5px;
     }
 
     .brand-pill-logo {
-      width: 24px;
-      height: 24px;
+      width: 25px;
+      height: 25px;
       object-fit: contain;
     }
 
     .brand-pill-text {
-      font-size: 11.5px;
+      font-size: 13px;
       font-weight: 800;
-      letter-spacing: 0.3px;
-      color: #000000;
+      letter-spacing: 0.4px;
+      color: #0f172a;
     }
 
     .brand-pill-badge {
       display: inline-block;
       background: #1e3a8a;
       color: #ffffff;
-      font-size: 7px;
+      font-size: 7.5px;
       font-weight: 800;
-      padding: 1.5px 6px;
+      padding: 2px 6.5px;
       border-radius: 4px;
-      letter-spacing: 0.4px;
+      letter-spacing: 0.5px;
       text-transform: uppercase;
     }
 
     .exam-title-text {
-      font-size: 8.8px;
+      font-size: 10px;
       font-weight: 800;
       color: #1e3a8a;
       text-transform: uppercase;
       line-height: 1.15;
+      letter-spacing: 0.2px;
     }
 
     .exam-ta-text {
-      font-size: 7.4px;
+      font-size: 8.2px;
       font-weight: 700;
-      color: #1e293b;
-      margin-bottom: 1px;
+      color: #334155;
+      margin-bottom: 2px;
     }
 
-    /* Student Name Box */
+    /* Student Name Box — Besar & Tegas */
     .student-name-box {
-      margin-top: 1px;
-      background: rgba(255, 255, 255, 0.85);
-      border-left: 3px solid #1e3a8a;
-      padding: 2px 6px;
-      border-radius: 0 4px 4px 0;
+      margin-top: 1.5px;
+      background: rgba(255, 255, 255, 0.95);
+      border-left: 3.5px solid #1e3a8a;
+      padding: 2.5px 7px;
+      border-radius: 0 5px 5px 0;
+      border-top: 1px solid rgba(226, 232, 240, 0.8);
+      border-right: 1px solid rgba(226, 232, 240, 0.8);
+      border-bottom: 1px solid rgba(226, 232, 240, 0.8);
     }
 
     .student-name-label {
       display: block;
-      font-size: 6.5px;
+      font-size: 7.2px;
       font-weight: 800;
-      color: #334155;
+      color: #475569;
       text-transform: uppercase;
-      letter-spacing: 0.4px;
+      letter-spacing: 0.5px;
+      line-height: 1;
+      margin-bottom: 1.5px;
     }
 
     .student-name-text {
-      font-size: 11.2px;
+      font-size: 13.5px;
       font-weight: 800;
-      color: #000000;
-      line-height: 1.18;
+      color: #0f172a;
+      line-height: 1.15;
       word-break: break-word;
+      text-transform: uppercase;
+      letter-spacing: 0.15px;
     }
 
     /* ─── POJOK KANAN ATAS: HIGH-DPI QR BARCODE ─── */
@@ -494,15 +485,16 @@
       align-items: center;
       flex-shrink: 0;
       background: #ffffff;
-      border: 1.5px solid #1e293b;
+      border: 1.6px solid #1e293b;
       border-radius: 7px;
-      padding: 3.5px;
+      padding: 3px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     }
 
-    /* Ukuran Barcode 76px dengan resolusi render 320x320 High-DPI */
+    /* Ukuran Barcode 74px High-DPI */
     .qr-code-box {
-      width: 76px;
-      height: 76px;
+      width: 74px;
+      height: 74px;
       background: #ffffff;
       display: flex;
       align-items: center;
@@ -515,60 +507,62 @@
       display: block;
       image-rendering: -webkit-optimize-contrast;
       image-rendering: crisp-edges;
-      image-rendering: pixelated;
     }
 
     .qr-scan-badge {
       display: inline-flex;
       align-items: center;
-      gap: 3px;
-      font-size: 6.5px;
+      gap: 3.5px;
+      font-size: 7px;
       font-weight: 800;
-      color: #000000;
-      letter-spacing: 0.3px;
+      color: #0f172a;
+      letter-spacing: 0.4px;
       margin-top: 2px;
       text-transform: uppercase;
     }
 
     .qr-scan-dot {
-      width: 4px;
-      height: 4px;
+      width: 4.5px;
+      height: 4.5px;
       border-radius: 50%;
       background: #059669;
     }
 
-    /* ─── CHIPS METADATA (ABSEN, KELAS, RUANG/SESI) ─── */
+    /* ─── CHIPS METADATA (NO. ABSEN, NIS, RUANG, SESI) — FONT LEBIH BESAR & JELAS ─── */
     .meta-chips-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 3.5px;
-      margin: 2px 0;
+      grid-template-columns: 0.9fr 1.35fr 1.15fr 1fr;
+      gap: 4px;
+      margin: 2.5px 0;
       position: relative;
       z-index: 1;
     }
 
     .meta-chip {
       background: #ffffff;
-      border: 1px solid #64748b;
+      border: 1.2px solid #64748b;
       border-radius: 5px;
-      padding: 2px 5px;
+      padding: 2px 6px;
       display: flex;
       flex-direction: column;
       align-items: flex-start;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
     }
 
     .chip-label {
-      font-size: 6.2px;
+      font-size: 7px;
       font-weight: 800;
-      color: #334155;
+      color: #475569;
       text-transform: uppercase;
-      letter-spacing: 0.25px;
+      letter-spacing: 0.3px;
+      line-height: 1;
+      margin-bottom: 1.5px;
     }
 
     .chip-val {
-      font-size: 8.8px;
+      font-size: 12.5px;
       font-weight: 800;
-      color: #000000;
+      color: #0f172a;
       line-height: 1.15;
       white-space: nowrap;
       overflow: hidden;
@@ -578,19 +572,18 @@
 
     .chip-val.highlight {
       color: #1e3a8a;
-      font-size: 9.6px;
-    }
-
-    .chip-val.class-val {
-      color: #0f172a;
+      font-size: 14px;
     }
 
     .chip-val.mono {
-      font-family: 'JetBrains Mono', Consolas, monospace;
-      font-size: 8.5px;
+      font-family: 'JetBrains Mono', Consolas, monospace !important;
+      font-size: 13px;
+      font-feature-settings: "zero" 1;
+      font-variant-numeric: slashed-zero;
+      letter-spacing: 0.3px;
     }
 
-    /* ─── KOTAK KREDENSIAL LOGIN (USERNAME & PASSWORD) — TANPA TERPOTONG ─── */
+    /* ─── KOTAK KREDENSIAL LOGIN (USERNAME & PASSWORD) — FONT JETBRAINS MONO SLASHED ZERO ─── */
     .login-cred-container {
       background: #ffffff;
       border: 1.8px solid #0f172a;
@@ -599,57 +592,60 @@
       display: grid;
       grid-template-columns: 1fr auto;
       align-items: stretch;
-      margin: 2px 0;
+      margin: 2.5px 0;
       position: relative;
       z-index: 1;
       overflow: hidden;
+      box-shadow: 0 1.5px 3px rgba(0,0,0,0.06);
     }
 
     .cred-item {
       display: flex;
       flex-direction: column;
       justify-content: center;
-      padding: 3px 7px;
+      padding: 3.5px 8px;
       min-width: 0;
     }
 
     .cred-item + .cred-item {
-      border-left: 1.5px solid #0f172a;
-      background: #fefce8;
-      min-width: 96px;
+      border-left: 1.6px solid #0f172a;
+      background: #fffbeb;
+      min-width: 116px;
       flex-shrink: 0;
     }
 
     .cred-label {
-      font-size: 6.4px;
+      font-size: 7.5px;
       font-weight: 800;
       color: #1e3a8a;
       text-transform: uppercase;
       letter-spacing: 0.4px;
       line-height: 1.1;
-      margin-bottom: 1px;
+      margin-bottom: 1.5px;
     }
 
     .cred-pass .cred-label {
-      color: #9a3412;
+      color: #b45309;
     }
 
     .cred-val {
-      font-family: 'JetBrains Mono', Consolas, 'Courier New', monospace;
-      font-size: 10.5px;
+      font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace !important;
+      font-size: 12.5px;
       font-weight: 800;
-      color: #000000;
-      letter-spacing: 0.15px;
-      line-height: 1.18;
+      color: #0f172a;
+      letter-spacing: 0.3px;
+      line-height: 1.15;
       white-space: normal;
       word-break: break-all;
       overflow-wrap: anywhere;
+      font-feature-settings: "zero" 1;
+      font-variant-numeric: slashed-zero;
     }
 
     .cred-pass .cred-val {
-      font-size: 10.8px;
+      font-size: 13.8px;
+      letter-spacing: 0.8px;
       color: #000000;
-      letter-spacing: 0.35px;
       white-space: nowrap;
     }
 
@@ -658,24 +654,25 @@
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
-      border-top: 1px solid #94a3b8;
-      padding-top: 2px;
+      border-top: 1px solid #cbd5e1;
+      padding-top: 2.5px;
       position: relative;
       z-index: 1;
+      margin-top: 1px;
     }
 
     .card-rules-note {
-      font-size: 6.2px;
+      font-size: 6.8px;
       font-weight: 600;
-      color: #1e293b;
+      color: #334155;
       font-style: italic;
-      max-width: 55%;
-      line-height: 1.15;
+      max-width: 58%;
+      line-height: 1.2;
     }
 
     .card-signature {
       text-align: right;
-      font-size: 6.8px;
+      font-size: 7.5px;
       font-weight: 600;
       color: #0f172a;
       display: flex;
@@ -688,7 +685,8 @@
       font-weight: 800;
       color: #000000;
       text-decoration: underline;
-      margin-top: 1px;
+      margin-top: 1.5px;
+      font-size: 9px;
     }
 
     /* ─── MODAL UPLOAD CSV ─── */
@@ -894,14 +892,10 @@
                    oninput="updateCardTitles()">
           </div>
 
-          <div class="form-group">
-            <label class="form-label" for="select-card-bg">Degradasi Latar Kartu</label>
-            <select id="select-card-bg" class="form-select" onchange="updateCardBackgroundTheme()">
-              <option value="blue-grad">Gradasi Biru Elegan (Rekomendasi)</option>
-              <option value="warm-grad">Gradasi Hangat / Soft Gold</option>
-              <option value="slate-grad">Gradasi Abu-abu Modern</option>
-              <option value="white-plain">Putih Bersih (Tanpa Gradasi)</option>
-            </select>
+          
+          <div style="background:rgba(14,165,233,0.1); border:1px solid rgba(56,189,248,0.25); border-radius:6px; padding:7px 10px; font-size:0.72rem; color:#cbd5e1; line-height:1.4;">
+            <div style="font-weight:800; color:#38bdf8; margin-bottom:2px;">✨ Desain Elegan &amp; Slashed Zero:</div>
+            Font kredensial memakai <strong>JetBrains Mono</strong> (angka <strong>0</strong> memiliki garis/titik tengah, huruf <strong>O</strong> bulat berongga) agar siswa tidak keliru memasukkan password ujian.
           </div>
         </div>
 
@@ -1269,6 +1263,32 @@
             unameStyle = 'font-size:9.5px; letter-spacing:0px;';
           }
 
+          // Ekstraksi nilai kolom sesuai data pengguna
+          // 1. Absen
+          let rawAbsen = s.no_absen !== undefined && s.no_absen !== null ? String(s.no_absen).trim() : (s.absen || '');
+          let absenVal = '—';
+          if (rawAbsen !== '') {
+            let n = parseInt(rawAbsen, 10);
+            absenVal = !isNaN(n) ? String(n).padStart(2, '0') : rawAbsen;
+          }
+
+          // 2. NIS
+          let nisVal = s.idnumber || s.nis || s.no_peserta || '—';
+
+          // 3. Ruang
+          let rawRuang = (s.ruang !== undefined && s.ruang !== null) ? String(s.ruang).trim() : '';
+          let ruangVal = '—';
+          if (rawRuang !== '') {
+            ruangVal = /^(ruang|r\.)/i.test(rawRuang) ? rawRuang : `Ruang ${rawRuang}`;
+          }
+
+          // 4. Sesi
+          let rawSesi = (s.sesi !== undefined && s.sesi !== null) ? String(s.sesi).trim() : '';
+          let sesiVal = '—';
+          if (rawSesi !== '') {
+            sesiVal = /^sesi/i.test(rawSesi) ? rawSesi : `Sesi ${rawSesi}`;
+          }
+
           cardsHtml += `
             <div class="exam-card">
               <!-- Top Row: Brand & Big QR Barcode at Top Right -->
@@ -1285,7 +1305,7 @@
                   <!-- Nama Lengkap Siswa -->
                   <div class="student-name-box">
                     <span class="student-name-label">NAMA PESERTA UJIAN</span>
-                    <div class="student-name-text">${escapeHtml(s.student_name || s.name || s.firstname || 'Siswa')}</div>
+                    <div class="student-name-text">${escapeHtml(s.student_name || s.name || s.firstname || s.username || 'Siswa')}</div>
                   </div>
                 </div>
 
@@ -1303,24 +1323,27 @@
                 </div>
               </div>
 
-              <!-- Mid Row: Metadata Chips Grid -->
+              <!-- Mid Row: 4 Chips Metadata (NO. ABSEN, NIS, RUANG, SESI) -->
               <div class="meta-chips-grid">
                 <div class="meta-chip">
                   <span class="chip-label">NO. ABSEN</span>
-                  <span class="chip-val highlight">${escapeHtml(s.no_absen || '—')}</span>
+                  <span class="chip-val highlight">${escapeHtml(absenVal)}</span>
                 </div>
                 <div class="meta-chip">
-                  <span class="chip-label">KELAS / ROMBEL</span>
-                  <span class="chip-val class-val">${escapeHtml(s.class_name || s.grade || '—')}</span>
+                  <span class="chip-label">NIS</span>
+                  <span class="chip-val mono">${escapeHtml(nisVal)}</span>
                 </div>
                 <div class="meta-chip">
-                  <span class="chip-label">RUANG / SESI</span>
-                  <span class="chip-val">${escapeHtml(ruangSesiText)}</span>
+                  <span class="chip-label">RUANG</span>
+                  <span class="chip-val">${escapeHtml(ruangVal)}</span>
                 </div>
-                
+                <div class="meta-chip">
+                  <span class="chip-label">SESI</span>
+                  <span class="chip-val">${escapeHtml(sesiVal)}</span>
+                </div>
               </div>
 
-              <!-- Kotak Kredensial Login Siswa (Username & Password — Kontras Tinggi Cetak) -->
+              <!-- Kotak Kredensial Login Siswa (Username & Password — Font JetBrains Mono Slashed Zero) -->
               <div class="login-cred-container">
                 <div class="cred-item">
                   <span class="cred-label">👤 USERNAME</span>
@@ -1736,16 +1759,15 @@
     /* ─── UPLOAD CSV CONTROLLER ─── */
     
     function downloadCsvTemplate() {
-      const csvHeader = "username,password,ruang,sesi,meja\r\n";
+      const csvHeader = "absen,ruang,sesi,NIS,username,password\r\n";
       const sampleRows = [
-        "arayadikaaisyahbrana,Dosman02TYHH*#,Ruang 01,Sesi 1,01",
-        "dewapraba,Dosman03XKLP*#,Ruang 01,Sesi 1,02",
-        "gustingurah,Dosman04MNPQ*#,Ruang 01,Sesi 1,03",
-        "komangayu,Dosman05ABCD*#,Ruang 02,Sesi 2,01",
-        "putriastuti,Dosman06WXYZ*#,Ruang 02,Sesi 2,02"
+        "1,1,2,16668,aangrpran,Dosman01PQDK*#",
+        "2,1,2,16669,arayadika,Dosman02TYHH*#",
+        "3,1,2,16670,dewaayur,Dosman03RZHL*#",
+        "4,1,2,16671,dewapraba,Dosman04NDVB*#"
       ].join("\r\n") + "\r\n";
       
-      const csvData = "\uFEFF" + csvHeader + sampleRows;
+      const csvData = "\uFEFF" + csvHeader + sampleRows; // UTF-8 BOM untuk Microsoft Excel
       const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");

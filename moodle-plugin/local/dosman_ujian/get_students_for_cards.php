@@ -70,7 +70,8 @@ try {
                    IFNULL(sc.no_peserta, '') AS no_peserta,
                    IFNULL(sc.ruang, '') AS ruang,
                    IFNULL(sc.sesi, '') AS sesi,
-                   IFNULL(sc.meja, '') AS meja
+                   IFNULL(sc.meja, '') AS meja,
+                   IFNULL(sc.no_absen, '') AS sc_no_absen
               FROM {$prefix}user u
               LEFT JOIN {$prefix}cohort_members cm ON cm.userid = u.id
               LEFT JOIN {$prefix}cohort c ON c.id = cm.cohortid
@@ -151,13 +152,13 @@ try {
             'firstname'   => $r->firstname ?? '',
             'name'        => $cleanName,
             'student_name'=> $cleanName,
-            'no_absen'    => $noAbsen,
+            'no_absen'    => !empty($r->sc_no_absen) ? $r->sc_no_absen : $noAbsen,
             'class_name'  => $className ?: 'X',
             'tahun_masuk' => $tahunMasuk,
             'lastname'    => $r->lastname ?? '',
             'username'    => $r->username ?? '',
             'email'       => $r->email ?? '',
-            'idnumber'    => $r->idnumber ?? '',
+            'idnumber'    => !empty($r->no_peserta) ? $r->no_peserta : ($r->idnumber ?? ''),
             'department'  => $r->department ?? '',
             'grade'       => $grade ?: 'Kelas X',
             'cohort_names'=> $cnames,

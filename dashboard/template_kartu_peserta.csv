@@ -1,7 +1,5 @@
-username,password,ruang,sesi,meja
-arayadikaaisyahbrana,Dosman02TYHH*#,Ruang 01,Sesi 1,01
-dewapraba,Dosman03XKLP*#,Ruang 01,Sesi 1,02
-gustingurah,Dosman04MNPQ*#,Ruang 01,Sesi 1,03
-komangayu,Dosman05ABCD*#,Ruang 02,Sesi 2,01
-putriastuti,Dosman06WXYZ*#,Ruang 02,Sesi 2,02
-
+absen,ruang,sesi,NIS,username,password
+1,1,2,16668,aangrpran,Dosman01PQDK*#
+2,1,2,16669,arayadika,Dosman02TYHH*#
+3,1,2,16670,dewaayur,Dosman03RZHL*#
+4,1,2,16671,dewapraba,Dosman04NDVB*#
