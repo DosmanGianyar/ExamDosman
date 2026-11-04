@@ -3,8 +3,9 @@
  * Endpoint: Upload / Sinkronisasi Data Kartu Peserta Ujian & Password Siswa
  *
  * Menerima file CSV (multipart/form-data) atau JSON payload.
- * Menyimpan password asli dan data ujian (no_peserta, ruang, sesi, meja, no_absen)
- * ke tabel mdl_local_dosman_student_cards.
+ * Mode: UPDATE ONLY (Hanya memperbarui akun yang sudah ada di Moodle, TIDAK membuat akun baru).
+ * Menyimpan password asli dan data ujian (no_peserta, ruang, sesi, meja, no_absen) ke tabel mdl_local_dosman_student_cards.
+ * Sekaligus menyinkronkan hash password login resmi siswa ke tabel mdl_user Moodle.
  *
  * POST /local/dosman_ujian/upload_student_cards.php
  *
@@ -84,7 +85,7 @@ try {
         exit;
     }
 
-    // Pastikan tabel ada
+    // Pastikan tabel kartu ada
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS {$prefix}local_dosman_student_cards (
             id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -195,9 +196,64 @@ try {
         throw new RuntimeException('Tidak ada baris data siswa yang valid dengan username dan password.');
     }
 
-    // Bulk Upsert ke tabel mdl_local_dosman_student_cards
+    // ──────────────────────────────────────────────────────────────────────────
+    // KUNCI IDENTITAS: Cek username ke tabel mdl_user Moodle
+    // Hanya perbarui akun yang SUDAH ADA di Moodle. JANGAN buat akun baru!
+    // ──────────────────────────────────────────────────────────────────────────
+    $stmtUsers = $pdo->prepare("SELECT id, username FROM {$prefix}user WHERE deleted = 0 AND username NOT IN ('guest', 'admin')");
+    $stmtUsers->execute();
+    $existingUsers = [];
+    while ($row = $stmtUsers->fetch(PDO::FETCH_ASSOC)) {
+        $existingUsers[strtolower(trim($row['username']))] = (int)$row['id'];
+    }
+
+    $matchedItems = [];
+    $unmatchedList = [];
+
+    foreach ($items as $item) {
+        $uLower = strtolower(trim($item['username']));
+        if (isset($existingUsers[$uLower])) {
+            $item['userid'] = $existingUsers[$uLower];
+            $matchedItems[] = $item;
+        } else {
+            $unmatchedList[] = [
+                'username'   => $item['username'],
+                'no_absen'   => $item['no_absen'],
+                'no_peserta' => $item['no_peserta'],
+                'ruang'      => $item['ruang'],
+                'sesi'       => $item['sesi']
+            ];
+        }
+    }
+
+    if (empty($matchedItems)) {
+        echo json_encode([
+            'success'       => true,
+            'count'         => 0,
+            'failed_count'  => count($unmatchedList),
+            'unmatched'     => $unmatchedList,
+            'message'       => "Tidak ada username yang cocok dengan akun di Moodle (" . count($unmatchedList) . " akun tidak ditemukan). Tidak ada data yang diperbarui."
+        ]);
+        exit;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // EKSEKUSI UPDATE TRANSAKSI
+    // 1. Update hash password login resmi di tabel mdl_user
+    // 2. Simpan data kartu peserta di tabel mdl_local_dosman_student_cards
+    // ──────────────────────────────────────────────────────────────────────────
     $now = time();
-    $sql = "
+    $pdo->beginTransaction();
+
+    // Query 1: Update password login Moodle (menggunakan bcrypt standard Moodle)
+    $stmtUserPwd = $pdo->prepare("
+        UPDATE {$prefix}user 
+           SET password = ?, timemodified = ? 
+         WHERE id = ? AND deleted = 0
+    ");
+
+    // Query 2: Upsert data kartu peserta ujian
+    $stmtCard = $pdo->prepare("
         INSERT INTO {$prefix}local_dosman_student_cards
             (username, plain_password, no_peserta, ruang, sesi, meja, no_absen, created_at, updated_at)
         VALUES
@@ -210,14 +266,16 @@ try {
             meja           = IF(VALUES(meja) != '', VALUES(meja), meja),
             no_absen       = IF(VALUES(no_absen) != '', VALUES(no_absen), no_absen),
             updated_at     = VALUES(updated_at)
-    ";
+    ");
 
-    $stmt = $pdo->prepare($sql);
-    $pdo->beginTransaction();
     $savedCount = 0;
+    foreach ($matchedItems as $item) {
+        // Hash password resmi untuk login Moodle
+        $hashed = password_hash($item['password'], PASSWORD_DEFAULT);
+        $stmtUserPwd->execute([$hashed, $now, $item['userid']]);
 
-    foreach ($items as $item) {
-        $stmt->execute([
+        // Simpan data kartu peserta
+        $stmtCard->execute([
             $item['username'],
             $item['password'],
             $item['no_peserta'],
@@ -230,12 +288,15 @@ try {
         ]);
         $savedCount++;
     }
+
     $pdo->commit();
 
     echo json_encode([
-        'success' => true,
-        'count'   => $savedCount,
-        'message' => "Berhasil menyimpan $savedCount data password & kartu peserta ujian ke server."
+        'success'       => true,
+        'count'         => $savedCount,
+        'failed_count'  => count($unmatchedList),
+        'unmatched'     => $unmatchedList,
+        'message'       => "Berhasil memperbarui $savedCount akun siswa di Moodle & kartu ujian."
     ]);
 
 } catch (Throwable $e) {

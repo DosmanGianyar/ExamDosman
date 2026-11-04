@@ -1008,10 +1008,27 @@
         <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">Mendukung pemisah koma (,), titik-koma (;), atau tab</div>
       </div>
 
-      <div id="upload-status-text" style="margin-top:12px; font-size:0.825rem; display:none;"></div>
+      <div id="upload-status-text" style="margin-top:12px; font-size:0.825rem; display:none; padding:8px 12px; border-radius:6px; line-height:1.4;"></div>
+
+      <!-- Container Akun Unmatched / Dilewati -->
+      <div id="upload-unmatched-container" style="display:none; margin-top:12px; background:#0f172a; border:1px solid #f87171; border-radius:8px; padding:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="font-size:0.85rem; font-weight:700; color:#f87171;" id="unmatched-title">
+            ⚠️ Akun Tidak Terdaftar di Moodle
+          </span>
+          <button type="button" class="btn btn-secondary" onclick="copyUnmatchedUsernames()" style="width:auto; padding:4px 10px; font-size:0.75rem; background:#1e293b; color:#38bdf8; border:1px solid #38bdf8; cursor:pointer;">
+            📋 Salin Daftar Username
+          </button>
+        </div>
+        <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px; line-height:1.4;">
+          Akun di bawah ini dilewati dan <strong>tidak dibuatkan akun baru</strong> karena username tidak ditemukan pada database Moodle:
+        </div>
+        <div id="unmatched-list" style="max-height:140px; overflow-y:auto; background:#1e293b; border-radius:6px; padding:8px 10px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:#fca5a5; line-height:1.6;">
+        </div>
+      </div>
 
       <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
-        <button type="button" class="btn btn-secondary" onclick="closeUploadCsvModal()">Batal</button>
+        <button type="button" class="btn btn-secondary" id="btn-cancel-upload" onclick="closeUploadCsvModal()">Batal</button>
         <button type="button" class="btn btn-success" id="btn-submit-upload" onclick="submitUploadCsv()" disabled>
           <span>🚀 Simpan ke Database Server</span>
         </button>
@@ -1779,14 +1796,53 @@
       URL.revokeObjectURL(url);
     }
 
+    let lastUnmatchedUsernames = [];
+
+    function copyUnmatchedUsernames() {
+      if (!lastUnmatchedUsernames || lastUnmatchedUsernames.length === 0) return;
+      const text = lastUnmatchedUsernames.join('\n');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          alert('Berhasil menyalin ' + lastUnmatchedUsernames.length + ' username ke clipboard!');
+        }).catch(() => {
+          prompt('Salin username berikut:', text);
+        });
+      } else {
+        prompt('Salin username berikut:', text);
+      }
+    }
+
     function openUploadCsvModal() {
       const modal = document.getElementById('modal-upload-csv');
       if (modal) {
         modal.style.display = 'flex';
         selectedCsvFile = null;
+        lastUnmatchedUsernames = [];
+        const fileInput = document.getElementById('csv-file-input');
+        if (fileInput) fileInput.value = '';
         document.getElementById('csv-filename-text').textContent = 'Pilih atau Drag File CSV ke Sini';
-        document.getElementById('btn-submit-upload').disabled = true;
-        document.getElementById('upload-status-text').style.display = 'none';
+        
+        const btnSubmit = document.getElementById('btn-submit-upload');
+        if (btnSubmit) {
+          btnSubmit.style.display = 'inline-flex';
+          btnSubmit.disabled = true;
+          btnSubmit.innerHTML = '<span>🚀 Simpan ke Database Server</span>';
+        }
+        
+        const btnCancel = document.getElementById('btn-cancel-upload');
+        if (btnCancel) {
+          btnCancel.textContent = 'Batal';
+          btnCancel.className = 'btn btn-secondary';
+        }
+
+        const statusEl = document.getElementById('upload-status-text');
+        if (statusEl) {
+          statusEl.style.display = 'none';
+          statusEl.textContent = '';
+        }
+
+        const unmatchedContainer = document.getElementById('upload-unmatched-container');
+        if (unmatchedContainer) unmatchedContainer.style.display = 'none';
       }
     }
 
@@ -1813,13 +1869,20 @@
       if (!selectedCsvFile) return;
 
       const btnSubmit = document.getElementById('btn-submit-upload');
+      const btnCancel = document.getElementById('btn-cancel-upload');
       const statusEl = document.getElementById('upload-status-text');
+      const unmatchedContainer = document.getElementById('upload-unmatched-container');
+      const unmatchedListEl = document.getElementById('unmatched-list');
+      const unmatchedTitleEl = document.getElementById('unmatched-title');
       
       btnSubmit.disabled = true;
       btnSubmit.textContent = 'Mengunggah & Menyimpan...';
       statusEl.style.display = 'block';
+      statusEl.style.background = 'rgba(251, 191, 36, 0.1)';
+      statusEl.style.border = '1px solid rgba(251, 191, 36, 0.3)';
       statusEl.style.color = '#fbbf24';
       statusEl.textContent = 'Sedang memproses CSV dan memperbarui password siswa di server...';
+      if (unmatchedContainer) unmatchedContainer.style.display = 'none';
 
       const token = localStorage.getItem('token') || '';
       const formData = new FormData();
@@ -1840,17 +1903,51 @@
         } catch (jsonErr) {
           throw new Error('Respon server bukan JSON: ' + text.replace(/<[^>]+>/g, ' ').trim().substring(0, 120));
         }
+
         if (resData.success) {
-          statusEl.style.color = '#4ade80';
-          statusEl.textContent = `✅ ${resData.message}`;
-          setTimeout(() => {
-            closeUploadCsvModal();
-            loadStudentData(); // Refresh data kartu otomatis
-          }, 1500);
+          const successCount = resData.count || 0;
+          const failedCount = resData.failed_count || 0;
+          lastUnmatchedUsernames = (resData.unmatched || []).map(u => typeof u === 'object' ? u.username : u);
+
+          if (failedCount > 0) {
+            statusEl.style.background = 'rgba(248, 113, 113, 0.1)';
+            statusEl.style.border = '1px solid rgba(248, 113, 113, 0.3)';
+            statusEl.style.color = '#fca5a5';
+            statusEl.innerHTML = `⚠️ <strong>${successCount}</strong> akun berhasil di-update. <strong>${failedCount}</strong> akun tidak ditemukan di Moodle (dilewati).`;
+            
+            if (unmatchedContainer && unmatchedListEl) {
+              unmatchedTitleEl.textContent = `⚠️ ${failedCount} Akun Tidak Terdaftar di Moodle:`;
+              unmatchedListEl.innerHTML = resData.unmatched.map((item, idx) => {
+                const u = typeof item === 'object' ? item.username : item;
+                const nis = typeof item === 'object' && item.no_peserta ? ` | NIS: ${item.no_peserta}` : '';
+                const absen = typeof item === 'object' && item.no_absen ? ` | Absen: ${item.no_absen}` : '';
+                return `<div>${idx + 1}. <strong>${escapeHtml(u)}</strong>${escapeHtml(nis)}${escapeHtml(absen)}</div>`;
+              }).join('');
+              unmatchedContainer.style.display = 'block';
+            }
+
+            btnSubmit.style.display = 'none';
+            if (btnCancel) {
+              btnCancel.textContent = 'Tutup & Lihat Hasil';
+              btnCancel.className = 'btn btn-primary';
+            }
+            loadStudentData(); // Refresh data kartu
+          } else {
+            statusEl.style.background = 'rgba(74, 222, 128, 0.1)';
+            statusEl.style.border = '1px solid rgba(74, 222, 128, 0.3)';
+            statusEl.style.color = '#4ade80';
+            statusEl.textContent = `✅ ${resData.message}`;
+            setTimeout(() => {
+              closeUploadCsvModal();
+              loadStudentData(); // Refresh data kartu otomatis
+            }, 1500);
+          }
         } else {
           throw new Error(resData.error || 'Gagal mengunggah file CSV');
         }
       } catch (err) {
+        statusEl.style.background = 'rgba(248, 113, 113, 0.1)';
+        statusEl.style.border = '1px solid rgba(248, 113, 113, 0.3)';
         statusEl.style.color = '#f87171';
         statusEl.textContent = `❌ ${err.message}`;
         btnSubmit.disabled = false;
