@@ -274,6 +274,44 @@
       color: #ffffff;
     }
 
+    /* ─── STICKY HEADER PREVIEW / HALAMAN KARTU ─── */
+    .preview-header-bar {
+      width: 100%;
+      max-width: 820px;
+      background: #0b1329;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 12px 18px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.45);
+    }
+    .preview-info-col {
+      min-width: 0;
+    }
+    .preview-title-text {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+    .preview-sub-text {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      margin-top: 3px;
+    }
+    .preview-actions-col {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
     /* ─── MAIN PREVIEW CONTAINER (KANAN) ─── */
     .main-preview-area {
       flex: 1;
@@ -830,8 +868,8 @@
       <div class="sidebar-scroll">
         <!-- Aksi Cepat -->
         <div class="action-group">
-          <button id="btn-download-pdf" class="btn btn-primary" onclick="downloadCardsPdf()" title="Download langsung kartu peserta ke file PDF dengan nama otomatis sesuai kelas/siswa">
-            <span id="btn-download-pdf-text">📥 Download PDF</span>
+          <button id="btn-download-pdf" class="btn btn-primary btn-download-pdf-main" onclick="downloadCardsPdf()" title="Download langsung kartu peserta ke file PDF dengan nama otomatis sesuai kelas/siswa">
+            <span id="btn-download-pdf-text" class="dyn-btn-download-text">📥 Download PDF</span>
           </button>
           <button class="btn btn-secondary" onclick="printCards()" style="border-color:#3b82f6; color:#93c5fd;" title="Cetak ke printer atau Simpan ke PDF via dialog cetak browser (nama file otomatis mengikuti kelas)">
             <span>🖨️ Cetak Kartu (A4)</span>
@@ -946,6 +984,15 @@
                 <span>Kelas Brkt ▶</span>
               </button>
             </div>
+            <!-- Tombol Aksi Cepat Tepat di Bawah Pilihan Kelas -->
+            <div style="margin-top:10px; display:flex; flex-direction:column; gap:6px;">
+              <button class="btn btn-primary btn-download-pdf-main" onclick="downloadCardsPdf()" style="padding:9px 12px; font-size:0.85rem; font-weight:700;" title="Download PDF untuk kelas yang dipilih">
+                <span class="dyn-btn-download-text">📥 Download PDF</span>
+              </button>
+              <button class="btn btn-secondary" onclick="printCards()" style="padding:7px 10px; font-size:0.78rem; border-color:#3b82f6; color:#93c5fd;" title="Cetak / Print Kartu A4">
+                <span>🖨️ Cetak Kartu (A4)</span>
+              </button>
+            </div>
           </div>
 
           <div class="form-group">
@@ -974,9 +1021,20 @@
          AREA PREVIEW LEMBAR A4 (KANAN)
          ══════════════════════════════════════════════════════════════════════ -->
     <main class="main-preview-area">
-      <div class="preview-notice no-print">
-        <span id="card-stats-text">Memuat data peserta dari LMS Moodle...</span>
-        <span style="font-size: 0.75rem; opacity: 0.85;">💡 Centang <strong>Background Graphics</strong> di dialog Cetak agar warna tampil sempurna.</span>
+      <!-- Toolbar Sticky di Halaman Kartu dengan Tombol Download & Cetak -->
+      <div class="preview-header-bar no-print">
+        <div class="preview-info-col">
+          <div id="card-stats-text" class="preview-title-text">Memuat data peserta dari LMS Moodle...</div>
+          <div class="preview-sub-text">💡 Centang <strong>Background Graphics</strong> di dialog Cetak agar warna tampil sempurna.</div>
+        </div>
+        <div class="preview-actions-col">
+          <button class="btn btn-primary btn-download-pdf-main" onclick="downloadCardsPdf()" style="padding:8px 16px; font-size:0.85rem; font-weight:700; box-shadow:0 4px 14px rgba(37,99,235,0.4);" title="Download PDF Lembar Kartu Ini">
+            <span class="dyn-btn-download-text">📥 Download PDF</span>
+          </button>
+          <button class="btn btn-secondary" onclick="printCards()" style="padding:8px 14px; font-size:0.85rem; border-color:#3b82f6; color:#93c5fd;" title="Cetak Kartu A4">
+            <span>🖨️ Cetak Kartu</span>
+          </button>
+        </div>
       </div>
 
       <!-- Lembar A4 akan digenerate secara dinamis di sini -->
@@ -1597,21 +1655,21 @@
         pdfNameEl.textContent = `📄 ${fullPdfName}`;
       }
 
-      // Update label tombol Download PDF agar menampilkan kelas/filter aktif
-      const btnTextEl = document.getElementById('btn-download-pdf-text');
-      if (btnTextEl) {
+      // Update SEMUA label tombol Download PDF agar menampilkan kelas/filter aktif
+      const allBtnTexts = document.querySelectorAll('.dyn-btn-download-text');
+      if (allBtnTexts.length > 0) {
         const rawClassVal = document.getElementById('select-class')?.value || '';
         const selectedGrade = document.getElementById('select-grade')?.value || '';
+        let label = '📥 Download PDF (Semua Kelas)';
         if (students.length === 1) {
           const shortName = (students[0].student_name || students[0].username || '1 Siswa').split(' ').slice(0, 2).join(' ');
-          btnTextEl.textContent = `📥 Download PDF (${shortName})`;
+          label = `📥 Download PDF (${shortName})`;
         } else if (rawClassVal && rawClassVal !== '__ALL__') {
-          btnTextEl.textContent = `📥 Download PDF (${rawClassVal})`;
+          label = `📥 Download PDF (${rawClassVal})`;
         } else if (selectedGrade) {
-          btnTextEl.textContent = `📥 Download PDF (${selectedGrade})`;
-        } else {
-          btnTextEl.textContent = `📥 Download PDF (Semua Kelas)`;
+          label = `📥 Download PDF (${selectedGrade})`;
         }
+        allBtnTexts.forEach(el => el.textContent = label);
       }
     }
 
@@ -1636,12 +1694,11 @@
         return;
       }
 
-      const btn = document.getElementById('btn-download-pdf');
-      const btnText = document.getElementById('btn-download-pdf-text');
-      const originalText = btnText ? btnText.textContent : '📥 Download PDF';
+      const allBtns = document.querySelectorAll('.btn-download-pdf-main');
+      const allBtnTexts = document.querySelectorAll('.dyn-btn-download-text');
 
       try {
-        if (btn) btn.disabled = true;
+        allBtns.forEach(b => b.disabled = true);
 
         const { jsPDF } = window.jspdf;
         const pdf = new jsPDF({
@@ -1652,9 +1709,7 @@
         });
 
         for (let i = 0; i < sheets.length; i++) {
-          if (btnText) {
-            btnText.textContent = `⏳ Membuat PDF (${i + 1}/${sheets.length})...`;
-          }
+          allBtnTexts.forEach(t => t.textContent = `⏳ Membuat PDF (${i + 1}/${sheets.length})...`);
           // Beri jeda 20ms agar UI tombol ter-update
           await new Promise(r => setTimeout(r, 20));
 
@@ -1674,16 +1729,13 @@
           pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
         }
 
-        if (btnText) {
-          btnText.textContent = '💾 Menyimpan PDF...';
-        }
+        allBtnTexts.forEach(t => t.textContent = '💾 Menyimpan PDF...');
         pdf.save(pdfFilename);
       } catch (err) {
         console.error('Gagal membuat PDF secara langsung, mengalihkan ke dialog cetak:', err);
         window.print();
       } finally {
-        if (btn) btn.disabled = false;
-        if (btnText) btnText.textContent = originalText;
+        allBtns.forEach(b => b.disabled = false);
         updatePdfNamingUI();
       }
     }
