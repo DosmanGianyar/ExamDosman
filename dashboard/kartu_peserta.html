@@ -1233,6 +1233,15 @@
       const val = selectAngkatan ? selectAngkatan.value : '';
       localStorage.setItem('cbt_card_selected_angkatan', val);
 
+      // Sinkronkan Filter Tingkat (Grade) otomatis mengikuti angkatan
+      const selectGrade = document.getElementById('select-grade');
+      if (selectGrade) {
+        if (val === '2026') selectGrade.value = 'Kelas X';
+        else if (val === '2025') selectGrade.value = 'Kelas XI';
+        else if (val === '2024') selectGrade.value = 'Kelas XII';
+        else selectGrade.value = '';
+      }
+
       const selectClass = document.getElementById('select-class');
       if (selectClass) selectClass.value = '';
 
@@ -1250,33 +1259,35 @@
 
       const classCounts = new Map();
       allStudents.forEach(s => {
-        // Filter Angkatan
+        const cls = (s.class_name || '').trim();
+        const clsClean = cls.toUpperCase();
+        const sYear = (s.tahun_masuk || '').trim();
+
+        // 1. Filter Angkatan (Eliminasi akun residu/tertinggal dari angkatan bersangkutan)
         if (selectedAngkatan) {
-          const sYear = (s.tahun_masuk || '').trim();
           if (selectedAngkatan === 'Lainnya') {
             if (sYear !== '') return;
           } else if (sYear !== selectedAngkatan) {
             return;
           }
+          // Angkatan 2026: Siswa Kelas X (harus berawalan X)
+          if (selectedAngkatan === '2026' && !clsClean.match(/^X(\s|$)/)) return;
+          // Angkatan 2025: Siswa Kelas XI (harus berawalan XI, buang residu X 1 / X 2 lama)
+          if (selectedAngkatan === '2025' && !clsClean.match(/^XI(\s|$)/)) return;
+          // Angkatan 2024: Siswa Kelas XII (harus berawalan XII)
+          if (selectedAngkatan === '2024' && !clsClean.match(/^XII(\s|$)/)) return;
         }
-        // Filter Tingkat (Grade) — Filter ketat agar kelas X tidak masuk ke Kelas XI
+
+        // 2. Filter Tingkat (Grade) — Filter ketat
         if (selectedGrade) {
           if ((s.grade || '').toLowerCase() !== selectedGrade.toLowerCase()) {
             return;
           }
-          const clsClean = (s.class_name || '').trim().toUpperCase();
-          if (selectedGrade === 'Kelas X' && !clsClean.match(/^X(\s|$)/)) {
-            return;
-          }
-          if (selectedGrade === 'Kelas XI' && !clsClean.match(/^XI(\s|$)/)) {
-            return;
-          }
-          if (selectedGrade === 'Kelas XII' && !clsClean.match(/^XII(\s|$)/)) {
-            return;
-          }
+          if (selectedGrade === 'Kelas X' && !clsClean.match(/^X(\s|$)/)) return;
+          if (selectedGrade === 'Kelas XI' && !clsClean.match(/^XI(\s|$)/)) return;
+          if (selectedGrade === 'Kelas XII' && !clsClean.match(/^XII(\s|$)/)) return;
         }
 
-        const cls = (s.class_name || '').trim();
         if (cls !== '') {
           classCounts.set(cls, (classCounts.get(cls) || 0) + 1);
         }
@@ -1319,10 +1330,22 @@
     }
 
     function onGradeFilterChange() {
-      const selectClass = document.getElementById('select-class');
-      if (selectClass && selectClass.value === '__ALL__') {
-        selectClass.value = '';
+      const selectGrade = document.getElementById('select-grade');
+      const val = selectGrade ? selectGrade.value : '';
+
+      // Sinkronkan Filter Angkatan otomatis mengikuti tingkat
+      const selectAngkatan = document.getElementById('select-angkatan');
+      if (selectAngkatan) {
+        if (val === 'Kelas X') selectAngkatan.value = '2026';
+        else if (val === 'Kelas XI') selectAngkatan.value = '2025';
+        else if (val === 'Kelas XII') selectAngkatan.value = '2024';
+        else selectAngkatan.value = '';
+        localStorage.setItem('cbt_card_selected_angkatan', selectAngkatan.value);
       }
+
+      const selectClass = document.getElementById('select-class');
+      if (selectClass) selectClass.value = '';
+
       populateClassFilter();
       renderCards();
     }
@@ -1335,31 +1358,30 @@
       const searchKey = (document.getElementById('input-search')?.value || '').toLowerCase().trim();
 
       return allStudents.filter(s => {
+        const cls = (s.class_name || '').trim();
+        const clsClean = cls.toUpperCase();
+        const sYear = (s.tahun_masuk || '').trim();
+
         // 1. Filter Angkatan / Tahun Masuk
         if (selectedAngkatan) {
-          const sYear = (s.tahun_masuk || '').trim();
           if (selectedAngkatan === 'Lainnya') {
             if (sYear !== '') return false;
           } else if (sYear !== selectedAngkatan) {
             return false;
           }
+          if (selectedAngkatan === '2026' && !clsClean.match(/^X(\s|$)/)) return false;
+          if (selectedAngkatan === '2025' && !clsClean.match(/^XI(\s|$)/)) return false;
+          if (selectedAngkatan === '2024' && !clsClean.match(/^XII(\s|$)/)) return false;
         }
 
-        // 2. Filter Tingkat (Grade) — Filter ketat agar kelas X tidak masuk ke Kelas XI
+        // 2. Filter Tingkat (Grade)
         if (selectedGrade) {
           if ((s.grade || '').toLowerCase() !== selectedGrade) {
             return false;
           }
-          const clsClean = (s.class_name || '').trim().toUpperCase();
-          if (selectedGrade === 'kelas x' && !clsClean.match(/^X(\s|$)/)) {
-            return false;
-          }
-          if (selectedGrade === 'kelas xi' && !clsClean.match(/^XI(\s|$)/)) {
-            return false;
-          }
-          if (selectedGrade === 'kelas xii' && !clsClean.match(/^XII(\s|$)/)) {
-            return false;
-          }
+          if (selectedGrade === 'kelas x' && !clsClean.match(/^X(\s|$)/)) return false;
+          if (selectedGrade === 'kelas xi' && !clsClean.match(/^XI(\s|$)/)) return false;
+          if (selectedGrade === 'kelas xii' && !clsClean.match(/^XII(\s|$)/)) return false;
         }
 
         // 3. Filter Kelas
