@@ -71,7 +71,8 @@ try {
                    IFNULL(sc.ruang, '') AS ruang,
                    IFNULL(sc.sesi, '') AS sesi,
                    IFNULL(sc.meja, '') AS meja,
-                   IFNULL(sc.no_absen, '') AS sc_no_absen
+                   IFNULL(sc.no_absen, '') AS sc_no_absen,
+                   IFNULL(sc.kelas, '') AS sc_kelas
               FROM {$prefix}user u
               LEFT JOIN {$prefix}cohort_members cm ON cm.userid = u.id
               LEFT JOIN {$prefix}cohort c ON c.id = cm.cohortid
@@ -120,11 +121,31 @@ try {
         $full = $fname . ' ' . $lname;
         $className = '';
         $tahunMasuk = '';
-        if (preg_match('/\|\s*([^|]+?)\s*\|\s*(\d{4})/i', $full, $m)) {
-            $className = trim($m[1]);
-            $tahunMasuk = trim($m[2]);
-        } else if (preg_match('/\|\s*([^|]+)/i', $full, $m)) {
-            $className = trim($m[1]);
+
+        // Jika kelas di-upload dari file CSV (tersimpan di tabel local_dosman_student_cards)
+        if (!empty($r->sc_kelas)) {
+            $scK = trim($r->sc_kelas);
+            if (preg_match('/\|\s*([^|]+?)\s*\|\s*(\d{4})/i', $scK, $m)) {
+                $className = trim($m[1]);
+                $tahunMasuk = trim($m[2]);
+            } else if (preg_match('/\|\s*([^|]+)/i', $scK, $m)) {
+                $className = trim($m[1]);
+            } else {
+                $className = $scK;
+            }
+            if (empty($tahunMasuk) && preg_match('/\b(202[0-9])\b/', $scK, $mYear)) {
+                $tahunMasuk = $mYear[1];
+            }
+        }
+
+        // Fallback: dari nama lengkap di Moodle (firstname / lastname)
+        if (empty($className)) {
+            if (preg_match('/\|\s*([^|]+?)\s*\|\s*(\d{4})/i', $full, $m)) {
+                $className = trim($m[1]);
+                $tahunMasuk = trim($m[2]);
+            } else if (preg_match('/\|\s*([^|]+)/i', $full, $m)) {
+                $className = trim($m[1]);
+            }
         }
         if (empty($tahunMasuk) && preg_match('/\b(202[0-9])\b/', $full, $mYear)) {
             $tahunMasuk = $mYear[1];

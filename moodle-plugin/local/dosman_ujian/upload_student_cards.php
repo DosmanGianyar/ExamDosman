@@ -102,9 +102,12 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
     ");
 
-    // Pastikan kolom no_absen ada pada instalasi yang sudah berjalan
+    // Pastikan kolom no_absen dan kelas ada pada tabel
     try {
         $pdo->exec("ALTER TABLE {$prefix}local_dosman_student_cards ADD COLUMN no_absen VARCHAR(50) DEFAULT '' AFTER meja");
+    } catch (Throwable $ignore) {}
+    try {
+        $pdo->exec("ALTER TABLE {$prefix}local_dosman_student_cards ADD COLUMN kelas VARCHAR(100) DEFAULT '' AFTER no_peserta");
     } catch (Throwable $ignore) {}
 
     $items = [];
@@ -146,6 +149,7 @@ try {
         $sIdx  = $headerMap['sesi'] ?? ($headerMap['session'] ?? null);
         $mIdx  = $headerMap['meja'] ?? ($headerMap['nomeja'] ?? null);
         $abIdx = $headerMap['absen'] ?? ($headerMap['noabsen'] ?? ($headerMap['nomorabsen'] ?? null));
+        $kIdx  = $headerMap['kelas'] ?? ($headerMap['rombel'] ?? ($headerMap['class'] ?? null));
 
         if ($uIdx === null || $pIdx === null) {
             throw new RuntimeException('CSV wajib memiliki kolom "username" dan "password". Kolom terdeteksi: ' . implode(', ', $headers));
@@ -164,6 +168,7 @@ try {
                 'username'   => $u,
                 'password'   => $p,
                 'no_peserta' => $npIdx !== null ? trim((string)($row[$npIdx] ?? '')) : '',
+                'kelas'      => $kIdx !== null ? trim((string)($row[$kIdx] ?? '')) : '',
                 'ruang'      => $rIdx !== null ? trim((string)($row[$rIdx] ?? '')) : '',
                 'sesi'       => $sIdx !== null ? trim((string)($row[$sIdx] ?? '')) : '',
                 'meja'       => $mIdx !== null ? trim((string)($row[$mIdx] ?? '')) : '',
@@ -182,6 +187,7 @@ try {
                 'username'   => $u,
                 'password'   => $p,
                 'no_peserta' => trim((string)($s['nis'] ?? ($s['no_peserta'] ?? ($s['nopeserta'] ?? '')))),
+                'kelas'      => trim((string)($s['kelas'] ?? ($s['rombel'] ?? ($s['class'] ?? '')))),
                 'ruang'      => trim((string)($s['ruang'] ?? '')),
                 'sesi'       => trim((string)($s['sesi'] ?? '')),
                 'meja'       => trim((string)($s['meja'] ?? '')),
@@ -255,12 +261,13 @@ try {
     // Query 2: Upsert data kartu peserta ujian
     $stmtCard = $pdo->prepare("
         INSERT INTO {$prefix}local_dosman_student_cards
-            (username, plain_password, no_peserta, ruang, sesi, meja, no_absen, created_at, updated_at)
+            (username, plain_password, no_peserta, kelas, ruang, sesi, meja, no_absen, created_at, updated_at)
         VALUES
-            (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
             plain_password = VALUES(plain_password),
             no_peserta     = IF(VALUES(no_peserta) != '', VALUES(no_peserta), no_peserta),
+            kelas          = IF(VALUES(kelas) != '', VALUES(kelas), kelas),
             ruang          = IF(VALUES(ruang) != '', VALUES(ruang), ruang),
             sesi           = IF(VALUES(sesi) != '', VALUES(sesi), sesi),
             meja           = IF(VALUES(meja) != '', VALUES(meja), meja),
@@ -279,6 +286,7 @@ try {
             $item['username'],
             $item['password'],
             $item['no_peserta'],
+            $item['kelas'] ?? '',
             $item['ruang'],
             $item['sesi'],
             $item['meja'],
@@ -286,6 +294,19 @@ try {
             $now,
             $now
         ]);
+
+        // Jika kolom kelas diisi di CSV (misal: | X 1 | 2026), update juga kolom lastname di mdl_user Moodle
+        if (!empty($item['kelas'])) {
+            $rawK = trim($item['kelas']);
+            // Pastikan format rapi dengan pipe jika belum ada
+            if (substr($rawK, 0, 1) !== '|') {
+                $rawK = '| ' . $rawK;
+            }
+            try {
+                $stmtUserClass = $pdo->prepare("UPDATE {$prefix}user SET lastname = ? WHERE id = ?");
+                $stmtUserClass->execute([$rawK, $item['userid']]);
+            } catch (Throwable $ignore) {}
+        }
         $savedCount++;
     }
 

@@ -1055,13 +1055,14 @@
       </div>
 
       <div style="font-size:0.85rem; color:#cbd5e1; margin-bottom:14px; line-height:1.5;">
-        Unggah file CSV yang biasa Anda gunakan saat upload akun masal ke Moodle. Kolom yang didukung otomatis:
-        <code style="background:#1e293b; color:#38bdf8; padding:2px 6px; border-radius:4px;">username</code>,
-        <code style="background:#1e293b; color:#38bdf8; padding:2px 6px; border-radius:4px;">password</code>,
-        <code style="background:#1e293b; color:#38bdf8; padding:2px 6px; border-radius:4px;">no_peserta</code>,
+        Unggah file CSV data peserta ujian. Kolom yang didukung otomatis:
+        <code style="background:#1e293b; color:#38bdf8; padding:2px 6px; border-radius:4px;">absen</code>,
         <code style="background:#1e293b; color:#38bdf8; padding:2px 6px; border-radius:4px;">ruang</code>,
         <code style="background:#1e293b; color:#38bdf8; padding:2px 6px; border-radius:4px;">sesi</code>,
-        <code style="background:#1e293b; color:#38bdf8; padding:2px 6px; border-radius:4px;">meja</code>.
+        <code style="background:#1e293b; color:#38bdf8; padding:2px 6px; border-radius:4px;">NIS</code>,
+        <code style="background:#1e293b; color:#38bdf8; padding:2px 6px; border-radius:4px;">kelas</code>,
+        <code style="background:#1e293b; color:#38bdf8; padding:2px 6px; border-radius:4px;">username</code>,
+        <code style="background:#1e293b; color:#38bdf8; padding:2px 6px; border-radius:4px;">password</code>.
       </div>
 
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; background:rgba(14,165,233,0.1); border:1px solid rgba(56,189,248,0.25); border-radius:8px; padding:10px 14px;">
@@ -1930,12 +1931,12 @@
     /* ─── UPLOAD CSV CONTROLLER ─── */
     
     function downloadCsvTemplate() {
-      const csvHeader = "absen,ruang,sesi,NIS,username,password\r\n";
+      const csvHeader = "absen,ruang,sesi,NIS,kelas,username,password\r\n";
       const sampleRows = [
-        "1,1,2,16668,aangrpran,Dosman01PQDK*#",
-        "2,1,2,16669,arayadika,Dosman02TYHH*#",
-        "3,1,2,16670,dewaayur,Dosman03RZHL*#",
-        "4,1,2,16671,dewapraba,Dosman04NDVB*#"
+        "1,1,1,10001,| X 1 | 2026,siswacontoh01,Dosman01PASS*#",
+        "2,1,1,10002,| X 1 | 2026,siswacontoh02,Dosman02PASS*#",
+        "3,1,1,10003,| X 1 | 2026,siswacontoh03,Dosman03PASS*#",
+        "4,1,1,10004,| X 1 | 2026,siswacontoh04,Dosman04PASS*#"
       ].join("\r\n") + "\r\n";
       
       const csvData = "\uFEFF" + csvHeader + sampleRows; // UTF-8 BOM untuk Microsoft Excel
