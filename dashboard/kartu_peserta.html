@@ -537,10 +537,10 @@
       background: #059669;
     }
 
-    /* ─── CHIPS METADATA (ABSEN, KELAS, RUANG/SESI, NO PESERTA) ─── */
+    /* ─── CHIPS METADATA (ABSEN, KELAS, RUANG/SESI) ─── */
     .meta-chips-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 3.5px;
       margin: 2px 0;
       position: relative;
@@ -832,6 +832,9 @@
           <button class="btn btn-secondary" onclick="printCards()" style="border-color:#3b82f6; color:#93c5fd;" title="Cetak ke printer atau Simpan ke PDF via dialog cetak browser (nama file otomatis mengikuti kelas)">
             <span>🖨️ Cetak Kartu (A4)</span>
           </button>
+          <button class="btn btn-secondary" onclick="downloadCsvTemplate()" title="Unduh template file CSV untuk mengisi password & ruang ujian">
+            <span>📄 Unduh Template CSV</span>
+          </button>
           <button class="btn btn-success" onclick="openUploadCsvModal()" title="Unggah file CSV untuk mengisi password asli & nomor ruang/sesi">
             <span>📂 Unggah CSV Password</span>
           </button>
@@ -996,6 +999,14 @@
         <code style="background:#1e293b; color:#38bdf8; padding:2px 6px; border-radius:4px;">meja</code>.
       </div>
 
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; background:rgba(14,165,233,0.1); border:1px solid rgba(56,189,248,0.25); border-radius:8px; padding:10px 14px;">
+        <div style="font-size:0.8rem; color:#cbd5e1;">
+          <strong style="color:#38bdf8;">Belum punya format CSV?</strong> Unduh template resmi siap pakai:
+        </div>
+        <button type="button" class="btn btn-secondary" style="width:auto; padding:6px 14px; font-size:0.75rem; white-space:nowrap; background:#1e293b; color:#38bdf8; border:1px solid #38bdf8; cursor:pointer;" onclick="downloadCsvTemplate()">
+          📥 Unduh Template CSV
+        </button>
+      </div>
       <div class="dropzone-box" onclick="document.getElementById('csv-file-input').click()">
         <input type="file" id="csv-file-input" accept=".csv,text/csv,text/plain" style="display:none;" onchange="handleCsvFileSelected(event)">
         <div style="font-size:2rem; margin-bottom:8px;">📄</div>
@@ -1306,10 +1317,7 @@
                   <span class="chip-label">RUANG / SESI</span>
                   <span class="chip-val">${escapeHtml(ruangSesiText)}</span>
                 </div>
-                <div class="meta-chip">
-                  <span class="chip-label">NO. PESERTA / NIS</span>
-                  <span class="chip-val mono">${escapeHtml(s.no_peserta || s.idnumber || '—')}</span>
-                </div>
+                
               </div>
 
               <!-- Kotak Kredensial Login Siswa (Username & Password — Kontras Tinggi Cetak) -->
@@ -1726,6 +1734,29 @@
     }
 
     /* ─── UPLOAD CSV CONTROLLER ─── */
+    
+    function downloadCsvTemplate() {
+      const csvHeader = "username,password,ruang,sesi,meja\r\n";
+      const sampleRows = [
+        "arayadikaaisyahbrana,Dosman02TYHH*#,Ruang 01,Sesi 1,01",
+        "dewapraba,Dosman03XKLP*#,Ruang 01,Sesi 1,02",
+        "gustingurah,Dosman04MNPQ*#,Ruang 01,Sesi 1,03",
+        "komangayu,Dosman05ABCD*#,Ruang 02,Sesi 2,01",
+        "putriastuti,Dosman06WXYZ*#,Ruang 02,Sesi 2,02"
+      ].join("\r\n") + "\r\n";
+      
+      const csvData = "\uFEFF" + csvHeader + sampleRows;
+      const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", "template_kartu_peserta.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
     function openUploadCsvModal() {
       const modal = document.getElementById('modal-upload-csv');
       if (modal) {
