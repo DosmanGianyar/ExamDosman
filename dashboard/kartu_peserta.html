@@ -964,7 +964,6 @@
           <div class="form-group">
             <label class="form-label" for="select-grade">Filter Tingkat (Grade)</label>
             <select id="select-grade" class="form-select" onchange="onGradeFilterChange()">
-              <option value="">Semua Tingkat</option>
               <option value="Kelas X">Kelas X (Grade 10)</option>
               <option value="Kelas XI">Kelas XI (Grade 11)</option>
               <option value="Kelas XII">Kelas XII (Grade 12)</option>
@@ -1239,7 +1238,7 @@
         if (val === '2026') selectGrade.value = 'Kelas X';
         else if (val === '2025') selectGrade.value = 'Kelas XI';
         else if (val === '2024') selectGrade.value = 'Kelas XII';
-        else selectGrade.value = '';
+        else if (!selectGrade.value) selectGrade.value = 'Kelas X';
       }
 
       const selectClass = document.getElementById('select-class');
