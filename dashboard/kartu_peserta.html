@@ -503,7 +503,18 @@
       text-transform: uppercase;
       letter-spacing: 0.5px;
       line-height: 1;
-      margin-bottom: 1.5px;
+    }
+
+    .student-class-badge {
+      background: #1e3a8a;
+      color: #ffffff;
+      font-size: 8px;
+      font-weight: 800;
+      padding: 1.5px 7px;
+      border-radius: 3px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      white-space: nowrap;
     }
 
     .student-name-text {
@@ -566,11 +577,11 @@
       background: #059669;
     }
 
-    /* ─── CHIPS METADATA (NO. ABSEN, NIS, RUANG, SESI) — FONT LEBIH BESAR & JELAS ─── */
+    /* ─── CHIPS METADATA (NO. ABSEN, KELAS, NIS, RUANG, SESI) ─── */
     .meta-chips-grid {
       display: grid;
-      grid-template-columns: 0.9fr 1.35fr 1.15fr 1fr;
-      gap: 4px;
+      grid-template-columns: 0.85fr 1.15fr 1.25fr 0.95fr 0.8fr;
+      gap: 3.5px;
       margin: 2.5px 0;
       position: relative;
       z-index: 1;
@@ -1523,9 +1534,12 @@
                   <div class="exam-title-text dyn-card-title">${escapeHtml(cardTitle)}</div>
                   <div class="exam-ta-text dyn-card-ta">${escapeHtml(cardTA)}</div>
 
-                  <!-- Nama Lengkap Siswa -->
+                  <!-- Nama Lengkap Siswa & Badge Kelas -->
                   <div class="student-name-box">
-                    <span class="student-name-label">NAMA PESERTA UJIAN</span>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5px;">
+                      <span class="student-name-label">NAMA PESERTA UJIAN</span>
+                      <span class="student-class-badge">KELAS: ${escapeHtml((s.class_name || '').trim() || '-')}</span>
+                    </div>
                     <div class="student-name-text">${escapeHtml(s.student_name || s.name || s.firstname || s.username || 'Siswa')}</div>
                   </div>
                 </div>
@@ -1544,11 +1558,15 @@
                 </div>
               </div>
 
-              <!-- Mid Row: 4 Chips Metadata (NO. ABSEN, NIS, RUANG, SESI) -->
+              <!-- Mid Row: 5 Chips Metadata (NO. ABSEN, KELAS, NIS, RUANG, SESI) -->
               <div class="meta-chips-grid">
                 <div class="meta-chip">
                   <span class="chip-label">NO. ABSEN</span>
                   <span class="chip-val highlight">${escapeHtml(absenVal)}</span>
+                </div>
+                <div class="meta-chip">
+                  <span class="chip-label">KELAS</span>
+                  <span class="chip-val highlight" style="color:#1e3a8a;">${escapeHtml((s.class_name || '').trim() || '-')}</span>
                 </div>
                 <div class="meta-chip">
                   <span class="chip-label">NIS</span>
