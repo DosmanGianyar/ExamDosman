@@ -508,13 +508,14 @@
     .student-class-badge {
       background: #1e3a8a;
       color: #ffffff;
-      font-size: 8px;
+      font-size: 8.5px;
       font-weight: 800;
-      padding: 1.5px 7px;
-      border-radius: 3px;
+      padding: 2px 8px;
+      border-radius: 4px;
       letter-spacing: 0.5px;
       text-transform: uppercase;
       white-space: nowrap;
+      box-shadow: 0 1px 3px rgba(30, 58, 138, 0.25);
     }
 
     .student-name-text {
@@ -577,12 +578,12 @@
       background: #059669;
     }
 
-    /* ─── CHIPS METADATA (NO. ABSEN, KELAS, NIS, RUANG, SESI) ─── */
+    /* ─── CHIPS METADATA (NO. ABSEN, NIS, RUANG, SESI) — LEGA & PROPORSI SEMPURNA ─── */
     .meta-chips-grid {
       display: grid;
-      grid-template-columns: 0.85fr 1.15fr 1.25fr 0.95fr 0.8fr;
-      gap: 3.5px;
-      margin: 2.5px 0;
+      grid-template-columns: 1fr 1.35fr 1.15fr 1fr;
+      gap: 5px;
+      margin: 3px 0;
       position: relative;
       z-index: 1;
     }
@@ -591,7 +592,7 @@
       background: #ffffff;
       border: 1.2px solid #64748b;
       border-radius: 5px;
-      padding: 2px 6px;
+      padding: 2.5px 7px;
       display: flex;
       flex-direction: column;
       align-items: flex-start;
@@ -599,17 +600,18 @@
     }
 
     .chip-label {
-      font-size: 7px;
+      font-size: 7.2px;
       font-weight: 800;
       color: #475569;
       text-transform: uppercase;
-      letter-spacing: 0.3px;
+      letter-spacing: 0.4px;
       line-height: 1;
-      margin-bottom: 1.5px;
+      margin-bottom: 2px;
+      white-space: nowrap;
     }
 
     .chip-val {
-      font-size: 12.5px;
+      font-size: 13.5px;
       font-weight: 800;
       color: #0f172a;
       line-height: 1.15;
@@ -621,7 +623,7 @@
 
     .chip-val.highlight {
       color: #1e3a8a;
-      font-size: 14px;
+      font-size: 15px;
     }
 
     .chip-val.mono {
@@ -1529,16 +1531,16 @@
                   <div class="brand-pill">
                     <img src="assets/logo_sekolah.png" alt="Logo SMAN 1 Gianyar" class="brand-pill-logo">
                     <span class="brand-pill-text">SMAN 1 GIANYAR</span>
-                    <span class="brand-pill-badge">Exam Dosman</span>
+                    <span class="brand-pill-badge" style="background:#1e3a8a; font-size:8px; padding:2px 7px;">KELAS ${escapeHtml((s.class_name || '').trim() || 'CBT')}</span>
                   </div>
                   <div class="exam-title-text dyn-card-title">${escapeHtml(cardTitle)}</div>
                   <div class="exam-ta-text dyn-card-ta">${escapeHtml(cardTA)}</div>
 
                   <!-- Nama Lengkap Siswa & Badge Kelas -->
                   <div class="student-name-box">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
                       <span class="student-name-label">NAMA PESERTA UJIAN</span>
-                      <span class="student-class-badge">KELAS: ${escapeHtml((s.class_name || '').trim() || '-')}</span>
+                      <span class="student-class-badge">KELAS ${escapeHtml((s.class_name || '').trim() || '-')}</span>
                     </div>
                     <div class="student-name-text">${escapeHtml(s.student_name || s.name || s.firstname || s.username || 'Siswa')}</div>
                   </div>
@@ -1558,15 +1560,11 @@
                 </div>
               </div>
 
-              <!-- Mid Row: 5 Chips Metadata (NO. ABSEN, KELAS, NIS, RUANG, SESI) -->
+              <!-- Mid Row: 4 Chips Metadata Lega (NO. ABSEN, NIS, RUANG, SESI) -->
               <div class="meta-chips-grid">
                 <div class="meta-chip">
                   <span class="chip-label">NO. ABSEN</span>
                   <span class="chip-val highlight">${escapeHtml(absenVal)}</span>
-                </div>
-                <div class="meta-chip">
-                  <span class="chip-label">KELAS</span>
-                  <span class="chip-val highlight" style="color:#1e3a8a;">${escapeHtml((s.class_name || '').trim() || '-')}</span>
                 </div>
                 <div class="meta-chip">
                   <span class="chip-label">NIS</span>
