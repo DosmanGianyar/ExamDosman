@@ -1833,7 +1833,13 @@
           body: formData
         });
 
-        const resData = await resp.json();
+        const text = await resp.text();
+        let resData;
+        try {
+          resData = JSON.parse(text);
+        } catch (jsonErr) {
+          throw new Error('Respon server bukan JSON: ' + text.replace(/<[^>]+>/g, ' ').trim().substring(0, 120));
+        }
         if (resData.success) {
           statusEl.style.color = '#4ade80';
           statusEl.textContent = `✅ ${resData.message}`;

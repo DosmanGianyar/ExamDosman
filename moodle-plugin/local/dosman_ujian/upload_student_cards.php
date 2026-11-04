@@ -3,7 +3,7 @@
  * Endpoint: Upload / Sinkronisasi Data Kartu Peserta Ujian & Password Siswa
  *
  * Menerima file CSV (multipart/form-data) atau JSON payload.
- * Menyimpan password asli dan data ujian (no_peserta, ruang, sesi, meja)
+ * Menyimpan password asli dan data ujian (no_peserta, ruang, sesi, meja, no_absen)
  * ke tabel mdl_local_dosman_student_cards.
  *
  * POST /local/dosman_ujian/upload_student_cards.php
@@ -11,6 +11,9 @@
  * @package    local_dosman_ujian
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+
+error_reporting(0);
+ini_set('display_errors', '0');
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache');
@@ -96,8 +99,12 @@ try {
             updated_at INT NOT NULL,
             INDEX idx_username (username)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-        try { $pdo->exec("ALTER TABLE {$prefix}local_dosman_student_cards ADD COLUMN no_absen VARCHAR(50) DEFAULT '' AFTER meja"); } catch (Throwable $e) {}
     ");
+
+    // Pastikan kolom no_absen ada pada instalasi yang sudah berjalan
+    try {
+        $pdo->exec("ALTER TABLE {$prefix}local_dosman_student_cards ADD COLUMN no_absen VARCHAR(50) DEFAULT '' AFTER meja");
+    } catch (Throwable $ignore) {}
 
     $items = [];
 
@@ -131,12 +138,12 @@ try {
         }
 
         // Kolom username wajib ada
-        $uIdx = $headerMap['username'] ?? ($headerMap['user'] ?? ($headerMap['namapengguna'] ?? null));
-        $pIdx = $headerMap['password'] ?? ($headerMap['pass'] ?? ($headerMap['katasandi'] ?? null));
-        $npIdx = $headerMap['nopeserta'] ?? ($headerMap['nomorpeserta'] ?? ($headerMap['nis'] ?? ($headerMap['idnumber'] ?? null)));
-        $rIdx = $headerMap['ruang'] ?? ($headerMap['ruangan'] ?? ($headerMap['room'] ?? null));
-        $sIdx = $headerMap['sesi'] ?? ($headerMap['session'] ?? null);
-        $mIdx = $headerMap['meja'] ?? ($headerMap['nomeja'] ?? null);
+        $uIdx  = $headerMap['username'] ?? ($headerMap['user'] ?? ($headerMap['namapengguna'] ?? null));
+        $pIdx  = $headerMap['password'] ?? ($headerMap['pass'] ?? ($headerMap['katasandi'] ?? null));
+        $npIdx = $headerMap['nis'] ?? ($headerMap['nopeserta'] ?? ($headerMap['nomorpeserta'] ?? ($headerMap['idnumber'] ?? null)));
+        $rIdx  = $headerMap['ruang'] ?? ($headerMap['ruangan'] ?? ($headerMap['room'] ?? null));
+        $sIdx  = $headerMap['sesi'] ?? ($headerMap['session'] ?? null);
+        $mIdx  = $headerMap['meja'] ?? ($headerMap['nomeja'] ?? null);
         $abIdx = $headerMap['absen'] ?? ($headerMap['noabsen'] ?? ($headerMap['nomorabsen'] ?? null));
 
         if ($uIdx === null || $pIdx === null) {
@@ -173,7 +180,7 @@ try {
             $items[] = [
                 'username'   => $u,
                 'password'   => $p,
-                'no_peserta' => trim((string)($s['no_peserta'] ?? ($s['nopeserta'] ?? ''))),
+                'no_peserta' => trim((string)($s['nis'] ?? ($s['no_peserta'] ?? ($s['nopeserta'] ?? '')))),
                 'ruang'      => trim((string)($s['ruang'] ?? '')),
                 'sesi'       => trim((string)($s['sesi'] ?? '')),
                 'meja'       => trim((string)($s['meja'] ?? '')),
@@ -194,7 +201,7 @@ try {
         INSERT INTO {$prefix}local_dosman_student_cards
             (username, plain_password, no_peserta, ruang, sesi, meja, no_absen, created_at, updated_at)
         VALUES
-            (?, ?, ?, ?, ?, ?, ?, ?)
+            (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
             plain_password = VALUES(plain_password),
             no_peserta     = IF(VALUES(no_peserta) != '', VALUES(no_peserta), no_peserta),
@@ -217,6 +224,7 @@ try {
             $item['ruang'],
             $item['sesi'],
             $item['meja'],
+            $item['no_absen'],
             $now,
             $now
         ]);
