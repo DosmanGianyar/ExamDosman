@@ -1210,10 +1210,7 @@
       let html = '<option value="">— Semua Angkatan (' + allStudents.length + ' Siswa) —</option>';
       sortedYears.forEach(yr => {
         const count = yearCounts.get(yr) || 0;
-        let label = 'Angkatan ' + yr;
-        if (yr === '2026') label += ' (Kelas X Baru)';
-        else if (yr === '2025') label += ' (Kelas XI)';
-        else if (yr === '2024') label += ' (Kelas XII)';
+        const label = yr === 'Lainnya' ? 'Lainnya' : 'Angkatan ' + yr;
         html += `<option value="${escapeHtml(yr)}">${escapeHtml(label)} (${count} Siswa)</option>`;
       });
 
@@ -1253,7 +1250,7 @@
 
       const classCounts = new Map();
       allStudents.forEach(s => {
-        // Filter Angkatan & Tingkat
+        // Filter Angkatan
         if (selectedAngkatan) {
           const sYear = (s.tahun_masuk || '').trim();
           if (selectedAngkatan === 'Lainnya') {
@@ -1262,8 +1259,21 @@
             return;
           }
         }
-        if (selectedGrade && s.grade !== selectedGrade) {
-          return;
+        // Filter Tingkat (Grade) — Filter ketat agar kelas X tidak masuk ke Kelas XI
+        if (selectedGrade) {
+          if ((s.grade || '').toLowerCase() !== selectedGrade.toLowerCase()) {
+            return;
+          }
+          const clsClean = (s.class_name || '').trim().toUpperCase();
+          if (selectedGrade === 'Kelas X' && !clsClean.match(/^X(\s|$)/)) {
+            return;
+          }
+          if (selectedGrade === 'Kelas XI' && !clsClean.match(/^XI(\s|$)/)) {
+            return;
+          }
+          if (selectedGrade === 'Kelas XII' && !clsClean.match(/^XII(\s|$)/)) {
+            return;
+          }
         }
 
         const cls = (s.class_name || '').trim();
@@ -1335,9 +1345,21 @@
           }
         }
 
-        // 2. Filter Tingkat (Grade)
-        if (selectedGrade && (s.grade || '').toLowerCase() !== selectedGrade) {
-          return false;
+        // 2. Filter Tingkat (Grade) — Filter ketat agar kelas X tidak masuk ke Kelas XI
+        if (selectedGrade) {
+          if ((s.grade || '').toLowerCase() !== selectedGrade) {
+            return false;
+          }
+          const clsClean = (s.class_name || '').trim().toUpperCase();
+          if (selectedGrade === 'kelas x' && !clsClean.match(/^X(\s|$)/)) {
+            return false;
+          }
+          if (selectedGrade === 'kelas xi' && !clsClean.match(/^XI(\s|$)/)) {
+            return false;
+          }
+          if (selectedGrade === 'kelas xii' && !clsClean.match(/^XII(\s|$)/)) {
+            return false;
+          }
         }
 
         // 3. Filter Kelas

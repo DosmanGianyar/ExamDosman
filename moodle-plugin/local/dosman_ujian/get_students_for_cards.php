@@ -161,14 +161,27 @@ try {
             }
         }
 
-        // 3. Ekstraksi Tingkat / Grade Moodle
+        // 3. Ekstraksi Tingkat / Grade Moodle: PRIORITASKAN NAMA KELAS SISWA
         $grade = '';
-        if (preg_match('/\bKelas XII\b/i', $cnames) || preg_match('/\|\s*XII\b/i', $lname) || $tahunMasuk === '2024') {
+        if (preg_match('/^XII\b/i', $className)) {
             $grade = 'Kelas XII';
-        } else if (preg_match('/\bKelas XI\b/i', $cnames) || preg_match('/\|\s*XI\b/i', $lname) || $tahunMasuk === '2025') {
+        } else if (preg_match('/^XI\b/i', $className)) {
             $grade = 'Kelas XI';
-        } else if (preg_match('/\bKelas X\b/i', $cnames) || preg_match('/\|\s*X\b/i', $lname) || $tahunMasuk === '2026') {
+        } else if (preg_match('/^X\b/i', $className)) {
             $grade = 'Kelas X';
+        } else {
+            // Jika nama kelas tidak diawali romawi, cek nama cohort & lastname
+            if (preg_match('/\bKelas XII\b/i', $cnames) || preg_match('/\|\s*XII\b/i', $lname)) {
+                $grade = 'Kelas XII';
+            } else if (preg_match('/\bKelas XI\b/i', $cnames) || preg_match('/\|\s*XI\b/i', $lname)) {
+                $grade = 'Kelas XI';
+            } else if (preg_match('/\bKelas X\b/i', $cnames) || preg_match('/\|\s*X\b/i', $lname)) {
+                $grade = 'Kelas X';
+            } else {
+                if ($tahunMasuk === '2024') $grade = 'Kelas XII';
+                else if ($tahunMasuk === '2025') $grade = 'Kelas XI';
+                else $grade = 'Kelas X';
+            }
         }
 
         $students[] = [
