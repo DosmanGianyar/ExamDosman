@@ -662,12 +662,14 @@
     }
 
     .card-rules-note {
-      font-size: 6.8px;
+      font-size: 6.5px;
       font-weight: 600;
       color: #334155;
       font-style: italic;
-      max-width: 58%;
+      flex: 1;
+      min-width: 0;
       line-height: 1.2;
+      padding-right: 4px;
     }
 
     .card-signature {
@@ -679,6 +681,8 @@
       flex-direction: column;
       align-items: flex-end;
       line-height: 1.15;
+      flex-shrink: 0;
+      white-space: nowrap;
     }
 
     .sign-name {
@@ -686,7 +690,9 @@
       color: #000000;
       text-decoration: underline;
       margin-top: 1.5px;
-      font-size: 9px;
+      font-size: 8.5px;
+      white-space: nowrap;
+      display: inline-block;
     }
 
     /* ─── MODAL UPLOAD CSV ─── */
