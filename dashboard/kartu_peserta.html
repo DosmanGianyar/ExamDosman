@@ -911,6 +911,13 @@
           </div>
 
           <div class="form-group">
+            <label class="form-label" for="select-angkatan">Filter Angkatan / Tahun Masuk</label>
+            <select id="select-angkatan" class="form-select" onchange="onAngkatanFilterChange()">
+              <option value="">Memuat Angkatan...</option>
+            </select>
+          </div>
+
+          <div class="form-group">
             <label class="form-label" for="select-grade">Filter Tingkat (Grade)</label>
             <select id="select-grade" class="form-select" onchange="onGradeFilterChange()">
               <option value="">Semua Tingkat</option>
@@ -1062,6 +1069,8 @@
             const hasPassCount = allStudents.filter(s => s.password && s.password.trim() !== '').length;
             statsEl.innerHTML = `<strong>${allStudents.length} siswa</strong> berhasil dimuat dari Moodle. (<strong>${hasPassCount}</strong> siswa memiliki password unik dari database). Siap dicetak ke kertas A4.`;
           }
+          populateAngkatanFilter();
+          populateAngkatanFilter();
           populateClassFilter();
           renderCards();
         } else {
@@ -1109,20 +1118,92 @@
       }
     }
 
+    function populateAngkatanFilter() {
+      const selectAngkatan = document.getElementById('select-angkatan');
+      if (!selectAngkatan) return;
+
+      const savedAngkatan = localStorage.getItem('cbt_card_selected_angkatan') || '';
+      const currentVal = selectAngkatan.value || savedAngkatan;
+
+      const yearCounts = new Map();
+      allStudents.forEach(s => {
+        const y = (s.tahun_masuk || '').trim();
+        if (y !== '') {
+          yearCounts.set(y, (yearCounts.get(y) || 0) + 1);
+        } else {
+          yearCounts.set('Lainnya', (yearCounts.get('Lainnya') || 0) + 1);
+        }
+      });
+
+      // Urutkan tahun dari yang terbaru
+      const sortedYears = Array.from(yearCounts.keys()).sort((a, b) => {
+        if (a === 'Lainnya') return 1;
+        if (b === 'Lainnya') return -1;
+        return b.localeCompare(a, undefined, { numeric: true });
+      });
+
+      let html = '<option value="">— Semua Angkatan (' + allStudents.length + ' Siswa) —</option>';
+      sortedYears.forEach(yr => {
+        const count = yearCounts.get(yr) || 0;
+        let label = 'Angkatan ' + yr;
+        if (yr === '2026') label += ' (Kelas X Baru)';
+        else if (yr === '2025') label += ' (Kelas XI)';
+        else if (yr === '2024') label += ' (Kelas XII)';
+        html += `<option value="${escapeHtml(yr)}">${escapeHtml(label)} (${count} Siswa)</option>`;
+      });
+
+      selectAngkatan.innerHTML = html;
+
+      // Prioritas default: Jika pengguna belum memilih, arahkan ke angkatan terbaru (2026) jika ada
+      if (currentVal && (sortedYears.includes(currentVal) || currentVal === '')) {
+        selectAngkatan.value = currentVal;
+      } else if (sortedYears.includes('2026')) {
+        selectAngkatan.value = '2026';
+      } else if (sortedYears.length > 0 && sortedYears[0] !== 'Lainnya') {
+        selectAngkatan.value = sortedYears[0];
+      } else {
+        selectAngkatan.value = '';
+      }
+    }
+
+    function onAngkatanFilterChange() {
+      const selectAngkatan = document.getElementById('select-angkatan');
+      const val = selectAngkatan ? selectAngkatan.value : '';
+      localStorage.setItem('cbt_card_selected_angkatan', val);
+
+      const selectClass = document.getElementById('select-class');
+      if (selectClass) selectClass.value = '';
+
+      populateClassFilter();
+      renderCards();
+    }
+
     function populateClassFilter() {
       const selectClass = document.getElementById('select-class');
       if (!selectClass) return;
 
       const currentVal = selectClass.value;
+      const selectedAngkatan = document.getElementById('select-angkatan')?.value || '';
       const selectedGrade = document.getElementById('select-grade')?.value || '';
 
       const classCounts = new Map();
       allStudents.forEach(s => {
-        if (!selectedGrade || s.grade === selectedGrade) {
-          const cls = (s.class_name || '').trim();
-          if (cls !== '') {
-            classCounts.set(cls, (classCounts.get(cls) || 0) + 1);
+        // Filter Angkatan & Tingkat
+        if (selectedAngkatan) {
+          const sYear = (s.tahun_masuk || '').trim();
+          if (selectedAngkatan === 'Lainnya') {
+            if (sYear !== '') return;
+          } else if (sYear !== selectedAngkatan) {
+            return;
           }
+        }
+        if (selectedGrade && s.grade !== selectedGrade) {
+          return;
+        }
+
+        const cls = (s.class_name || '').trim();
+        if (cls !== '') {
+          classCounts.set(cls, (classCounts.get(cls) || 0) + 1);
         }
       });
 
@@ -1133,7 +1214,7 @@
         const count = classCounts.get(cls) || 0;
         html += `<option value="${escapeHtml(cls)}">${escapeHtml(cls)} (${count} Siswa)</option>`;
       });
-      html += '<option value="__ALL__">— Semua Kelas (Tampilkan Semua) —</option>';
+      html += '<option value="__ALL__">— Semua Kelas di Angkatan Ini —</option>';
       selectClass.innerHTML = html;
 
       if (currentVal === '__ALL__') {
@@ -1141,7 +1222,7 @@
       } else if (sortedClasses.includes(currentVal)) {
         selectClass.value = currentVal;
       } else if (sortedClasses.length > 0) {
-        // Default otomatis ke kelas pertama agar ringan saat generate barcode
+        // Default otomatis ke kelas pertama agar ringan saat render
         selectClass.value = sortedClasses[0];
       } else {
         selectClass.value = '__ALL__';
@@ -1172,19 +1253,34 @@
     }
 
     function getFilteredStudents() {
+      const selectedAngkatan = document.getElementById('select-angkatan')?.value || '';
       const selectedGrade = (document.getElementById('select-grade')?.value || '').toLowerCase();
       const rawClassVal = document.getElementById('select-class')?.value || '';
       const selectedClass = rawClassVal === '__ALL__' ? '' : rawClassVal.toLowerCase();
       const searchKey = (document.getElementById('input-search')?.value || '').toLowerCase().trim();
 
       return allStudents.filter(s => {
+        // 1. Filter Angkatan / Tahun Masuk
+        if (selectedAngkatan) {
+          const sYear = (s.tahun_masuk || '').trim();
+          if (selectedAngkatan === 'Lainnya') {
+            if (sYear !== '') return false;
+          } else if (sYear !== selectedAngkatan) {
+            return false;
+          }
+        }
+
+        // 2. Filter Tingkat (Grade)
         if (selectedGrade && (s.grade || '').toLowerCase() !== selectedGrade) {
           return false;
         }
-        // Jika pengguna sedang mencari nama/NIS spesifik di kotak pencarian, cari di seluruh kelas (atau kelas terpilih)
+
+        // 3. Filter Kelas
         if (!searchKey && selectedClass && (s.class_name || '').toLowerCase() !== selectedClass) {
           return false;
         }
+
+        // 4. Filter Kata Kunci Pencarian (Search Box)
         if (searchKey) {
           const matchName = (s.student_name || s.name || s.firstname || '').toLowerCase().includes(searchKey);
           const matchUname = (s.username || '').toLowerCase().includes(searchKey);

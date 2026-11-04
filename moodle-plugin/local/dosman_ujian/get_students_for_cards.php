@@ -126,6 +126,9 @@ try {
         } else if (preg_match('/\|\s*([^|]+)/i', $full, $m)) {
             $className = trim($m[1]);
         }
+        if (empty($tahunMasuk) && preg_match('/\b(202[0-9])\b/', $full, $mYear)) {
+            $tahunMasuk = $mYear[1];
+        }
 
         if (empty($className)) {
             foreach (explode(',', $cnames) as $cn) {
@@ -139,11 +142,11 @@ try {
 
         // 3. Ekstraksi Tingkat / Grade Moodle
         $grade = '';
-        if (preg_match('/\bKelas XII\b/i', $cnames) || preg_match('/\|\s*XII\b/i', $lname) || $tahunMasuk === '2023') {
+        if (preg_match('/\bKelas XII\b/i', $cnames) || preg_match('/\|\s*XII\b/i', $lname) || $tahunMasuk === '2024') {
             $grade = 'Kelas XII';
-        } else if (preg_match('/\bKelas XI\b/i', $cnames) || preg_match('/\|\s*XI\b/i', $lname) || $tahunMasuk === '2024') {
+        } else if (preg_match('/\bKelas XI\b/i', $cnames) || preg_match('/\|\s*XI\b/i', $lname) || $tahunMasuk === '2025') {
             $grade = 'Kelas XI';
-        } else if (preg_match('/\bKelas X\b/i', $cnames) || preg_match('/\|\s*X\b/i', $lname) || $tahunMasuk === '2025') {
+        } else if (preg_match('/\bKelas X\b/i', $cnames) || preg_match('/\|\s*X\b/i', $lname) || $tahunMasuk === '2026') {
             $grade = 'Kelas X';
         }
 
