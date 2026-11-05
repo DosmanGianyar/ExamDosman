@@ -32,7 +32,7 @@ class _ExitPasswordDialogState extends State<ExitPasswordDialog> {
     setState(() => _loading = true);
     try {
       final username = (await AuthService.getUsername()).toLowerCase().trim();
-      final isReviewer = username == 'playstore.review' || username == 'appstore.review';
+      final isReviewer = KioskController.instance.isReviewer || KioskController.isReviewerUsername(username);
       final entered = _ctrl.text.trim();
 
       // Akun reviewer (Play Store & App Store) selalu dapat keluar dengan PIN 123456

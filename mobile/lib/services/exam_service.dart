@@ -319,7 +319,11 @@ class ExamService {
   }) async {
     try {
       final username = (await AuthService.getUsername()).toLowerCase().trim();
-      if (username == 'playstore.review' || username == 'appstore.review') {
+      if (username == 'playstore.review' ||
+          username == 'appstore.review' ||
+          username == 'apple.review' ||
+          username.contains('review') ||
+          username.contains('demo')) {
         return false;
       }
 

@@ -61,7 +61,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   Future<void> _checkSuspendedByAdminFlag() async {
     final username = (await AuthService.getUsername()).toLowerCase().trim();
-    if (username == 'playstore.review' || username == 'appstore.review') {
+    if (KioskController.isReviewerUsername(username)) {
       await AuthService.saveSuspendedByAdmin(false);
       return;
     }
@@ -378,7 +378,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   Future<void> _checkSuspendStatus(String username) async {
     final u = username.toLowerCase().trim();
-    if (u == 'playstore.review' || u == 'appstore.review') {
+    if (KioskController.isReviewerUsername(u)) {
       return;
     }
     try {

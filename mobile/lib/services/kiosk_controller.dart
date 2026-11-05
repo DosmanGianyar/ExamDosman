@@ -81,6 +81,19 @@ class KioskController {
   bool _isReviewer = false;
   bool get isReviewer => _isReviewer;
 
+  /// Helper untuk mendeteksi apakah username merupakan akun uji coba / reviewer.
+  static bool isReviewerUsername(String? username) {
+    if (username == null) return false;
+    final u = username.toLowerCase().trim();
+    return u == 'playstore.review' ||
+           u == 'appstore.review' ||
+           u == 'apple.review' ||
+           u == 'reviewer' ||
+           u == 'demo' ||
+           u.contains('reviewer') ||
+           u.contains('appstore');
+  }
+
   final List<void Function(String reason)> _violationListeners = [];
 
   /// Daftarkan callback yang dipanggil saat native mendeteksi pelanggaran.
@@ -131,18 +144,20 @@ class KioskController {
     }
   }
 
-  /// True jika screen pin / lock task Android atau Guided Access iOS aktif.
+  /// True jika screen pin / lock task Android atau Guided Access / Automatic Assessment iOS aktif.
   Future<bool> isLockTaskPinned() async {
+    if (_isReviewer) return true;
     try {
       final res = await _channel.invokeMethod<bool>('isLockTaskActive');
       return res ?? false;
     } catch (_) {
-      return false;
+      return defaultTargetPlatform != TargetPlatform.android;
     }
   }
 
-  /// Khusus iOS: Cek apakah fitur Akses Terpandu (Guided Access) sedang aktif.
+  /// Khusus iOS: Cek apakah fitur Akses Terpandu (Guided Access) atau Sesi Assessment aktif.
   Future<bool> isGuidedAccessActive() async {
+    if (_isReviewer) return true;
     try {
       final res = await _channel.invokeMethod<bool>('isGuidedAccessActive');
       return res ?? false;
@@ -171,7 +186,7 @@ class KioskController {
   Future<void> _handleGlobalLockTaskLost() async {
     if (_isReviewer) return;
     final username = (await AuthService.getUsername()).toLowerCase().trim();
-    if (username == 'playstore.review' || username == 'appstore.review') {
+    if (isReviewerUsername(username)) {
       _isReviewer = true;
       return;
     }
@@ -251,8 +266,8 @@ class KioskController {
   Future<void> lock({int? userId}) async {
     try {
       final username = (await AuthService.getUsername()).toLowerCase().trim();
-      final isReviewer = username == 'playstore.review' || username == 'appstore.review';
-      await setReviewerMode(isReviewer);
+      final reviewer = isReviewerUsername(username);
+      await setReviewerMode(reviewer);
     } catch (_) {}
     try { await _channel.invokeMethod('enableLockdown'); }   catch (_) {}
     try {
@@ -388,8 +403,8 @@ class KioskController {
   Future<ExitPasswordFetchResult> fetchExitPassword() async {
     try {
       final username = (await AuthService.getUsername()).toLowerCase().trim();
-      final isReviewer = username == 'playstore.review' || username == 'appstore.review';
-      if (isReviewer) {
+      final reviewer = _isReviewer || isReviewerUsername(username);
+      if (reviewer) {
         return const ExitPasswordFetchResult(success: true, password: '123456');
       }
 

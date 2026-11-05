@@ -1,18 +1,18 @@
 // ===========================
-// Overlay penuh: kiosk aktif tetapi aplikasi belum dalam mode screen pin (lock task).
-// Memblokir seluruh layar agar siswa tidak bisa mengerjakan kuis sebelum disematkan.
-// Juga menampilkan overlay bawah sementara untuk menutup toast Android
-// "To unpin this app..." yang muncul saat screen pinning diaktifkan.
+// Overlay penuh: kiosk aktif tetapi aplikasi belum dalam mode screen pin / assessment session.
+// Memblokir seluruh layar agar siswa tidak bisa mengerjakan kuis sebelum disematkan/dikunci.
+// Juga menampilkan overlay bawah sementara khusus Android untuk menutup toast pin.
 // ===========================
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/kiosk_controller.dart';
 
-/// Bungkus konten app; menampel banner jika kiosk aktif dan pin belum aktif.
+/// Bungkus konten app; menampel banner jika kiosk aktif dan pin/assessment belum aktif.
 class PinReminderLayer extends StatefulWidget {
   final Widget child;
 
@@ -51,7 +51,8 @@ class _PinReminderLayerState extends State<PinReminderLayer>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Setiap kali Home ditekan saat pinned → Android tampilkan toast → tutup dengan mask
+    // Khusus Android: setiap kali Home ditekan saat pinned → Android tampilkan toast → tutup dengan mask
+    if (defaultTargetPlatform != TargetPlatform.android) return;
     if (_kiosk.active &&
         (state == AppLifecycleState.inactive ||
          state == AppLifecycleState.paused)) {
@@ -60,16 +61,23 @@ class _PinReminderLayerState extends State<PinReminderLayer>
   }
 
   void _onKioskChanged() {
-    // Tampilkan mask saat kiosk baru aktif (login berhasil → enterLockTask)
-    if (_kiosk.active && !_wasActive) {
+    // Akun reviewer tidak pernah menampilkan mask atau reminder
+    if (_kiosk.isReviewer) {
+      if (mounted && !_pinned) setState(() => _pinned = true);
+      return;
+    }
+
+    // Tampilkan mask saat kiosk baru aktif di Android (login berhasil → enterLockTask)
+    if (_kiosk.active && !_wasActive && defaultTargetPlatform == TargetPlatform.android) {
       _triggerBottomMask();
     }
     _wasActive = _kiosk.active;
     _syncPolling();
   }
 
-  /// Tampilkan overlay bawah selama 5 detik untuk menutup toast Android.
+  /// Tampilkan overlay bawah selama 5 detik untuk menutup toast Android (khusus Android).
   void _triggerBottomMask() {
+    if (defaultTargetPlatform != TargetPlatform.android) return;
     _maskTimer?.cancel();
     if (mounted) setState(() => _showBottomMask = true);
     _maskTimer = Timer(const Duration(seconds: 5), () {
@@ -80,7 +88,7 @@ class _PinReminderLayerState extends State<PinReminderLayer>
   void _syncPolling() {
     _pollTimer?.cancel();
     _pollTimer = null;
-    if (!_kiosk.active) {
+    if (_kiosk.isReviewer || !_kiosk.active) {
       if (mounted && !_pinned) setState(() => _pinned = true);
       return;
     }
@@ -91,6 +99,10 @@ class _PinReminderLayerState extends State<PinReminderLayer>
   }
 
   Future<void> _pollPinned() async {
+    if (_kiosk.isReviewer) {
+      if (mounted && !_pinned) setState(() => _pinned = true);
+      return;
+    }
     final ok = await _kiosk.isLockTaskPinned();
     if (!mounted) return;
     if (ok != _pinned) setState(() => _pinned = ok);
@@ -127,7 +139,9 @@ class _PinReminderLayerState extends State<PinReminderLayer>
   }
 
   Future<void> _onTapPinAgain() async {
-    _triggerBottomMask(); // tutup toast re-pin
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      _triggerBottomMask(); // tutup toast re-pin di Android
+    }
     await _kiosk.requestScreenPinAgain();
     await Future<void>.delayed(const Duration(milliseconds: 400));
     if (mounted) await _pollPinned();
@@ -135,8 +149,14 @@ class _PinReminderLayerState extends State<PinReminderLayer>
 
   @override
   Widget build(BuildContext context) {
+    // Reviewer bypass secara absolut: tidak pernah menampilkan overlay penahan
+    if (_kiosk.isReviewer) {
+      return widget.child;
+    }
+
     final showBanner = _kiosk.active && !_pinned;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
 
     return Stack(
       fit: StackFit.expand,
@@ -144,7 +164,7 @@ class _PinReminderLayerState extends State<PinReminderLayer>
       children: [
         widget.child,
 
-        // Overlay penuh: blokir seluruh layar jika kiosk aktif tapi belum disematkan
+        // Overlay penuh: blokir seluruh layar jika kiosk aktif tapi belum disematkan/dikunci
         if (showBanner)
           Positioned.fill(
             child: Material(
@@ -157,115 +177,128 @@ class _PinReminderLayerState extends State<PinReminderLayer>
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: const Icon(Icons.push_pin_rounded,
-                            color: Colors.white, size: 40),
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        'Aplikasi Belum Disematkan',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Aplikasi harus dalam mode App Pinned agar ujian dapat berjalan dengan aman. '
-                        'Konten kuis tidak bisa diakses sebelum aplikasi disematkan.',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.8),
-                          fontSize: 13,
-                          height: 1.6,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 20),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.15)),
-                        ),
-                        child: Column(
-                          children: [
-                            _stepRow('1',
-                                'Ketuk "Sematkan Ulang" di bawah'),
-                            const SizedBox(height: 10),
-                            _stepRow('2',
-                                'Ikuti petunjuk pin yang muncul di layar Android'),
-                            const SizedBox(height: 10),
-                            _stepRow('3',
-                                'Jika gagal, tutup aplikasi lalu buka kembali'),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: ElevatedButton.icon(
-                          onPressed: _onTapPinAgain,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: const Color(0xFF1E3A8A),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            child: Icon(
+                              isIOS ? Icons.lock_clock_rounded : Icons.push_pin_rounded,
+                              color: Colors.white,
+                              size: 40,
                             ),
                           ),
-                          icon: const Icon(Icons.push_pin_rounded, size: 20),
-                          label: const Text(
-                            'Sematkan Ulang',
-                            style: TextStyle(
-                                fontSize: 15, fontWeight: FontWeight.w700),
+                          const SizedBox(height: 24),
+                          Text(
+                            isIOS ? 'Mode Ujian Belum Terkunci' : 'Aplikasi Belum Disematkan',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                        ),
+                          const SizedBox(height: 12),
+                          Text(
+                            isIOS
+                                ? 'Aplikasi harus dalam mode Akses Terpandu (Guided Access) atau Sesi Penilaian resmi agar ujian dapat berjalan dengan aman.'
+                                : 'Aplikasi harus dalam mode sematan layar agar ujian dapat berjalan dengan aman. '
+                                  'Konten kuis tidak bisa diakses sebelum aplikasi disematkan.',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.8),
+                              fontSize: 13,
+                              height: 1.6,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 20),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.15)),
+                            ),
+                            child: Column(
+                              children: isIOS
+                                  ? [
+                                      _stepRow('1', 'Ketuk "Kunci Mode Ujian" di bawah'),
+                                      const SizedBox(height: 10),
+                                      _stepRow('2', 'Izinkan sesi ujian saat konfirmasi sistem muncul'),
+                                      const SizedBox(height: 10),
+                                      _stepRow('3', 'Atau aktifkan Akses Terpandu dengan menekan tombol samping/atas 3 kali'),
+                                    ]
+                                  : [
+                                      _stepRow('1', 'Ketuk "Sematkan Ulang" di bawah'),
+                                      const SizedBox(height: 10),
+                                      _stepRow('2', 'Ikuti petunjuk sematan yang muncul di layar perangkat'),
+                                      const SizedBox(height: 10),
+                                      _stepRow('3', 'Jika gagal, tutup aplikasi lalu buka kembali'),
+                                    ],
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: ElevatedButton.icon(
+                              onPressed: _onTapPinAgain,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: const Color(0xFF1E3A8A),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              icon: Icon(
+                                isIOS ? Icons.lock_outline_rounded : Icons.push_pin_rounded,
+                                size: 20,
+                              ),
+                              label: Text(
+                                isIOS ? 'Kunci Mode Ujian' : 'Sematkan Ulang',
+                                style: const TextStyle(
+                                    fontSize: 15, fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                  // Tombol Tutup Aplikasi — pojok kiri bawah (floating)
+                  Positioned(
+                    bottom: bottomPadding + 16,
+                    left: 16,
+                    child: FloatingActionButton.extended(
+                      heroTag: 'pin_exit_btn',
+                      onPressed: () => SystemNavigator.pop(),
+                      backgroundColor: Colors.red.withValues(alpha: 0.15),
+                      foregroundColor: Colors.red.withValues(alpha: 0.85),
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        side: BorderSide(
+                            color: Colors.red.withValues(alpha: 0.3)),
+                      ),
+                      icon: const Icon(Icons.exit_to_app_rounded, size: 16),
+                      label: const Text(
+                        'Keluar',
+                        style:
+                            TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              // Tombol Tutup Aplikasi — pojok kiri bawah (floating)
-              Positioned(
-                bottom: bottomPadding + 16,
-                left: 16,
-                child: FloatingActionButton.extended(
-                  heroTag: 'pin_exit_btn',
-                  onPressed: () => SystemNavigator.pop(),
-                  backgroundColor: Colors.red.withValues(alpha: 0.15),
-                  foregroundColor: Colors.red.withValues(alpha: 0.85),
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: BorderSide(
-                        color: Colors.red.withValues(alpha: 0.3)),
-                  ),
-                  icon: const Icon(Icons.exit_to_app_rounded, size: 16),
-                  label: const Text(
-                    'Keluar',
-                    style:
-                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
-            ],
-          ),
             ),
           ),
 
-        // Overlay bawah: tutup toast Android "To unpin this app..." selama 5 detik
-        if (_showBottomMask)
+        // Overlay bawah: tutup toast Android "To unpin this app..." selama 5 detik (khusus Android)
+        if (_showBottomMask && defaultTargetPlatform == TargetPlatform.android)
           Positioned(
             bottom: 0,
             left: 0,

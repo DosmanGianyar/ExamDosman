@@ -152,9 +152,11 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     KioskController.instance.enterExam();
     KioskController.instance.addViolationListener(_onNativeViolation);
+    if (KioskController.instance.isReviewer) {
+      _isReviewer = true;
+    }
     AuthService.getUsername().then((u) {
-      final lower = u.toLowerCase().trim();
-      if (lower == 'playstore.review' || lower == 'appstore.review') {
+      if (KioskController.isReviewerUsername(u)) {
         if (mounted) setState(() => _isReviewer = true);
       }
     });
@@ -452,6 +454,7 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
         }
       }
 
+      if (_isReviewer) return;
       final isGuided = await KioskController.instance.isGuidedAccessActive();
       if (!isGuided && mounted) {
         await _showGuidedAccessPrompt();
@@ -516,7 +519,7 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
               ),
               SizedBox(height: 12),
               Text(
-                'Catatan: Jika belum diaktifkan di sistem, buka Pengaturan iPhone → Aksesibilitas → Akses Terpandu.',
+                'Catatan: Jika belum diaktifkan di sistem, buka Pengaturan perangkat → Aksesibilitas → Akses Terpandu.',
                 style: TextStyle(color: Colors.white54, fontSize: 11, fontStyle: FontStyle.italic),
               ),
             ],
@@ -596,9 +599,13 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
     });
     if (!mounted) return;
     await _goToBlockedScreen(
-      'Mode penguncian layar (Screen Pinning) tidak diaktifkan.\n\n'
-      'Aktifkan "Sematkan layar" di Pengaturan Android, lalu hubungi '
-      'guru untuk mereset sesi sebelum mencoba kembali.',
+      defaultTargetPlatform == TargetPlatform.iOS
+        ? 'Mode penguncian layar (Akses Terpandu / Assessment Mode) tidak diaktifkan.\n\n'
+          'Aktifkan Akses Terpandu di Pengaturan perangkat Anda, lalu hubungi '
+          'pengawas ujian untuk mereset sesi sebelum mencoba kembali.'
+        : 'Mode penguncian layar (Screen Pinning) tidak diaktifkan.\n\n'
+          'Aktifkan "Sematkan layar" di Pengaturan perangkat Anda, lalu hubungi '
+          'pengawas ujian untuk mereset sesi sebelum mencoba kembali.',
     );
   }
 
@@ -885,7 +892,7 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
   Future<({bool success, bool networkError})> _validateAdminExitPassword(
       String entered) async {
     final username = (await AuthService.getUsername()).toLowerCase().trim();
-    final isReviewer = username == 'playstore.review' || username == 'appstore.review';
+    final isReviewer = _isReviewer || KioskController.isReviewerUsername(username);
     if (isReviewer && entered.trim() == '123456') {
       return (success: true, networkError: false);
     }

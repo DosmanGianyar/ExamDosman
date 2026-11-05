@@ -187,7 +187,7 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
   /// Cek apakah aplikasi berjalan di Virtual Machine atau Ruang Ganda / Kloning.
   Future<void> _checkVirtualAndClonedEnvironment() async {
     final username = (await AuthService.getUsername()).toLowerCase().trim();
-    final isReviewer = username == 'playstore.review' || username == 'appstore.review';
+    final isReviewer = KioskController.instance.isReviewer || KioskController.isReviewerUsername(username);
     if (isReviewer) return;
 
     final isVm = await KioskController.instance.checkVirtualEnvironment();
@@ -331,7 +331,7 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
     if (!flags.usbDebugging && !flags.developerMode) return;
 
     final username = (await AuthService.getUsername()).toLowerCase().trim();
-    final isReviewer = username == 'playstore.review' || username == 'appstore.review';
+    final isReviewer = KioskController.instance.isReviewer || KioskController.isReviewerUsername(username);
     if (!mounted) return;
 
     if (!isReviewer && flags.usbDebugging) {
@@ -964,7 +964,7 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
 
     // Jika pelanggaran keamanan (unpin, split screen, VM, cloned app, Bluetooth, screen cast)
     final username = (await AuthService.getUsername()).toLowerCase().trim();
-    final isReviewer = username == 'playstore.review' || username == 'appstore.review';
+    final isReviewer = KioskController.instance.isReviewer || KioskController.isReviewerUsername(username);
     if (isReviewer) return;
 
     final fatalReasons = [

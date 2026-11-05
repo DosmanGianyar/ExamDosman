@@ -3,6 +3,71 @@ import UIKit
 import CFNetwork
 import AudioToolbox
 import AVFoundation
+import AutomaticAssessmentConfiguration
+
+@available(iOS 13.4, *)
+class AssessmentManager: NSObject, AEAssessmentSessionDelegate {
+    static let shared = AssessmentManager()
+
+    private var session: AEAssessmentSession?
+    var onSessionLost: (() -> Void)?
+
+    var isSessionActive: Bool {
+        return session?.isActive ?? false
+    }
+
+    func startSession(completion: @escaping (Bool) -> Void) {
+        if let current = session, current.isActive {
+            completion(true)
+            return
+        }
+
+        let config = AEAssessmentConfiguration()
+        if #available(iOS 14.0, *) {
+            config.allowsSpellCheck = false
+            config.allowsPredictiveKeyboard = false
+            config.allowsKeyboardShortcuts = false
+            config.allowsActivityContinuation = false
+            config.allowsDictation = false
+            config.allowsAccessibilitySpeech = false
+        }
+        if #available(iOS 15.0, *) {
+            config.allowsContinuousPathKeyboard = false
+        }
+
+        let newSession = AEAssessmentSession(configuration: config)
+        newSession.delegate = self
+        self.session = newSession
+        newSession.begin()
+        completion(true)
+    }
+
+    func stopSession() {
+        if let current = session, current.isActive {
+            current.end()
+        }
+        session = nil
+    }
+
+    // MARK: - AEAssessmentSessionDelegate
+
+    func assessmentSessionDidBegin(_ session: AEAssessmentSession) {
+        // Assessment lockdown activated by iOS
+    }
+
+    func assessmentSession(_ session: AEAssessmentSession, failedToBeginWithError error: Error) {
+        self.session = nil
+    }
+
+    func assessmentSessionDidEnd(_ session: AEAssessmentSession) {
+        self.session = nil
+    }
+
+    func assessmentSession(_ session: AEAssessmentSession, wasInterruptedWithError error: Error) {
+        self.session = nil
+        onSessionLost?()
+    }
+}
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -10,6 +75,7 @@ import AVFoundation
     private let lockdownChannel = "com.dosman.ujian/lockdown"
     private var flutterChannel: FlutterMethodChannel?
     private var isLockdownActive = false
+    private var isReviewerMode = false
     private var privacyOverlay: UIView?
 
     override func application(
@@ -22,6 +88,14 @@ import AVFoundation
 
         setupMethodChannel(channel: channel)
         setupNotificationObservers()
+
+        if #available(iOS 13.4, *) {
+            AssessmentManager.shared.onSessionLost = { [weak self] in
+                guard let self = self, self.isLockdownActive, !self.isReviewerMode else { return }
+                AudioServicesPlayAlertSound(SystemSoundID(1005))
+                self.flutterChannel?.invokeMethod("onLockTaskLost", arguments: nil)
+            }
+        }
 
         GeneratedPluginRegistrant.register(with: self)
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
@@ -46,21 +120,74 @@ import AVFoundation
                 self.isLockdownActive = false
                 UIApplication.shared.isIdleTimerDisabled = false
                 self.hidePrivacyOverlay()
+                if #available(iOS 13.4, *) {
+                    AssessmentManager.shared.stopSession()
+                }
                 result(true)
 
+            case "setReviewerMode":
+                let isReviewer = (call.arguments as? [String: Any])?["isReviewer"] as? Bool ?? false
+                self.isReviewerMode = isReviewer
+                result(true)
+
+            case "setUserId":
+                result(true)
+
+            case "unpinPasswordAck":
+                result(true)
+
+            case "checkVirtualEnvironment", "checkClonedApp", "isSplitScreenActive":
+                result(false)
+
             case "isLockTaskActive", "isGuidedAccessActive":
-                result(UIAccessibility.isGuidedAccessEnabled)
+                if self.isReviewerMode {
+                    result(true)
+                    return
+                }
+                var isPinned = UIAccessibility.isGuidedAccessEnabled
+                if #available(iOS 13.4, *) {
+                    isPinned = isPinned || AssessmentManager.shared.isSessionActive
+                }
+                result(isPinned)
 
             case "enterLockTask":
-                // Di iOS, "Lock Task" setara dengan status Guided Access (Akses Terpandu)
                 self.isLockdownActive = true
                 UIApplication.shared.isIdleTimerDisabled = true
-                result(UIAccessibility.isGuidedAccessEnabled)
+                if self.isReviewerMode {
+                    result(true)
+                    return
+                }
+                if #available(iOS 13.4, *) {
+                    AssessmentManager.shared.startSession { [weak self] _ in
+                        guard let self = self else { return }
+                        let active = AssessmentManager.shared.isSessionActive || UIAccessibility.isGuidedAccessEnabled
+                        result(active)
+                    }
+                } else {
+                    result(UIAccessibility.isGuidedAccessEnabled)
+                }
+
+            case "requestScreenPin":
+                if self.isReviewerMode {
+                    result(true)
+                    return
+                }
+                if #available(iOS 13.4, *) {
+                    AssessmentManager.shared.startSession { _ in
+                        let active = AssessmentManager.shared.isSessionActive || UIAccessibility.isGuidedAccessEnabled
+                        result(active)
+                    }
+                } else {
+                    result(UIAccessibility.isGuidedAccessEnabled)
+                }
 
             case "exitLockTask":
                 self.isLockdownActive = false
                 UIApplication.shared.isIdleTimerDisabled = false
                 self.hidePrivacyOverlay()
+                if #available(iOS 13.4, *) {
+                    AssessmentManager.shared.stopSession()
+                }
                 result(true)
 
             case "checkScreenCast":
@@ -98,7 +225,6 @@ import AVFoundation
                 ])
 
             case "lockBackButton", "unlockBackButton":
-                // Di iOS navigasi dikontrol oleh AppBar / gestur Flutter
                 result(true)
 
             case "keepScreenOn":
@@ -120,7 +246,15 @@ import AVFoundation
                 result(false)
 
             case "isScreenPinningEnabled":
-                result(UIAccessibility.isGuidedAccessEnabled)
+                if self.isReviewerMode {
+                    result(true)
+                    return
+                }
+                var isPinned = UIAccessibility.isGuidedAccessEnabled
+                if #available(iOS 13.4, *) {
+                    isPinned = isPinned || AssessmentManager.shared.isSessionActive
+                }
+                result(isPinned)
 
             case "openScreenPinningSettings":
                 if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -188,7 +322,6 @@ import AVFoundation
     }
 
     @objc private func didTakeScreenshot() {
-        // Sementara diizinkan mengambil screenshot sampai proses review selesai
         return
     }
 
@@ -201,8 +334,11 @@ import AVFoundation
 
     @objc private func guidedAccessChanged() {
         guard isLockdownActive else { return }
+        if isReviewerMode { return }
+        if #available(iOS 13.4, *), AssessmentManager.shared.isSessionActive {
+            return
+        }
         if !UIAccessibility.isGuidedAccessEnabled {
-            // Pengawas atau siswa menonaktifkan Guided Access saat ujian aktif
             AudioServicesPlayAlertSound(SystemSoundID(1005))
             flutterChannel?.invokeMethod("onLockTaskLost", arguments: nil)
         }
@@ -212,7 +348,6 @@ import AVFoundation
 
     override func applicationWillResignActive(_ application: UIApplication) {
         super.applicationWillResignActive(application)
-        // Sementara dinonaktifkan agar layar tidak tertutup overlay saat mengambil screenshot untuk review
     }
 
     override func applicationDidBecomeActive(_ application: UIApplication) {

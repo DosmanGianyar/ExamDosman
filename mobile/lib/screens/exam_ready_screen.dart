@@ -148,7 +148,7 @@ class _ExamReadyScreenState extends State<ExamReadyScreen>
 
   Future<bool> _verifyPreExamSecurity() async {
     final username = (await AuthService.getUsername()).toLowerCase().trim();
-    final isReviewer = username == 'playstore.review' || username == 'appstore.review';
+    final isReviewer = KioskController.instance.isReviewer || KioskController.isReviewerUsername(username);
 
     if (!isReviewer) {
       // 1. Virtual Machine (VMOS, VPhone, dll.)
