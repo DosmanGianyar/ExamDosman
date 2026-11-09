@@ -1,5 +1,5 @@
 ﻿# Generator ikon launcher Android & iOS untuk Exam Dosman.
-# Gaya: latar navy gradasi + logo sekolah besar di tengah (tanpa cincin).
+# Gaya: latar navy gradasi + cincin gold + logo sekolah di tengah.
 #
 # Pemakaian (dari folder mobile/):
 #   powershell -ExecutionPolicy Bypass -File tool\generate_app_icons.ps1
@@ -11,8 +11,11 @@ param(
     [string]$Logo        = "assets/logo_sekolah_original.png",
     [string]$ColorCenter = "#1E4C93",   # navy terang (tengah)
     [string]$ColorEdge   = "#0A1633",   # navy gelap (tepi)
-    [double]$LogoScale   = 0.80,        # tinggi logo vs sisi ikon (iOS & legacy Android)
-    [double]$FgScale     = 0.47         # tinggi logo vs kanvas adaptive foreground (108dp)
+    [double]$LogoScale   = 0.60,        # tinggi logo vs sisi ikon (iOS & legacy Android)
+    [double]$RingDiam    = 0.86,        # diameter cincin gold vs sisi ikon (iOS & legacy)
+    [double]$FgRingDiam  = 0.60,        # diameter cincin gold vs kanvas adaptive (108dp)
+    [double]$RingStroke  = 0.045,       # tebal cincin vs diameter cincin
+    [double]$FgScale     = 0.42         # tinggi logo vs kanvas adaptive foreground (108dp)
 )
 
 $ErrorActionPreference = "Stop"
@@ -65,6 +68,32 @@ function Draw-Logo($g, [int]$size, [double]$scale) {
     $g.DrawImage($logoImg, [single]$x, [single]$y, [single]$w, [single]$h)
 }
 
+function Draw-Ring($g, [int]$size, [double]$diamRatio) {
+    # Cincin gold metalik di tengah ikon.
+    $d  = $size * $diamRatio
+    $t  = [math]::Max(1.0, $d * $RingStroke)
+    $x  = ($size - $d) / 2 + $t / 2
+    $dd = $d - $t
+    $rect = New-Object System.Drawing.RectangleF ([single]$x), ([single]$x), ([single]$dd), ([single]$dd)
+    # bayangan tipis
+    $sh = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(90, 0, 0, 0)), ([single]$t)
+    $rs = New-Object System.Drawing.RectangleF ([single]$x), ([single]($x + $t * 0.35)), ([single]$dd), ([single]$dd)
+    $g.DrawEllipse($sh, $rs)
+    # gradasi gold
+    $br = New-Object System.Drawing.Drawing2D.LinearGradientBrush (New-Object System.Drawing.PointF 0, 0), (New-Object System.Drawing.PointF $size, $size), ([System.Drawing.Color]::Black), ([System.Drawing.Color]::Black)
+    $blend = New-Object System.Drawing.Drawing2D.ColorBlend 5
+    $blend.Colors = @(
+        [System.Drawing.ColorTranslator]::FromHtml("#FFE9A3"),
+        [System.Drawing.ColorTranslator]::FromHtml("#D4A537"),
+        [System.Drawing.ColorTranslator]::FromHtml("#F6D77A"),
+        [System.Drawing.ColorTranslator]::FromHtml("#B8862B"),
+        [System.Drawing.ColorTranslator]::FromHtml("#F2CF6B"))
+    $blend.Positions = @(0.0, 0.3, 0.5, 0.75, 1.0)
+    $br.InterpolationColors = $blend
+    $pen = New-Object System.Drawing.Pen $br, ([single]$t)
+    $g.DrawEllipse($pen, $rect)
+}
+
 function RoundedRect([int]$size, [double]$radiusRatio) {
     $r = $size * $radiusRatio; $d = $r * 2
     $p = New-Object System.Drawing.Drawing2D.GraphicsPath
@@ -98,19 +127,19 @@ $iosSizes = @{
 }
 foreach ($k in $iosSizes.Keys) {
     $s = $iosSizes[$k]; $bmp, $g = New-Canvas $s $false
-    Fill-Background $g $s $null; Draw-Logo $g $s $LogoScale
+    Fill-Background $g $s $null; Draw-Ring $g $s $RingDiam; Draw-Logo $g $s $LogoScale
     Save $bmp "$ios/$k"; $g.Dispose(); $bmp.Dispose()
 }
 # Master untuk store listing / referensi
-$bmp, $g = New-Canvas 1024 $false; Fill-Background $g 1024 $null; Draw-Logo $g 1024 $LogoScale
+$bmp, $g = New-Canvas 1024 $false; Fill-Background $g 1024 $null; Draw-Ring $g 1024 $RingDiam; Draw-Logo $g 1024 $LogoScale
 Save $bmp "assets/icon/app_icon_1024.png"; $g.Dispose(); $bmp.Dispose()
 # Sumber untuk flutter_launcher_icons (jika dijalankan di PC yang ada Flutter)
-$bmp, $g = New-Canvas 1024 $true; $g.Clear([System.Drawing.Color]::Transparent); Draw-Logo $g 1024 $FgScale
+$bmp, $g = New-Canvas 1024 $true; $g.Clear([System.Drawing.Color]::Transparent); Draw-Ring $g 1024 $FgRingDiam; Draw-Logo $g 1024 $FgScale
 Save $bmp "assets/icon/app_icon_foreground.png"; $g.Dispose(); $bmp.Dispose()
 $bmp, $g = New-Canvas 1024 $false; Fill-Background $g 1024 $null
 Save $bmp "assets/icon/app_icon_background.png"; $g.Dispose(); $bmp.Dispose()
 # Play Store icon 512
-$bmp, $g = New-Canvas 512 $false; Fill-Background $g 512 $null; Draw-Logo $g 512 $LogoScale
+$bmp, $g = New-Canvas 512 $false; Fill-Background $g 512 $null; Draw-Ring $g 512 $RingDiam; Draw-Logo $g 512 $LogoScale
 Save $bmp "assets/icon/play_store_512.png"; $g.Dispose(); $bmp.Dispose()
 
 # ---------- Android ----------
@@ -123,13 +152,13 @@ foreach ($d in $dens.Keys) {
     $s = [int](48 * $m); $bmp, $g = New-Canvas $s $true
     $g.Clear([System.Drawing.Color]::Transparent)
     $rr = RoundedRect $s 0.20
-    Fill-Background $g $s $rr; Draw-Logo $g $s $LogoScale
+    Fill-Background $g $s $rr; Draw-Ring $g $s $RingDiam; Draw-Logo $g $s $LogoScale
     Save $bmp "$res/mipmap-$d/ic_launcher.png"; $g.Dispose(); $bmp.Dispose()
 
     # Adaptive (Android 8+): kanvas 108dp, logo dalam safe zone
     $s = [int](108 * $m)
     $bmp, $g = New-Canvas $s $true; $g.Clear([System.Drawing.Color]::Transparent)
-    Draw-Logo $g $s $FgScale
+    Draw-Ring $g $s $FgRingDiam; Draw-Logo $g $s $FgScale
     Save $bmp "$res/drawable-$d/ic_launcher_foreground.png"; $g.Dispose(); $bmp.Dispose()
 
     $bmp, $g = New-Canvas $s $true; Fill-Background $g $s $null
@@ -148,3 +177,4 @@ Write-Host "  $res/mipmap-anydpi-v26/ic_launcher.xml"
 
 $logoImg.Dispose()
 Write-Host "Selesai."
+
