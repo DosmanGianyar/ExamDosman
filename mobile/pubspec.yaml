@@ -40,12 +40,14 @@ flutter:
   assets:
     - assets/
 
-# Ikon launcher APK / iOS — sumber: logo sekolah (PNG persegi atau hampir persegi, min. 1024px disarankan).
-# Setelah ganti gambar: dart run flutter_launcher_icons
+# Ikon launcher APK / iOS — gaya: latar navy gradasi + logo sekolah besar.
+# Cara utama (tanpa Flutter): powershell -ExecutionPolicy Bypass -File tool\generate_app_icons.ps1
+# Alternatif: dart run flutter_launcher_icons (memakai gambar hasil script di assets/icon/)
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: assets/logo_sekolah.png
+  image_path: assets/icon/app_icon_1024.png
   min_sdk_android: 21
-  adaptive_icon_background: "#0F2044"
+  adaptive_icon_background: assets/icon/app_icon_background.png
+  adaptive_icon_foreground: assets/icon/app_icon_foreground.png
   remove_alpha_ios: true
