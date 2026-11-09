@@ -1,4 +1,4 @@
-﻿# Generator ikon launcher Android & iOS untuk Exam Dosman.
+# Generator ikon launcher Android & iOS untuk Exam Dosman.
 # Gaya: latar navy gradasi + cincin gold + logo sekolah di tengah.
 #
 # Pemakaian (dari folder mobile/):

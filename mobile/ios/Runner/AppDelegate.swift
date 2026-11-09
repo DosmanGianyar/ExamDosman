@@ -322,7 +322,10 @@ class AssessmentManager: NSObject, AEAssessmentSessionDelegate {
     }
 
     @objc private func didTakeScreenshot() {
-        return
+        // iOS tidak mengizinkan aplikasi memblokir screenshot; yang bisa dilakukan
+        // adalah mendeteksi lalu melaporkannya sebagai pelanggaran ke server.
+        guard isLockdownActive, !isReviewerMode else { return }
+        flutterChannel?.invokeMethod("onScreenshotDetected", arguments: nil)
     }
 
     @objc private func screenCaptureChanged() {

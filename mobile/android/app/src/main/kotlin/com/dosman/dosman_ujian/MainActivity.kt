@@ -663,7 +663,13 @@ class MainActivity : FlutterActivity() {
 
                 "enableLockdown" -> {
                     try {
-                        window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) // Sementara diizinkan screenshot untuk review
+                        // FLAG_SECURE: blokir screenshot & screen recording (hasil jadi hitam).
+                        // Akun reviewer Play/App Store dikecualikan agar bisa mengambil tangkapan layar.
+                        if (isReviewerAccount) {
+                            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                        } else {
+                            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                        }
                         result.success(true)
                     } catch (e: Exception) {
                         result.error("LOCKDOWN_ERROR", e.message, null)

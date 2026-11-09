@@ -794,7 +794,20 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
 
   /// Dipanggil oleh KioskController saat native mendeteksi pelanggaran (split-screen, dll.)
   void _onNativeViolation(String reason) {
-    if (reason == 'screenshot_attempt') return;
+    if (reason == 'screenshot_attempt') {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Color(0xFFB71C1C),
+            duration: Duration(seconds: 5),
+            content: Text(
+              'Screenshot dilarang saat ujian! Percobaan screenshot telah dicatat.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
     if (_blockSent || !mounted) return;
     if (_wifiSettingsActive) return;
     _blockSent = true;

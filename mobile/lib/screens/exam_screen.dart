@@ -187,9 +187,25 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
 
   /// Dipanggil KioskController saat native mendeteksi pelanggaran (split-screen, unpin, VM, kloning, dll.).
   void _onNativeViolation(String reason) {
-    if (reason == 'screenshot_attempt') return;
     if (_isReviewer) return;
     _logViolation(reason, data: {'phase': _webPhase});
+
+    // Screenshot (iOS hanya bisa dideteksi, tidak bisa diblokir): catat ke server
+    // sebagai pelanggaran & peringatkan siswa — tidak langsung menangguhkan akun.
+    if (reason == 'screenshot_attempt') {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Color(0xFFB71C1C),
+            duration: Duration(seconds: 5),
+            content: Text(
+              'Screenshot dilarang saat ujian! Pelanggaran ini telah dicatat dan dilaporkan ke pengawas.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
 
     final fatalReasons = [
       'lock_task_lost',
