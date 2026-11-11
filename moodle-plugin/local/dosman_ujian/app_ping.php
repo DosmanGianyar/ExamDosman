@@ -97,15 +97,15 @@ try {
         }
     }
 
-    // Ambil lock_status saat ini (jika ada)
+    // Ambil lock_status dan lastping saat ini (jika ada)
     $stmtCur = $pdo->prepare(
-        "SELECT lock_status FROM {$prefix}local_dosman_ujian_appstatus
+        "SELECT lock_status, lastping, platform FROM {$prefix}local_dosman_ujian_appstatus
           WHERE userid = ? LIMIT 1"
     );
     $stmtCur->execute([$userid]);
-    $currentStatus = $stmtCur->fetchColumn();
+    $curRow = $stmtCur->fetch(PDO::FETCH_OBJ);
 
-    if ($currentStatus === false) {
+    if (!$curRow) {
         // Belum ada record → insert baru dengan lock_status = 1
         $pdo->prepare(
             "INSERT INTO {$prefix}local_dosman_ujian_appstatus
@@ -114,22 +114,29 @@ try {
         )->execute([$userid, $now, $ip, $platform]);
         $finalStatus = 1;
     } else {
-        $currentStatus = (int)$currentStatus;
+        $currentStatus = (int)$curRow->lock_status;
+        $elapsedPing   = $now - (int)$curRow->lastping;
+        $platChanged   = ($curRow->platform !== $platform);
+
         if (in_array($currentStatus, [2, 3], true)) {
-            // Diblokir atau dijeda — hanya update lastping, jangan ubah lock_status
-            $pdo->prepare(
-                "UPDATE {$prefix}local_dosman_ujian_appstatus
-                    SET lastping = ?, ipaddress = ?, platform = ?
-                  WHERE userid = ?"
-            )->execute([$now, $ip, $platform, $userid]);
+            // Diblokir atau dijeda — hanya update lastping jika sudah >= 15 detik
+            if ($elapsedPing >= 15 || $platChanged) {
+                $pdo->prepare(
+                    "UPDATE {$prefix}local_dosman_ujian_appstatus
+                        SET lastping = ?, ipaddress = ?, platform = ?
+                      WHERE userid = ?"
+                )->execute([$now, $ip, $platform, $userid]);
+            }
             $finalStatus = $currentStatus;
         } else {
-            // Normal → set lock_status = 1 (aktif), update lastping
-            $pdo->prepare(
-                "UPDATE {$prefix}local_dosman_ujian_appstatus
-                    SET lastping = ?, ipaddress = ?, lock_status = 1, platform = ?
-                  WHERE userid = ?"
-            )->execute([$now, $ip, $platform, $userid]);
+            // Normal → set lock_status = 1 (aktif), update lastping jika sudah >= 15 detik atau lock_status != 1
+            if ($currentStatus !== 1 || $elapsedPing >= 15 || $platChanged) {
+                $pdo->prepare(
+                    "UPDATE {$prefix}local_dosman_ujian_appstatus
+                        SET lastping = ?, ipaddress = ?, lock_status = 1, platform = ?
+                      WHERE userid = ?"
+                )->execute([$now, $ip, $platform, $userid]);
+            }
             $finalStatus = 1;
         }
     }

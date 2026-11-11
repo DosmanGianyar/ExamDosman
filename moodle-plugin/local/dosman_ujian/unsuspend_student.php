@@ -105,6 +105,7 @@ try {
     )->execute([$userid]);
 
     $pdo->commit();
+    @unlink('/dev/shm/dosman_app_users_cache.json');
 
     echo json_encode(['success' => true, 'message' => 'Akun berhasil diaktifkan kembali']);
 

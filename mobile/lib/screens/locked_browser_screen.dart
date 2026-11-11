@@ -164,22 +164,21 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
     }
   }
 
-  /// Mulai kirim ping ke server secara berkala.
-  /// - browser_heartbeat setiap 20 detik (bukti app masih aktif)
-  /// - app_ping (update lastping di appstatus) setiap 30 detik
-  ///   agar server tidak menyuspensi siswa saat layar mati
+  /// Mulai kirim ping ke server secara berkala (Dioptimalkan untuk 800+ siswa serentak).
+  /// - app_ping (update lastping di appstatus & cek broadcast) setiap 45 detik
+  ///   agar beban server hemat namun status kehadiran siswa tetap real-time (< 5 menit threshold).
   void _startBrowserPing(int userId) {
     _pingTimer?.cancel();
-    ExamService.sendBrowserHeartbeat(userId: userId);
     ExamService.pingAppLogin();
     var tick = 0;
-    _pingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+    _pingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (!mounted) return;
       tick++;
-      ExamService.sendBrowserHeartbeat(userId: userId);
       if (tick % 3 == 0) {
-        ExamService.pingAppLogin(); // setiap 30 detik
-        _checkBluetoothAudio();     // pantau earphone/TWS Bluetooth berkala
+        ExamService.pingAppLogin(); // setiap 45 detik
+      }
+      if (tick % 2 == 0) {
+        _checkBluetoothAudio();     // pantau earphone/TWS Bluetooth setiap 30 detik (lokal, tanpa beban server)
       }
     });
   }

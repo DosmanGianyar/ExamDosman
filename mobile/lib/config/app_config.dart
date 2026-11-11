@@ -27,8 +27,8 @@ class AppConfig {
   // MethodChannel untuk komunikasi Flutter <-> Android/iOS native
   static const String lockdownChannel = 'com.dosman.ujian/lockdown';
 
-  // Interval heartbeat (detik)
-  static const int heartbeatInterval = 10;
+  // Interval heartbeat (detik) — dioptimalkan untuk kapasitas 800+ siswa serentak
+  static const int heartbeatInterval = 25;
 
   // User agent WebView ujian — kata kunci dikenali server Moodle.
   static String get examBrowserUserAgent {

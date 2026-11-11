@@ -30,14 +30,17 @@ if (empty($USER->id) || \isguestuser($USER)) {
     exit;
 }
 
+$userid = (int)$USER->id;
+// Lepaskan session lock Redis seketika agar klik soal / autosave kuis 800 siswa tidak pernah mengantre!
+\core\session\manager::write_close();
+
 $quizid = (int)($_GET['quizid'] ?? 0);
 if ($quizid <= 0) {
     echo json_encode(['status' => 'error', 'reason' => 'missing_quizid']);
     exit;
 }
 
-$now    = time();
-$userid = (int)$USER->id;
+$now = time();
 
 $quiz = $DB->get_record('quiz', ['id' => $quizid], 'id,course');
 if (!$quiz) {
@@ -60,11 +63,14 @@ if ($existing) {
         echo json_encode(['status' => 'blocked', 'reason' => $existing->blocked_reason ?? '']);
         exit;
     }
-    $DB->update_record('local_dosman_ujian_sessions', (object)[
-        'id'             => $existing->id,
-        'last_heartbeat' => $now,
-        'timemodified'   => $now,
-    ]);
+    // Optimasi 800 siswa: hanya update jika last_heartbeat sudah >= 15 detik
+    if (($now - (int)$existing->last_heartbeat) >= 15) {
+        $DB->update_record('local_dosman_ujian_sessions', (object)[
+            'id'             => $existing->id,
+            'last_heartbeat' => $now,
+            'timemodified'   => $now,
+        ]);
+    }
 } else {
     $uaStr = substr($ua, 0, 512);
     $DB->insert_record('local_dosman_ujian_sessions', (object)[

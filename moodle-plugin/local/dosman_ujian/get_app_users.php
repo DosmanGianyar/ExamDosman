@@ -67,6 +67,17 @@ try {
         exit;
     }
 
+    // Optimasi 800 siswa: Gunakan RAM micro-cache (/dev/shm) berdurasi 3 detik
+    // agar banyak pengawas yang membuka dashboard bersamaan tidak membebani MySQL dengan JOIN 1.200+ baris.
+    $cacheFile = '/dev/shm/dosman_app_users_cache.json';
+    if (is_readable($cacheFile) && (time() - @filemtime($cacheFile)) < 3) {
+        $cachedJson = @file_get_contents($cacheFile);
+        if ($cachedJson !== false && $cachedJson !== '') {
+            echo $cachedJson;
+            exit;
+        }
+    }
+
     // Jalankan stale-check jika diperlukan
     $now = time();
     $staleInc = __DIR__ . '/stale_app_ping_suspend.inc.php';
@@ -200,7 +211,11 @@ try {
         ];
     }
 
-    echo json_encode(['users' => $users]);
+    $jsonOut = json_encode(['users' => $users]);
+    if (is_dir('/dev/shm') && is_writable('/dev/shm')) {
+        @file_put_contents($cacheFile, $jsonOut, LOCK_EX);
+    }
+    echo $jsonOut;
 
 } catch (Throwable $e) {
     http_response_code(500);

@@ -108,20 +108,28 @@ class before_http_headers {
             }
             // Halaman quiz lain (summary, processattempt) atau request AJAX → biarkan nilai lama
 
-            // Upsert appstatus: set lock_status=1 jika baru, update current_quizid hanya jika perlu
+            // Optimasi 800 siswa: hanya tulis ke DB jika status baru (lock=0),
+            // atau current_quizid berubah, atau lastping sudah >= 20 detik lalu.
             if ($appRow) {
-                $upd = (object)[
-                    'id'        => $appRow->id,
-                    'lastping'  => $now,
-                    'ipaddress' => $ip,
-                ];
-                if ($updateQuizId) {
-                    $upd->current_quizid = $currentQuizId;
+                $timeSinceLastPing = $now - (int)$appRow->lastping;
+                $quizChanged = $updateQuizId && ((int)$appRow->current_quizid !== $currentQuizId);
+                $lockChanged = ($lock === 0);
+                $ipChanged   = ($ip !== '' && $appRow->ipaddress !== $ip);
+
+                if ($lockChanged || $quizChanged || $timeSinceLastPing >= 20 || $ipChanged) {
+                    $upd = (object)[
+                        'id'        => $appRow->id,
+                        'lastping'  => $now,
+                        'ipaddress' => $ip,
+                    ];
+                    if ($updateQuizId) {
+                        $upd->current_quizid = $currentQuizId;
+                    }
+                    if ($lockChanged) {
+                        $upd->lock_status = 1;
+                    }
+                    $DB->update_record('local_dosman_ujian_appstatus', $upd);
                 }
-                if ($lock === 0) {
-                    $upd->lock_status = 1;
-                }
-                $DB->update_record('local_dosman_ujian_appstatus', $upd);
             } else {
                 $DB->insert_record('local_dosman_ujian_appstatus', (object)[
                     'userid'          => (int)$USER->id,
@@ -132,8 +140,8 @@ class before_http_headers {
                 ]);
             }
 
-            // Di halaman kuis: auto-daftarkan sesi monitoring
-            if ($is_quiz_page) {
+            // Di halaman kuis non-AJAX: auto-daftarkan/perbarui sesi monitoring
+            if ($is_quiz_page && !(defined('AJAX_SCRIPT') && AJAX_SCRIPT)) {
                 self::auto_register_session((int)$USER->id, $script);
             }
             return;
@@ -309,12 +317,15 @@ HTML;
         $existing = $DB->get_record('local_dosman_ujian_sessions', ['userid' => $userid, 'quizid' => $quizid]);
         if ($existing) {
             if ($existing->status === 'blocked') return;
-            $DB->update_record('local_dosman_ujian_sessions', (object)[
-                'id'             => $existing->id,
-                'last_heartbeat' => $now,
-                'useragent'      => $ua,
-                'timemodified'   => $now,
-            ]);
+            // Optimasi 800 siswa: hindari UPDATE berulang di setiap klik soal jika heartbeat masih segar (< 20 detik)
+            if (($now - (int)$existing->last_heartbeat) >= 20) {
+                $DB->update_record('local_dosman_ujian_sessions', (object)[
+                    'id'             => $existing->id,
+                    'last_heartbeat' => $now,
+                    'useragent'      => $ua,
+                    'timemodified'   => $now,
+                ]);
+            }
         } else {
             $DB->insert_record('local_dosman_ujian_sessions', (object)[
                 'userid' => $userid, 'quizid' => $quizid, 'courseid' => $courseid,
@@ -362,11 +373,15 @@ HTML;
 
         $existing = $DB->get_record('local_dosman_ujian_appstatus', ['userid' => $userid]);
         if ($existing) {
-            $upd = (object)['id' => $existing->id, 'lastping' => $now, 'ipaddress' => $ip];
-            if ($updateQuizId) {
-                $upd->current_quizid = $currentQuizId;
+            $timeSinceLastPing = $now - (int)$existing->lastping;
+            $quizChanged = $updateQuizId && ((int)$existing->current_quizid !== $currentQuizId);
+            if ($quizChanged || $timeSinceLastPing >= 20) {
+                $upd = (object)['id' => $existing->id, 'lastping' => $now, 'ipaddress' => $ip];
+                if ($updateQuizId) {
+                    $upd->current_quizid = $currentQuizId;
+                }
+                $DB->update_record('local_dosman_ujian_appstatus', $upd);
             }
-            $DB->update_record('local_dosman_ujian_appstatus', $upd);
         } else {
             $DB->insert_record('local_dosman_ujian_appstatus', (object)[
                 'userid'         => $userid,
@@ -443,11 +458,17 @@ HTML;
 
     private static function is_teacher_or_above(int $userid): bool {
         global $DB;
+        // Cache di $_SESSION agar tidak query JOIN role_assignments di setiap klik soal / AJAX 800 siswa
+        if (isset($_SESSION['dosman_is_teacher_' . $userid])) {
+            return (bool)$_SESSION['dosman_is_teacher_' . $userid];
+        }
         $sql = "SELECT COUNT(ra.id)
                   FROM {role_assignments} ra
                   JOIN {role} r ON r.id = ra.roleid
                  WHERE ra.userid = :userid
                    AND r.archetype IN ('manager','coursecreator','editingteacher','teacher')";
-        return $DB->count_records_sql($sql, ['userid' => $userid]) > 0;
+        $res = $DB->count_records_sql($sql, ['userid' => $userid]) > 0;
+        $_SESSION['dosman_is_teacher_' . $userid] = $res;
+        return $res;
     }
 }

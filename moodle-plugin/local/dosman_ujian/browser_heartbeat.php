@@ -39,6 +39,13 @@ if (!hash_equals(BHB_APIKEY, $apikey) || $userid <= 0) {
     exit;
 }
 
+// Optimasi 800 siswa: saat active=1, kehadiran sudah dicatat oleh app_ping.php & before_http_headers.php
+// di tabel mdl_local_dosman_ujian_appstatus. Hindari penulisan ke tabel inti mdl_config_plugins!
+if ($active !== 0) {
+    echo json_encode(['success' => true]);
+    exit;
+}
+
 try {
     $configfile = __DIR__ . '/../../config.php';
     $src = file_get_contents($configfile);
@@ -55,30 +62,19 @@ try {
     ]);
     $prefix = $cfg['prefix'] ?? 'mdl_';
 
-    if ($active === 0) {
-        // Siswa keluar aplikasi: hapus dari appstatus + sesi monitoring + logout Moodle
-        $pdo->prepare(
-            "DELETE FROM {$prefix}local_dosman_ujian_appstatus WHERE userid = ?"
-        )->execute([$userid]);
-        $pdo->prepare(
-            "DELETE FROM {$prefix}local_dosman_ujian_sessions WHERE userid = ?"
-        )->execute([$userid]);
-        $pdo->prepare(
-            "DELETE FROM {$prefix}sessions WHERE userid = ?"
-        )->execute([$userid]);
-        echo json_encode(['success' => true, 'action' => 'logout']);
-        exit;
-    }
-
-    // active = 1: catat heartbeat agar server tahu app masih terbuka
-    $val = json_encode(['ts' => time(), 'active' => 1]);
+    // Siswa keluar aplikasi: hapus dari appstatus + sesi monitoring + logout Moodle
     $pdo->prepare(
-        "INSERT INTO {$prefix}config_plugins (plugin, name, value)
-         VALUES ('local_dosman_ujian', ?, ?)
-         ON DUPLICATE KEY UPDATE value = VALUES(value)"
-    )->execute(['browser_hb_' . $userid, $val]);
-
-    echo json_encode(['success' => true]);
+        "DELETE FROM {$prefix}local_dosman_ujian_appstatus WHERE userid = ?"
+    )->execute([$userid]);
+    $pdo->prepare(
+        "DELETE FROM {$prefix}local_dosman_ujian_sessions WHERE userid = ?"
+    )->execute([$userid]);
+    $pdo->prepare(
+        "DELETE FROM {$prefix}sessions WHERE userid = ?"
+    )->execute([$userid]);
+    @unlink('/dev/shm/dosman_app_users_cache.json');
+    echo json_encode(['success' => true, 'action' => 'logout']);
+    exit;
 } catch (Throwable $e) {
     // Gagal simpan heartbeat — tidak kritis, app tetap jalan
     echo json_encode(['success' => false]);

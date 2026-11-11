@@ -113,6 +113,7 @@ try {
         "DELETE FROM {$prefix}sessions WHERE userid = ?"
     )->execute([$userid]);
 
+    @unlink('/dev/shm/dosman_app_users_cache.json');
     echo json_encode(['success' => true]);
 
 } catch (Throwable $e) {

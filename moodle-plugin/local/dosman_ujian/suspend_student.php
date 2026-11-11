@@ -182,6 +182,7 @@ try {
     )->execute([$reason, $userid]);
 
     $pdo->commit();
+    @unlink('/dev/shm/dosman_app_users_cache.json');
 
     echo json_encode(['success' => true, 'message' => 'Akun berhasil di-suspend dan di-logout']);
 

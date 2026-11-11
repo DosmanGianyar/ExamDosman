@@ -164,22 +164,31 @@
   }
 
   /* ─── REFRESH CYCLE ──────────────────────────────────────────────────────── */
+  let refreshCycleCount = 0;
+
   function startAutoRefresh() {
     if (state.countdownInterval) clearInterval(state.countdownInterval);
 
-    state.countdown = 10;
+    state.countdown = 15;
     updateCountdownUI();
 
     state.countdownInterval = setInterval(() => {
-      if (state.isRefreshing) return;
+      if (state.isRefreshing || document.hidden) return;
       state.countdown--;
       updateCountdownUI();
 
       if (state.countdown <= 0) {
-        state.countdown = 10;
+        state.countdown = 15;
         refreshAllData(true);
       }
     }, 1000);
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && !state.isRefreshing) {
+        state.countdown = 15;
+        refreshAllData(true);
+      }
+    });
   }
 
   function updateCountdownUI() {
@@ -192,6 +201,7 @@
   async function refreshAllData(silent = false) {
     if (state.isRefreshing) return;
     state.isRefreshing = true;
+    refreshCycleCount++;
 
     const refreshBtn = document.getElementById('btn-manual-refresh');
     if (refreshBtn && !silent) {
@@ -202,12 +212,15 @@
     try {
       if (state.activeTab === 'live-monitor') {
         await loadLiveUsers();
-        // Background update violations count for tab badge
-        loadViolations(true);
+        // Optimasi 800 siswa: update badge pelanggaran hanya saat load pertama atau setiap 3 siklus (45 detik)
+        if (!silent || refreshCycleCount % 3 === 1) {
+          loadViolations(true);
+        }
       } else if (state.activeTab === 'suspended-violations') {
         await loadViolations();
-        // Background update live users for tab badge
-        loadLiveUsers(true);
+        if (!silent || refreshCycleCount % 3 === 1) {
+          loadLiveUsers(true);
+        }
       } else if (state.activeTab === 'security-password') {
         await loadExitPassword();
       }

@@ -152,7 +152,8 @@ class before_footer {
                   'if(d.status==="blocked"||d.status==="suspended"){location.href="' . $home . '/login/index.php";}' .
                 '})' .
                 '.catch(function(){});}' .
-                'hb();setInterval(hb,15000);' .
+                'var jitter=Math.floor(Math.random()*6000);' .
+                'setTimeout(function(){hb();setInterval(hb,30000+jitter);},2000+jitter);' .
                 '})();</script>';
 
         $hook->add_html($html);

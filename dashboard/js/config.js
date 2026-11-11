@@ -2,7 +2,7 @@ const CONFIG = {
   MOODLE_URL: "https://lms.sman1-gianyar.sch.id:9443",
   /** Sama dengan AppConfig.exitPwdApiKey (mobile) & DOSMAN_EXIT_API_KEY di exitpwd.php */
   EXIT_PWD_API_KEY: "dosman-exam-sman1gianyar-2024",
-  REFRESH_INTERVAL: 10000,
+  REFRESH_INTERVAL: 15000,
   MAX_ALERTS: 15,
   WARNING_THRESHOLD: 2,
   DANGER_THRESHOLD: 5,
