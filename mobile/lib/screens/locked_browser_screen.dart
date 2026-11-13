@@ -1137,8 +1137,16 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
     }
 
     if (fetch.password.isEmpty) {
+      await AuthService.saveBlockedStatus(false);
+      _pingTimer?.cancel();
+      await AuthService.logout();
       await KioskController.instance.unlock();
-      await SystemNavigator.pop();
+      if (!mounted) return;
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      } else {
+        await SystemNavigator.pop();
+      }
       return;
     }
 
@@ -1184,15 +1192,25 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
     _autoUsername = '';
     _autoPassword = '';
     await KioskController.instance.unlock();
-    await SystemNavigator.pop();
+    if (!mounted) return;
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+    } else {
+      await SystemNavigator.pop();
+    }
   }
 
   Future<void> _openWifiSettings() async {
     _wifiSettingsActive = true;
     try {
-      await const MethodChannel('com.dosman.ujian/lockdown')
-          .invokeMethod('openWifiSettings');
-    } catch (_) {}
+      final opened = await const MethodChannel('com.dosman.ujian/lockdown')
+          .invokeMethod<bool>('openWifiSettings');
+      if (opened == false) {
+        _wifiSettingsActive = false;
+      }
+    } catch (_) {
+      _wifiSettingsActive = false;
+    }
   }
 
   void _showPetunjuk() {
@@ -1624,6 +1642,12 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
                                 disableContextMenu: true,
                                 disableLongPressContextMenuOnLinks: true,
                               ),
+                              onPermissionRequest: (controller, request) async {
+                                return PermissionResponse(
+                                  resources: request.resources,
+                                  action: PermissionResponseAction.GRANT,
+                                );
+                              },
                               onReceivedServerTrustAuthRequest: (controller, challenge) async {
                                 final host = challenge.protectionSpace.host;
                                 if (host == '36.93.15.146' || host == 'lms.sman1-gianyar.sch.id') {

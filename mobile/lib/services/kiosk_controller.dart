@@ -161,9 +161,9 @@ class KioskController {
     if (_isReviewer) return true;
     try {
       final res = await _channel.invokeMethod<bool>('isGuidedAccessActive');
-      return res ?? false;
+      return res ?? true;
     } catch (_) {
-      return false;
+      return true;
     }
   }
 

@@ -949,7 +949,20 @@ class MainActivity : FlutterActivity() {
 
                 "openWifiSettings" -> {
                     startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
-                    result.success(null)
+                    result.success(true)
+                }
+
+                "openAppSettings" -> {
+                    try {
+                        val intent = Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.fromParts("package", packageName, null)
+                        ).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                        startActivity(intent)
+                        result.success(true)
+                    } catch (_: Exception) {
+                        result.success(false)
+                    }
                 }
 
                 "keepScreenOn" -> {

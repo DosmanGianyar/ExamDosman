@@ -3,71 +3,6 @@ import UIKit
 import CFNetwork
 import AudioToolbox
 import AVFoundation
-import AutomaticAssessmentConfiguration
-
-@available(iOS 13.4, *)
-class AssessmentManager: NSObject, AEAssessmentSessionDelegate {
-    static let shared = AssessmentManager()
-
-    private var session: AEAssessmentSession?
-    var onSessionLost: (() -> Void)?
-
-    var isSessionActive: Bool {
-        return session?.isActive ?? false
-    }
-
-    func startSession(completion: @escaping (Bool) -> Void) {
-        if let current = session, current.isActive {
-            completion(true)
-            return
-        }
-
-        let config = AEAssessmentConfiguration()
-        if #available(iOS 14.0, *) {
-            config.allowsSpellCheck = false
-            config.allowsPredictiveKeyboard = false
-            config.allowsKeyboardShortcuts = false
-            config.allowsActivityContinuation = false
-            config.allowsDictation = false
-            config.allowsAccessibilitySpeech = false
-        }
-        if #available(iOS 15.0, *) {
-            config.allowsContinuousPathKeyboard = false
-        }
-
-        let newSession = AEAssessmentSession(configuration: config)
-        newSession.delegate = self
-        self.session = newSession
-        newSession.begin()
-        completion(true)
-    }
-
-    func stopSession() {
-        if let current = session, current.isActive {
-            current.end()
-        }
-        session = nil
-    }
-
-    // MARK: - AEAssessmentSessionDelegate
-
-    func assessmentSessionDidBegin(_ session: AEAssessmentSession) {
-        // Assessment lockdown activated by iOS
-    }
-
-    func assessmentSession(_ session: AEAssessmentSession, failedToBeginWithError error: Error) {
-        self.session = nil
-    }
-
-    func assessmentSessionDidEnd(_ session: AEAssessmentSession) {
-        self.session = nil
-    }
-
-    func assessmentSession(_ session: AEAssessmentSession, wasInterruptedWithError error: Error) {
-        self.session = nil
-        onSessionLost?()
-    }
-}
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -112,9 +47,6 @@ class AssessmentManager: NSObject, AEAssessmentSessionDelegate {
                 self.isLockdownActive = false
                 UIApplication.shared.isIdleTimerDisabled = false
                 self.hidePrivacyOverlay()
-                if #available(iOS 13.4, *) {
-                    AssessmentManager.shared.stopSession()
-                }
                 result(true)
 
             case "setReviewerMode":
@@ -131,7 +63,7 @@ class AssessmentManager: NSObject, AEAssessmentSessionDelegate {
             case "checkVirtualEnvironment", "checkClonedApp", "isSplitScreenActive":
                 result(false)
 
-            case "isLockTaskActive", "isGuidedAccessActive":
+            case "isLockTaskActive", "isGuidedAccessActive", "isScreenPinningEnabled":
                 result(true)
 
             case "enterLockTask", "requestScreenPin":
@@ -143,9 +75,6 @@ class AssessmentManager: NSObject, AEAssessmentSessionDelegate {
                 self.isLockdownActive = false
                 UIApplication.shared.isIdleTimerDisabled = false
                 self.hidePrivacyOverlay()
-                if #available(iOS 13.4, *) {
-                    AssessmentManager.shared.stopSession()
-                }
                 result(true)
 
             case "checkScreenCast":
@@ -203,18 +132,7 @@ class AssessmentManager: NSObject, AEAssessmentSessionDelegate {
             case "openDndSettings":
                 result(false)
 
-            case "isScreenPinningEnabled":
-                if self.isReviewerMode {
-                    result(true)
-                    return
-                }
-                var isPinned = UIAccessibility.isGuidedAccessEnabled
-                if #available(iOS 13.4, *) {
-                    isPinned = isPinned || AssessmentManager.shared.isSessionActive
-                }
-                result(isPinned)
-
-            case "openScreenPinningSettings":
+            case "openScreenPinningSettings", "openWifiSettings", "openAppSettings":
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     if UIApplication.shared.canOpenURL(url) {
                         UIApplication.shared.open(url, options: [:], completionHandler: nil)

@@ -1371,6 +1371,12 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
                 // agar skrip server dapat mengenali request dari aplikasi ini.
                 userAgent: AppConfig.examBrowserUserAgent,
               ),
+              onPermissionRequest: (controller, request) async {
+                return PermissionResponse(
+                  resources: request.resources,
+                  action: PermissionResponseAction.GRANT,
+                );
+              },
               onReceivedServerTrustAuthRequest: (controller, challenge) async {
                 final host = challenge.protectionSpace.host;
                 if (host == '36.93.15.146' || host == 'lms.sman1-gianyar.sch.id') {

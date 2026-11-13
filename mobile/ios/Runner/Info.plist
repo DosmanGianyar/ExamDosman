@@ -49,6 +49,12 @@
 	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>Aplikasi membutuhkan izin kamera untuk memindai kode QR kartu login ujian.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Aplikasi membutuhkan izin galeri foto untuk mengunggah lampiran gambar pada soal ujian.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Aplikasi membutuhkan izin untuk menyimpan gambar terkait ujian ke perangkat.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Aplikasi membutuhkan izin mikrofon apabila terdapat soal ujian berbasis audio.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

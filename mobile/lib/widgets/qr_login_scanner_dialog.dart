@@ -197,6 +197,72 @@ class _QrLoginScannerDialogState extends State<QrLoginScannerDialog> {
               children: [
                 MobileScanner(
                   controller: _controller,
+                  errorBuilder: (context, error) {
+                    return Container(
+                      color: const Color(0xFF0F172A),
+                      padding: const EdgeInsets.symmetric(horizontal: 28),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.videocam_off_rounded,
+                              color: Color(0xFFEF4444),
+                              size: 36,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Izin Kamera Diperlukan',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Akses kamera belum diizinkan atau ditolak oleh perangkat.\n'
+                            'Buka Pengaturan perangkat lalu aktifkan izin Kamera untuk Dosman Exam.',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              height: 1.5,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 20),
+                          ElevatedButton.icon(
+                            onPressed: () async {
+                              try {
+                                await const MethodChannel('com.dosman.ujian/lockdown')
+                                    .invokeMethod('openAppSettings');
+                              } catch (_) {}
+                            },
+                            icon: const Icon(Icons.settings_rounded, size: 18),
+                            label: const Text('Buka Pengaturan Kamera'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2563EB),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                   onDetect: (capture) {
                     final barcodes = capture.barcodes;
                     for (final b in barcodes) {
