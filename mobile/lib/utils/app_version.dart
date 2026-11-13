@@ -1,3 +1,3 @@
-const String kAppVersion     = '2.7.8';
-const int    kBuildNumber    = 144;
+const String kAppVersion     = '2.7.9';
+const int    kBuildNumber    = 147;
 const String kAppVersionFull = 'Dosman Exam v$kAppVersion';
