@@ -124,14 +124,14 @@ class KioskController {
   bool get active     => _active;
   bool get inExamMode => _inExamMode;
 
-  /// Waktu login (lock dipanggil). Dipakai untuk grace period 10 menit
+  /// Waktu login (lock dipanggil). Dipakai untuk grace period 15 detik
   /// agar siswa tidak tersuspend akibat notif/dialog sistem saat baru masuk.
   DateTime? _sessionStartedAt;
 
-  /// True jika masih dalam 10 menit pertama sejak login.
+  /// True jika masih dalam 15 detik pertama sejak login.
   bool get isInGracePeriod {
     if (_sessionStartedAt == null) return false;
-    return DateTime.now().difference(_sessionStartedAt!).inMinutes < 10;
+    return DateTime.now().difference(_sessionStartedAt!).inSeconds < 15;
   }
 
   final List<void Function()> _listeners = [];

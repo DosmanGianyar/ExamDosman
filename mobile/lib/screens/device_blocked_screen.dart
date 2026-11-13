@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../services/auth_service.dart';
 import '../services/device_service.dart';
 import '../services/exam_service.dart';
+import '../services/kiosk_controller.dart';
 
 class DeviceBlockedScreen extends StatefulWidget {
   const DeviceBlockedScreen({
@@ -191,7 +194,16 @@ class _DeviceBlockedScreenState extends State<DeviceBlockedScreen> {
             left: 16,
             child: FloatingActionButton.extended(
               heroTag: 'btn_keluar',
-              onPressed: () async => SystemNavigator.pop(),
+              onPressed: () async {
+                if (defaultTargetPlatform == TargetPlatform.iOS) {
+                  await AuthService.logout();
+                  await KioskController.instance.unlock();
+                  if (!context.mounted) return;
+                  Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                } else {
+                  await SystemNavigator.pop();
+                }
+              },
               backgroundColor: Colors.red.withValues(alpha: 0.15),
               foregroundColor: Colors.red.withValues(alpha: 0.85),
               elevation: 2,

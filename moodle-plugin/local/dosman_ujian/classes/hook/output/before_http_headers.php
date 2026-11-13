@@ -110,17 +110,20 @@ class before_http_headers {
 
             // Optimasi 800 siswa: hanya tulis ke DB jika status baru (lock=0),
             // atau current_quizid berubah, atau lastping sudah >= 20 detik lalu.
+            $platform = (strpos($ua, 'ExamDosmanIOS') !== false) ? 'ios' : 'android';
             if ($appRow) {
                 $timeSinceLastPing = $now - (int)$appRow->lastping;
                 $quizChanged = $updateQuizId && ((int)$appRow->current_quizid !== $currentQuizId);
                 $lockChanged = ($lock === 0);
                 $ipChanged   = ($ip !== '' && $appRow->ipaddress !== $ip);
+                $platChanged = (isset($appRow->platform) && $appRow->platform !== $platform);
 
-                if ($lockChanged || $quizChanged || $timeSinceLastPing >= 20 || $ipChanged) {
+                if ($lockChanged || $quizChanged || $timeSinceLastPing >= 20 || $ipChanged || $platChanged) {
                     $upd = (object)[
                         'id'        => $appRow->id,
                         'lastping'  => $now,
                         'ipaddress' => $ip,
+                        'platform'  => $platform,
                     ];
                     if ($updateQuizId) {
                         $upd->current_quizid = $currentQuizId;
@@ -137,6 +140,7 @@ class before_http_headers {
                     'ipaddress'       => $ip,
                     'lock_status'     => 1,
                     'current_quizid'  => $currentQuizId,
+                    'platform'        => $platform,
                 ]);
             }
 

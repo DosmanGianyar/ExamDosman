@@ -4,6 +4,7 @@
 // ===========================
 
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -170,18 +171,51 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
   ///   agar beban server hemat namun status kehadiran siswa tetap real-time (< 5 menit threshold).
   void _startBrowserPing(int userId) {
     _pingTimer?.cancel();
-    ExamService.pingAppLogin();
+    _checkPingAndEnforceStatus(userId);
     var tick = 0;
     _pingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (!mounted) return;
       tick++;
       if (tick % 3 == 0) {
-        ExamService.pingAppLogin(); // setiap 45 detik
+        _checkPingAndEnforceStatus(userId); // setiap 45 detik
       }
       if (tick % 2 == 0) {
-        _checkBluetoothAudio();     // pantau earphone/TWS Bluetooth setiap 30 detik (lokal, tanpa beban server)
+        _checkBluetoothAudio(); // pantau earphone/TWS Bluetooth setiap 30 detik (lokal, tanpa beban server)
       }
     });
+  }
+
+  Future<void> _checkPingAndEnforceStatus(int userId) async {
+    final alive = await ExamService.pingAppLogin();
+    if (!mounted) return;
+    if (!alive) {
+      _pingTimer?.cancel();
+      await AuthService.saveSuspendedByAdmin(true);
+      await AuthService.saveBlockedStatus(false);
+      await AuthService.logout();
+      await KioskController.instance.unlock();
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      return;
+    }
+
+    if (userId > 0 && !_blockSent) {
+      final blockRes = await ExamService.checkBlocked(userId: userId);
+      if (!mounted || _blockSent) return;
+      if (blockRes.reachable && blockRes.blocked) {
+        _blockSent = true;
+        _pingTimer?.cancel();
+        await AuthService.saveBlockedStatus(true);
+        await KioskController.instance.unlock();
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (_) => BlockedScreen(userId: userId, reason: blockRes.reason),
+          ),
+          (route) => false,
+        );
+      }
+    }
   }
 
   /// Cek apakah aplikasi berjalan di Virtual Machine atau Ruang Ganda / Kloning.
@@ -1631,6 +1665,22 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
                                 url: WebUri(
                                     '${AppConfig.moodleUrl}/login/index.php'),
                               ),
+                              initialUserScripts: UnmodifiableListView<UserScript>([
+                                UserScript(
+                                  source: r'''
+(function() {
+  try {
+    window.open = function(url) {
+      if (typeof url === 'string' && url.length) { window.location.href = url; }
+      return null;
+    };
+  } catch (e) {}
+})();
+''',
+                                  injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+                                  forMainFrameOnly: true,
+                                ),
+                              ]),
                               initialSettings: InAppWebViewSettings(
                                 userAgent: AppConfig.examBrowserUserAgent,
                                 javaScriptEnabled: true,
@@ -1641,7 +1691,19 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
                                 transparentBackground: false,
                                 disableContextMenu: true,
                                 disableLongPressContextMenuOnLinks: true,
+                                allowsLinkPreview: false,
+                                allowsBackForwardNavigationGestures: false,
+                                supportMultipleWindows: false,
                               ),
+                              onCreateWindow: (controller, createWindowAction) async {
+                                final targetUrl = createWindowAction.request.url;
+                                if (targetUrl != null) {
+                                  await controller.loadUrl(
+                                    urlRequest: URLRequest(url: targetUrl),
+                                  );
+                                }
+                                return false;
+                              },
                               onPermissionRequest: (controller, request) async {
                                 return PermissionResponse(
                                   resources: request.resources,
@@ -1664,13 +1726,18 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
                               onLoadStop: (ctrl, url) async {
                                 if (mounted) setState(() => _isLoading = false);
 
-                                // Auto-login: isi form Moodle otomatis jika halaman login muncul
+                                // Auto-login: isi form Moodle otomatis jika halaman login muncul dan belum ada error login
                                 final urlStr = url?.toString() ?? '';
                                 if (urlStr.contains('/login/index.php') &&
                                     _autoUsername.isNotEmpty &&
                                     _autoPassword.isNotEmpty) {
                                   await ctrl.evaluateJavascript(source: '''
 (function() {
+  var errEl = document.getElementById('loginerrormessage') || document.querySelector('.loginerrors');
+  var bodyTxt = (document.body && document.body.innerText ? document.body.innerText : '').toLowerCase();
+  if (errEl || bodyTxt.indexOf('invalid login') !== -1 || bodyTxt.indexOf('login salah') !== -1) {
+    return;
+  }
   var u   = document.getElementById('username');
   var p   = document.getElementById('password');
   var btn = document.getElementById('loginbtn');
@@ -1717,8 +1784,19 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
 ''');
                               },
                               shouldOverrideUrlLoading: (ctrl, action) async {
-                                final host =
-                                    action.request.url?.host ?? '';
+                                final uri = action.request.url;
+                                final urlStr = (uri?.toString() ?? '').toLowerCase();
+                                if (urlStr.startsWith('intent:') ||
+                                    urlStr.startsWith('market:') ||
+                                    urlStr.startsWith('tel:') ||
+                                    urlStr.startsWith('mailto:') ||
+                                    urlStr.startsWith('sms:') ||
+                                    urlStr.startsWith('whatsapp:') ||
+                                    urlStr.startsWith('tg:') ||
+                                    urlStr.startsWith('itms-apps:')) {
+                                  return NavigationActionPolicy.CANCEL;
+                                }
+                                final host = uri?.host ?? '';
                                 if (host.isEmpty) {
                                   return NavigationActionPolicy.ALLOW;
                                 }

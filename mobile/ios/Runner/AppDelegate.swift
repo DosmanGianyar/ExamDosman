@@ -11,6 +11,7 @@ import AVFoundation
     private var flutterChannel: FlutterMethodChannel?
     private var isLockdownActive = false
     private var isReviewerMode = false
+    private var isScreenLocked = false
     private var privacyOverlay: UIView?
 
     override func application(
@@ -123,8 +124,10 @@ import AVFoundation
                 result(true)
 
             case "isScreenInteractive":
-                let interactive = UIApplication.shared.applicationState == .active
-                result(interactive)
+                // Saat aplikasi masuk background (_onAppPaused), applicationState sudah bukan .active.
+                // Gunakan flag isScreenLocked (dari protectedDataWillBecomeUnavailableNotification)
+                // agar minimize ke app lain tetap terdeteksi sebagai layar menyala (interactive = true).
+                result(!self.isScreenLocked)
 
             case "isDndPermissionGranted":
                 result(true)
@@ -182,6 +185,28 @@ import AVFoundation
             name: AVAudioSession.routeChangeNotification,
             object: nil
         )
+
+        // Deteksi layar terkunci (tombol Power / auto-lock) vs minimize biasa
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(screenDidLock),
+            name: UIApplication.protectedDataWillBecomeUnavailableNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(screenDidUnlock),
+            name: UIApplication.protectedDataDidBecomeAvailableNotification,
+            object: nil
+        )
+    }
+
+    @objc private func screenDidLock() {
+        isScreenLocked = true
+    }
+
+    @objc private func screenDidUnlock() {
+        isScreenLocked = false
     }
 
     @objc private func audioRouteChanged() {
@@ -207,7 +232,14 @@ import AVFoundation
     @objc private func screenCaptureChanged() {
         guard isLockdownActive else { return }
         if UIScreen.main.isCaptured || UIScreen.screens.count > 1 {
+            if !isReviewerMode {
+                showPrivacyOverlay()
+            }
             flutterChannel?.invokeMethod("onScreenCastDetected", arguments: nil)
+        } else {
+            if UIApplication.shared.applicationState == .active {
+                hidePrivacyOverlay()
+            }
         }
     }
 
@@ -219,11 +251,17 @@ import AVFoundation
 
     override func applicationWillResignActive(_ application: UIApplication) {
         super.applicationWillResignActive(application)
+        if isLockdownActive && !isReviewerMode {
+            showPrivacyOverlay()
+        }
     }
 
     override func applicationDidBecomeActive(_ application: UIApplication) {
         super.applicationDidBecomeActive(application)
-        hidePrivacyOverlay()
+        isScreenLocked = false
+        if !(isLockdownActive && !isReviewerMode && (UIScreen.main.isCaptured || UIScreen.screens.count > 1)) {
+            hidePrivacyOverlay()
+        }
     }
 
     private func showPrivacyOverlay() {

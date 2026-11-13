@@ -22,6 +22,17 @@ class DeviceService {
           return aid;
         }
       } catch (_) {}
+    } else if (Platform.isIOS) {
+      try {
+        final cached = await _storage.read(key: _kDeviceId);
+        if (cached != null && cached.isNotEmpty) return cached;
+        final info = await DeviceInfoPlugin().iosInfo;
+        final vid = (info.identifierForVendor ?? '').trim();
+        if (vid.isNotEmpty) {
+          await _storage.write(key: _kDeviceId, value: vid);
+          return vid;
+        }
+      } catch (_) {}
     }
     return _getOrCreateUuid();
   }
@@ -51,7 +62,11 @@ class DeviceService {
       }
       if (Platform.isIOS) {
         final info = await DeviceInfoPlugin().iosInfo;
-        return info.model;
+        final machine = info.utsname.machine.trim();
+        if (machine.isNotEmpty && machine != info.model) {
+          return 'Apple ${info.model} ($machine)';
+        }
+        return 'Apple ${info.model}';
       }
     } catch (_) {}
     return 'Unknown';
