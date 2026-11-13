@@ -3,6 +3,7 @@
 // Handles semua HTTP request ke Moodle REST API
 // ===========================
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
@@ -116,6 +117,8 @@ class ApiService {
         throw ApiException('Layanan ujian tidak tersedia di server ini. Hubungi pengawas.');
       }
       throw ApiException(raw.isNotEmpty ? raw : 'Login gagal. Periksa username dan password.');
+    } on TimeoutException {
+      throw NetworkException('Koneksi ke server ujian timeout (lambat). Pastikan Wi-Fi sekolah terhubung stabil.');
     } on SocketException {
       throw NetworkException();
     } on ApiException {
@@ -179,6 +182,8 @@ class ApiService {
       }
 
       return data;
+    } on TimeoutException {
+      throw NetworkException('Koneksi ke server ujian timeout (lambat). Pastikan Wi-Fi sekolah terhubung stabil.');
     } on SocketException {
       throw NetworkException();
     } on TokenExpiredException {

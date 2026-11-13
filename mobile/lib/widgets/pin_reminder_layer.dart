@@ -88,7 +88,7 @@ class _PinReminderLayerState extends State<PinReminderLayer>
   void _syncPolling() {
     _pollTimer?.cancel();
     _pollTimer = null;
-    if (_kiosk.isReviewer || !_kiosk.active) {
+    if (defaultTargetPlatform != TargetPlatform.android || _kiosk.isReviewer || !_kiosk.active) {
       if (mounted && !_pinned) setState(() => _pinned = true);
       return;
     }
@@ -99,7 +99,7 @@ class _PinReminderLayerState extends State<PinReminderLayer>
   }
 
   Future<void> _pollPinned() async {
-    if (_kiosk.isReviewer) {
+    if (defaultTargetPlatform != TargetPlatform.android || _kiosk.isReviewer) {
       if (mounted && !_pinned) setState(() => _pinned = true);
       return;
     }
@@ -149,14 +149,15 @@ class _PinReminderLayerState extends State<PinReminderLayer>
 
   @override
   Widget build(BuildContext context) {
-    // Reviewer bypass secara absolut: tidak pernah menampilkan overlay penahan
-    if (_kiosk.isReviewer) {
+    // Di iOS atau akun reviewer: PinReminderLayer tidak pernah memblokir layar.
+    // Screen pinning (sematan layar) adalah proteksi eksklusif sistem Android.
+    if (defaultTargetPlatform != TargetPlatform.android || _kiosk.isReviewer) {
       return widget.child;
     }
 
     final showBanner = _kiosk.active && !_pinned;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
+    const isIOS = false;
 
     return Stack(
       fit: StackFit.expand,

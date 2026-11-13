@@ -979,6 +979,12 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
     final isReviewer = KioskController.instance.isReviewer || KioskController.isReviewerUsername(username);
     if (isReviewer) return;
 
+    // Khusus iOS: abaikan lock_task_lost & unpin karena screen pinning adalah fitur khusus Android
+    if (defaultTargetPlatform == TargetPlatform.iOS &&
+        (violationReason == 'lock_task_lost' || violationReason.contains('unpin'))) {
+      return;
+    }
+
     final fatalReasons = [
       'lock_task_lost',
       'unpin',

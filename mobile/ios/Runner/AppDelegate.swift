@@ -89,14 +89,6 @@ class AssessmentManager: NSObject, AEAssessmentSessionDelegate {
         setupMethodChannel(channel: channel)
         setupNotificationObservers()
 
-        if #available(iOS 13.4, *) {
-            AssessmentManager.shared.onSessionLost = { [weak self] in
-                guard let self = self, self.isLockdownActive, !self.isReviewerMode else { return }
-                AudioServicesPlayAlertSound(SystemSoundID(1005))
-                self.flutterChannel?.invokeMethod("onLockTaskLost", arguments: nil)
-            }
-        }
-
         GeneratedPluginRegistrant.register(with: self)
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
     }
@@ -140,46 +132,12 @@ class AssessmentManager: NSObject, AEAssessmentSessionDelegate {
                 result(false)
 
             case "isLockTaskActive", "isGuidedAccessActive":
-                if self.isReviewerMode {
-                    result(true)
-                    return
-                }
-                var isPinned = UIAccessibility.isGuidedAccessEnabled
-                if #available(iOS 13.4, *) {
-                    isPinned = isPinned || AssessmentManager.shared.isSessionActive
-                }
-                result(isPinned)
+                result(true)
 
-            case "enterLockTask":
+            case "enterLockTask", "requestScreenPin":
                 self.isLockdownActive = true
                 UIApplication.shared.isIdleTimerDisabled = true
-                if self.isReviewerMode {
-                    result(true)
-                    return
-                }
-                if #available(iOS 13.4, *) {
-                    AssessmentManager.shared.startSession { [weak self] _ in
-                        guard let self = self else { return }
-                        let active = AssessmentManager.shared.isSessionActive || UIAccessibility.isGuidedAccessEnabled
-                        result(active)
-                    }
-                } else {
-                    result(UIAccessibility.isGuidedAccessEnabled)
-                }
-
-            case "requestScreenPin":
-                if self.isReviewerMode {
-                    result(true)
-                    return
-                }
-                if #available(iOS 13.4, *) {
-                    AssessmentManager.shared.startSession { _ in
-                        let active = AssessmentManager.shared.isSessionActive || UIAccessibility.isGuidedAccessEnabled
-                        result(active)
-                    }
-                } else {
-                    result(UIAccessibility.isGuidedAccessEnabled)
-                }
+                result(true)
 
             case "exitLockTask":
                 self.isLockdownActive = false
@@ -336,15 +294,7 @@ class AssessmentManager: NSObject, AEAssessmentSessionDelegate {
     }
 
     @objc private func guidedAccessChanged() {
-        guard isLockdownActive else { return }
-        if isReviewerMode { return }
-        if #available(iOS 13.4, *), AssessmentManager.shared.isSessionActive {
-            return
-        }
-        if !UIAccessibility.isGuidedAccessEnabled {
-            AudioServicesPlayAlertSound(SystemSoundID(1005))
-            flutterChannel?.invokeMethod("onLockTaskLost", arguments: nil)
-        }
+        // Guided access status changed - dicatat untuk status sistem tanpa memblokir akun
     }
 
     // MARK: - App Lifecycle Privacy Overlay (App Switcher Protection)
