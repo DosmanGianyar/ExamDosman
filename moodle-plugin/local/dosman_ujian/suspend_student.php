@@ -108,6 +108,50 @@ try {
         exit;
     }
 
+    // Jika auto-suspend berasal dari aplikasi siswa ($isApiKeyValid = true),
+    // pastikan siswa benar-benar sudah membuka ujian (quiz) pada course.
+    // Jika hanya baru login / di beranda / di daftar course, jangan suspend akun.
+    // (Suspend manual oleh pengawas dari Dashboard menggunakan token tetap berlaku penuh.)
+    if ($isApiKeyValid) {
+        $stmtQuiz = $pdo->prepare(
+            "SELECT current_quizid FROM {$prefix}local_dosman_ujian_appstatus
+              WHERE userid = ? LIMIT 1"
+        );
+        $stmtQuiz->execute([$userid]);
+        $currentQuizId = (int)($stmtQuiz->fetchColumn() ?: 0);
+
+        $hasInProgressAttempt = false;
+        if ($currentQuizId <= 0) {
+            $stmtAttempt = $pdo->prepare(
+                "SELECT id FROM {$prefix}quiz_attempts
+                  WHERE userid = ? AND state = 'inprogress'
+                  LIMIT 1"
+            );
+            $stmtAttempt->execute([$userid]);
+            $hasInProgressAttempt = ($stmtAttempt->fetchColumn() !== false);
+        }
+
+        if ($currentQuizId <= 0 && !$hasInProgressAttempt) {
+            // Catat di log tanpa memblokir / men-suspend akun siswa
+            $pdo->prepare(
+                "INSERT INTO {$prefix}local_dosman_ujian_logs
+                     (userid, courseid, quizid, eventtype, eventdata, suspicious, timecreated)
+                 VALUES (?, 1, 0, 'violation_ignored_pre_quiz', ?, 0, ?)"
+            )->execute([
+                $userid,
+                json_encode(['reason' => $reason], JSON_UNESCAPED_UNICODE),
+                time(),
+            ]);
+
+            echo json_encode([
+                'success' => false,
+                'ignored' => true,
+                'message' => 'Siswa belum membuka ujian pada course, auto-suspend diabaikan',
+            ]);
+            exit;
+        }
+    }
+
     // Ambil service id sebelum transaksi (baca-only, aman di luar)
     $svcStmt = $pdo->prepare(
         "SELECT id FROM {$prefix}external_services
