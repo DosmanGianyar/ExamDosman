@@ -50,7 +50,7 @@ class AppConfig {
   static const int heartbeatTimeout = 15;
 
   // Batas waktu app di background dengan layar HIDUP (detik) sebelum diblokir.
-  static const int backgroundBlockTimeout = 45;
+  static const int backgroundBlockTimeout = 10;
 
   // Batas waktu layar MATI (detik) — siswa meletakkan HP — sebelum diblokir.
   // 45 menit: cukup untuk mengerjakan soal di kertas tanpa menyentuh HP.

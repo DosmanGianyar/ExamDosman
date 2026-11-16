@@ -88,7 +88,9 @@ class _PinReminderLayerState extends State<PinReminderLayer>
   void _syncPolling() {
     _pollTimer?.cancel();
     _pollTimer = null;
-    if (defaultTargetPlatform != TargetPlatform.android || _kiosk.isReviewer || !_kiosk.active) {
+    final isMobile = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    if (kIsWeb || !isMobile || _kiosk.isReviewer || !_kiosk.active) {
       if (mounted && !_pinned) setState(() => _pinned = true);
       return;
     }
@@ -99,11 +101,15 @@ class _PinReminderLayerState extends State<PinReminderLayer>
   }
 
   Future<void> _pollPinned() async {
-    if (defaultTargetPlatform != TargetPlatform.android || _kiosk.isReviewer) {
+    final isMobile = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    if (kIsWeb || !isMobile || _kiosk.isReviewer) {
       if (mounted && !_pinned) setState(() => _pinned = true);
       return;
     }
-    final ok = await _kiosk.isLockTaskPinned();
+    final ok = defaultTargetPlatform == TargetPlatform.iOS
+        ? await _kiosk.isGuidedAccessActive()
+        : await _kiosk.isLockTaskPinned();
     if (!mounted) return;
     if (ok != _pinned) setState(() => _pinned = ok);
   }
@@ -139,6 +145,16 @@ class _PinReminderLayerState extends State<PinReminderLayer>
   }
 
   Future<void> _onTapPinAgain() async {
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      await _pollPinned();
+      if (!_pinned && mounted) {
+        try {
+          await const MethodChannel('com.dosman.ujian/lockdown')
+              .invokeMethod('openAppSettings');
+        } catch (_) {}
+      }
+      return;
+    }
     if (defaultTargetPlatform == TargetPlatform.android) {
       _triggerBottomMask(); // tutup toast re-pin di Android
     }
@@ -149,15 +165,16 @@ class _PinReminderLayerState extends State<PinReminderLayer>
 
   @override
   Widget build(BuildContext context) {
-    // Di iOS atau akun reviewer: PinReminderLayer tidak pernah memblokir layar.
-    // Screen pinning (sematan layar) adalah proteksi eksklusif sistem Android.
-    if (defaultTargetPlatform != TargetPlatform.android || _kiosk.isReviewer) {
+    final isMobile = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    // Di non-mobile (web/desktop) atau akun reviewer: PinReminderLayer tidak pernah memblokir layar.
+    if (kIsWeb || !isMobile || _kiosk.isReviewer) {
       return widget.child;
     }
 
     final showBanner = _kiosk.active && !_pinned;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    const isIOS = false;
+    final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
 
     return Stack(
       fit: StackFit.expand,
@@ -227,11 +244,11 @@ class _PinReminderLayerState extends State<PinReminderLayer>
                             child: Column(
                               children: isIOS
                                   ? [
-                                      _stepRow('1', 'Ketuk "Kunci Mode Ujian" di bawah'),
+                                      _stepRow('1', 'Aktifkan Pengaturan > Aksesibilitas > Akses Terpandu (Guided Access)'),
                                       const SizedBox(height: 10),
-                                      _stepRow('2', 'Izinkan sesi ujian saat konfirmasi sistem muncul'),
+                                      _stepRow('2', 'Tekan tombol Samping (Power) / Home 3 kali dengan cepat'),
                                       const SizedBox(height: 10),
-                                      _stepRow('3', 'Atau aktifkan Akses Terpandu dengan menekan tombol samping/atas 3 kali'),
+                                      _stepRow('3', 'Ketuk "Mulai" di pojok kanan atas untuk mengunci layar ujian'),
                                     ]
                                   : [
                                       _stepRow('1', 'Ketuk "Sematkan Ulang" di bawah'),
@@ -260,7 +277,7 @@ class _PinReminderLayerState extends State<PinReminderLayer>
                                 size: 20,
                               ),
                               label: Text(
-                                isIOS ? 'Kunci Mode Ujian' : 'Sematkan Ulang',
+                                isIOS ? 'Buka Pengaturan iPhone' : 'Sematkan Ulang',
                                 style: const TextStyle(
                                     fontSize: 15, fontWeight: FontWeight.w700),
                               ),
@@ -276,7 +293,17 @@ class _PinReminderLayerState extends State<PinReminderLayer>
                     left: 16,
                     child: FloatingActionButton.extended(
                       heroTag: 'pin_exit_btn',
-                      onPressed: () => SystemNavigator.pop(),
+                      onPressed: () async {
+                        if (isIOS) {
+                          await _kiosk.unlock();
+                          if (mounted) {
+                            _kiosk.rootNavigatorKey?.currentState
+                                ?.pushNamedAndRemoveUntil('/login', (route) => false);
+                          }
+                        } else {
+                          await SystemNavigator.pop();
+                        }
+                      },
                       backgroundColor: Colors.red.withValues(alpha: 0.15),
                       foregroundColor: Colors.red.withValues(alpha: 0.85),
                       elevation: 2,

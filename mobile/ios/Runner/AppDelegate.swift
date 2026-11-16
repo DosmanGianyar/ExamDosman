@@ -65,7 +65,11 @@ import AVFoundation
                 result(false)
 
             case "isLockTaskActive", "isGuidedAccessActive", "isScreenPinningEnabled":
-                result(true)
+                if self.isReviewerMode {
+                    result(true)
+                } else {
+                    result(UIAccessibility.isGuidedAccessEnabled)
+                }
 
             case "enterLockTask", "requestScreenPin":
                 self.isLockdownActive = true
