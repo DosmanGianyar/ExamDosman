@@ -948,8 +948,33 @@ class MainActivity : FlutterActivity() {
                 "openDndSettings" -> result.success(openDndSettingsWithFallback())
 
                 "openWifiSettings" -> {
-                    startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
-                    result.success(true)
+                    val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                    val inLockTask = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        am.lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE
+                    } else {
+                        @Suppress("DEPRECATION")
+                        am.isInLockTaskMode
+                    }
+                    if (inLockTask) {
+                        result.success(false)
+                    } else {
+                        try {
+                            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                Intent(Settings.Panel.ACTION_WIFI)
+                            } else {
+                                Intent(Settings.ACTION_WIFI_SETTINGS)
+                            }
+                            startActivity(intent)
+                            result.success(true)
+                        } catch (_: Exception) {
+                            try {
+                                startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
+                                result.success(true)
+                            } catch (_: Exception) {
+                                result.success(false)
+                            }
+                        }
+                    }
                 }
 
                 "openAppSettings" -> {

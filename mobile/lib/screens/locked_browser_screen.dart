@@ -1246,14 +1246,63 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
 
   Future<void> _openWifiSettings() async {
     _wifiSettingsActive = true;
+    bool opened = false;
     try {
-      final opened = await const MethodChannel('com.dosman.ujian/lockdown')
-          .invokeMethod<bool>('openWifiSettings');
-      if (opened == false) {
-        _wifiSettingsActive = false;
-      }
+      opened = (await const MethodChannel('com.dosman.ujian/lockdown')
+              .invokeMethod<bool>('openWifiSettings')) ??
+          false;
     } catch (_) {
+      opened = false;
+    }
+    if (!opened) {
       _wifiSettingsActive = false;
+      if (!mounted) return;
+      final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.wifi_lock_rounded, color: Color(0xFFF59E0B), size: 22),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Pengaturan WiFi Terkunci',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            isIOS
+                ? 'Saat Akses Terpandu (Guided Access) aktif, iOS tidak mengizinkan aplikasi membuka menu Pengaturan.\n\n'
+                  'Untuk mengganti jaringan Wi-Fi, minta pengawas menonaktifkan Akses Terpandu sementara atau gunakan tombol Keluar (password pengawas).'
+                : 'Saat mode Semat Layar (Screen Pinning) aktif, Android mengunci perpindahan ke menu Pengaturan Wi-Fi.\n\n'
+                  'Untuk mengganti jaringan Wi-Fi, gunakan tombol Keluar dengan izin pengawas agar sematan layar dilepas sementara, lalu masuk kembali.',
+            style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.55),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Tutup', style: TextStyle(color: Colors.white70)),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _reloadWebView();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+              ),
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text('Muat Ulang'),
+            ),
+          ],
+        ),
+      );
     }
   }
 

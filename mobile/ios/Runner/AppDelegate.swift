@@ -139,11 +139,26 @@ import AVFoundation
             case "openDndSettings":
                 result(false)
 
-            case "openScreenPinningSettings", "openWifiSettings", "openAppSettings":
+            case "openWifiSettings":
+                if UIAccessibility.isGuidedAccessEnabled {
+                    result(false)
+                    return
+                }
+                if let url = URL(string: UIApplication.openSettingsURLString),
+                   UIApplication.shared.canOpenURL(url) {
+                    UIApplication.shared.open(url, options: [:]) { success in
+                        result(success)
+                    }
+                    return
+                }
+                result(false)
+
+            case "openScreenPinningSettings", "openAppSettings":
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     if UIApplication.shared.canOpenURL(url) {
-                        UIApplication.shared.open(url, options: [:], completionHandler: nil)
-                        result(true)
+                        UIApplication.shared.open(url, options: [:]) { success in
+                            result(success)
+                        }
                         return
                     }
                 }
