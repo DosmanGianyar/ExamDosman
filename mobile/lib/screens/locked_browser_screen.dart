@@ -30,8 +30,12 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
     with WidgetsBindingObserver {
 
   bool _isLoading       = true;
+  bool _hasLoadError    = false;
+  String _loadErrorDesc = '';
+  String? _lastAttemptedUrl;
   bool _blockCheckDone  = false; // WebView tidak tampil sampai cek blokir selesai
   InAppWebViewController? _webController;
+  PullToRefreshController? _pullToRefreshController;
 
   // ─── Background / violation detection ────────────────────────────────────
   DateTime? _backgroundedAt;
@@ -52,6 +56,12 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
   @override
   void initState() {
     super.initState();
+    if (!kIsWeb) {
+      _pullToRefreshController = PullToRefreshController(
+        settings: PullToRefreshSettings(color: const Color(0xFF2563EB)),
+        onRefresh: () async => _reloadWebView(),
+      );
+    }
     WidgetsBinding.instance.addObserver(this);
     KioskController.instance.addViolationListener(_onNativeViolation);
     ExamService.activeBroadcast.addListener(_onBroadcastChanged);
@@ -1410,6 +1420,14 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
                   const SizedBox(width: 6),
                 ],
 
+                // Tombol Refresh halaman ujian
+                _navBtn(
+                  icon: Icons.refresh_rounded,
+                  label: 'Refresh',
+                  onTap: _reloadWebView,
+                ),
+                const SizedBox(width: 6),
+
                 // Tombol Petunjuk
                 _navBtn(
                   icon: Icons.help_outline_rounded,
@@ -1633,6 +1651,164 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
     );
   }
 
+  Future<void> _reloadWebView() async {
+    final ctrl = _webController;
+    if (ctrl == null) return;
+    if (mounted) {
+      setState(() {
+        _hasLoadError = false;
+        _isLoading = true;
+      });
+    }
+    try {
+      final currentUrl = await ctrl.getUrl();
+      final urlStr = currentUrl?.toString() ?? '';
+      if (urlStr.isEmpty || urlStr == 'about:blank') {
+        final fallback = (_lastAttemptedUrl != null && _lastAttemptedUrl!.isNotEmpty)
+            ? _lastAttemptedUrl!
+            : '${AppConfig.moodleUrl}/login/index.php';
+        await ctrl.loadUrl(urlRequest: URLRequest(url: WebUri(fallback)));
+      } else {
+        await ctrl.reload();
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+      _pullToRefreshController?.endRefreshing();
+    }
+  }
+
+  Future<void> _goBackWebView() async {
+    final ctrl = _webController;
+    if (ctrl == null) return;
+    if (await ctrl.canGoBack()) {
+      if (mounted) setState(() => _hasLoadError = false);
+      await ctrl.goBack();
+    }
+  }
+
+  Widget _buildNetworkErrorOverlay() {
+    return Container(
+      color: const Color(0xFF0F172A),
+      width: double.infinity,
+      height: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 28),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
+                ),
+              ),
+              child: const Icon(
+                Icons.wifi_off_rounded,
+                color: Color(0xFFFBBF24),
+                size: 36,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Koneksi Terputus',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Halaman ujian gagal dimuat karena sinyal Wi-Fi terputus atau jaringan sedang sibuk.\n\n'
+              'Jangan panik dan jangan tutup aplikasi — jawaban Anda sebelumnya tetap tersimpan aman. '
+              'Pastikan Wi-Fi terhubung lalu tekan tombol Muat Ulang di bawah.',
+              style: TextStyle(
+                color: Color(0xFFCBD5E1),
+                fontSize: 13,
+                height: 1.55,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (_loadErrorDesc.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                _loadErrorDesc,
+                style: const TextStyle(
+                  color: Color(0xFF64748B),
+                  fontSize: 11,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: _reloadWebView,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.refresh_rounded, size: 20),
+                label: const Text(
+                  'Muat Ulang Halaman',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _openWifiSettings,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white70,
+                      side: BorderSide(color: Colors.white.withValues(alpha: 0.25)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: const Icon(Icons.wifi_rounded, size: 17),
+                    label: const Text('Atur WiFi', style: TextStyle(fontSize: 13)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _goBackWebView,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white70,
+                      side: BorderSide(color: Colors.white.withValues(alpha: 0.25)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: const Icon(Icons.arrow_back_rounded, size: 17),
+                    label: const Text('Kembali', style: TextStyle(fontSize: 13)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 // ─── Build ────────────────────────────────────────────────────────────────
 
   @override
@@ -1717,13 +1893,24 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
                                 }
                                 return ServerTrustAuthResponse(action: ServerTrustAuthResponseAction.CANCEL);
                               },
+                              pullToRefreshController: _pullToRefreshController,
                               onWebViewCreated: (ctrl) {
                                 _webController = ctrl;
                               },
                               onLoadStart: (ctrl, url) {
-                                if (mounted) setState(() => _isLoading = true);
+                                final u = url?.toString();
+                                if (u != null && u.isNotEmpty && u != 'about:blank') {
+                                  _lastAttemptedUrl = u;
+                                }
+                                if (mounted) {
+                                  setState(() {
+                                    _isLoading = true;
+                                    _hasLoadError = false;
+                                  });
+                                }
                               },
                               onLoadStop: (ctrl, url) async {
+                                _pullToRefreshController?.endRefreshing();
                                 if (mounted) setState(() => _isLoading = false);
 
                                 // Auto-login: isi form Moodle otomatis jika halaman login muncul dan belum ada error login
@@ -1806,7 +1993,21 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
                                 }
                                 return NavigationActionPolicy.CANCEL;
                               },
+                              onReceivedError: (ctrl, request, error) {
+                                _pullToRefreshController?.endRefreshing();
+                                if (request.isForMainFrame == true && mounted) {
+                                  setState(() {
+                                    _isLoading = false;
+                                    _hasLoadError = true;
+                                    _loadErrorDesc = error.description;
+                                  });
+                                }
+                              },
+                              onWebContentProcessDidTerminate: (ctrl) {
+                                ctrl.reload();
+                              },
                             ),
+                            if (_hasLoadError) _buildNetworkErrorOverlay(),
                             if (_isLoading)
                               const Center(
                                 child: CircularProgressIndicator(
