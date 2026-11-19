@@ -3,6 +3,7 @@
 // ===========================
 
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../services/auth_service.dart';
@@ -149,7 +150,8 @@ class _LoginScreenState extends State<LoginScreen>
 
       ExamService.pingAppLogin(); // daftarkan ke dashboard segera
       if (!mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+      final targetRoute = defaultTargetPlatform == TargetPlatform.android ? '/courses' : '/home';
+      Navigator.of(context).pushNamedAndRemoveUntil(targetRoute, (route) => false);
     } on TokenExpiredException catch (e) {
       _showError(e.message);
     } on ApiException catch (e) {

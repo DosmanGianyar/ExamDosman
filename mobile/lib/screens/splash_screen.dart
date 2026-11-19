@@ -70,7 +70,7 @@ class _SplashScreenState extends State<SplashScreen>
         await ApiService.getSiteInfo();
         // Token valid → lanjutkan
         ExamService.pingAppLogin();
-        _navigate('/home');
+        _navigate(defaultTargetPlatform == TargetPlatform.android ? '/courses' : '/home');
       } on TokenExpiredException {
         // Token kedaluwarsa
         await AuthService.logout();

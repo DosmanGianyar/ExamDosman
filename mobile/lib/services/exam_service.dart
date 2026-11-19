@@ -422,7 +422,7 @@ class ExamService {
   /// Daftarkan/perbarui kehadiran siswa di appstatus server.
   /// Dipanggil segera setelah login dan setiap 60 detik selama app terbuka.
   /// Returns false jika server mengindikasikan akun disuspend; true untuk semua kasus lain (termasuk error jaringan).
-  static Future<bool> pingAppLogin() async {
+  static Future<bool> pingAppLogin({int quizId = 0}) async {
     final sw = Stopwatch()..start();
     try {
       final token = await AuthService.getToken();
@@ -433,13 +433,15 @@ class ExamService {
       final uri = Uri.parse(
         '${AppConfig.moodleUrl}/local/dosman_ujian/app_ping.php',
       );
+      final bodyMap = <String, dynamic>{
+        'token': token,
+        'platform': kIsWeb ? 'web' : (Platform.isIOS ? 'ios' : 'android'),
+      };
+      if (quizId > 0) bodyMap['quizid'] = quizId;
       final resp = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'token': token,
-          'platform': kIsWeb ? 'web' : (Platform.isIOS ? 'ios' : 'android'),
-        }),
+        body: json.encode(bodyMap),
       ).timeout(const Duration(seconds: 5));
       sw.stop();
       lastPingLatencyMs.value = sw.elapsedMilliseconds;

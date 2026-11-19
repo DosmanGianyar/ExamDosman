@@ -85,6 +85,7 @@ try {
 
     $now = time();
     $ip  = $_SERVER['REMOTE_ADDR'] ?? '';
+    $quizId = (int)($body['quizid'] ?? 0);
     $platform = trim((string)($body['platform'] ?? ''));
     if (empty($platform)) {
         $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
@@ -110,8 +111,8 @@ try {
         $pdo->prepare(
             "INSERT INTO {$prefix}local_dosman_ujian_appstatus
                 (userid, lastping, ipaddress, lock_status, current_quizid, platform)
-             VALUES (?, ?, ?, 1, 0, ?)"
-        )->execute([$userid, $now, $ip, $platform]);
+             VALUES (?, ?, ?, 1, ?, ?)"
+        )->execute([$userid, $now, $ip, max(0, $quizId), $platform]);
         $finalStatus = 1;
     } else {
         $currentStatus = (int)$curRow->lock_status;
@@ -120,22 +121,22 @@ try {
 
         if (in_array($currentStatus, [2, 3], true)) {
             // Diblokir atau dijeda — hanya update lastping jika sudah >= 15 detik
-            if ($elapsedPing >= 15 || $platChanged) {
-                $pdo->prepare(
-                    "UPDATE {$prefix}local_dosman_ujian_appstatus
-                        SET lastping = ?, ipaddress = ?, platform = ?
-                      WHERE userid = ?"
-                )->execute([$now, $ip, $platform, $userid]);
+            if ($elapsedPing >= 15 || $platChanged || $quizId > 0) {
+                $sqlUpd = $quizId > 0
+                    ? "UPDATE {$prefix}local_dosman_ujian_appstatus SET lastping = ?, ipaddress = ?, platform = ?, current_quizid = ? WHERE userid = ?"
+                    : "UPDATE {$prefix}local_dosman_ujian_appstatus SET lastping = ?, ipaddress = ?, platform = ? WHERE userid = ?";
+                $paramsUpd = $quizId > 0 ? [$now, $ip, $platform, $quizId, $userid] : [$now, $ip, $platform, $userid];
+                $pdo->prepare($sqlUpd)->execute($paramsUpd);
             }
             $finalStatus = $currentStatus;
         } else {
             // Normal → set lock_status = 1 (aktif), update lastping jika sudah >= 15 detik atau lock_status != 1
-            if ($currentStatus !== 1 || $elapsedPing >= 15 || $platChanged) {
-                $pdo->prepare(
-                    "UPDATE {$prefix}local_dosman_ujian_appstatus
-                        SET lastping = ?, ipaddress = ?, lock_status = 1, platform = ?
-                      WHERE userid = ?"
-                )->execute([$now, $ip, $platform, $userid]);
+            if ($currentStatus !== 1 || $elapsedPing >= 15 || $platChanged || $quizId > 0) {
+                $sqlUpd = $quizId > 0
+                    ? "UPDATE {$prefix}local_dosman_ujian_appstatus SET lastping = ?, ipaddress = ?, lock_status = 1, platform = ?, current_quizid = ? WHERE userid = ?"
+                    : "UPDATE {$prefix}local_dosman_ujian_appstatus SET lastping = ?, ipaddress = ?, lock_status = 1, platform = ? WHERE userid = ?";
+                $paramsUpd = $quizId > 0 ? [$now, $ip, $platform, $quizId, $userid] : [$now, $ip, $platform, $userid];
+                $pdo->prepare($sqlUpd)->execute($paramsUpd);
             }
             $finalStatus = 1;
         }

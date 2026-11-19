@@ -159,7 +159,10 @@ class ApiService {
 
     try {
       final response = await http
-          .get(uri, headers: {'Accept': 'application/json'})
+          .get(uri, headers: {
+            'Accept': 'application/json',
+            'User-Agent': AppConfig.examBrowserUserAgent,
+          })
           .timeout(const Duration(seconds: 20));
 
       if (response.statusCode != 200) {
@@ -193,6 +196,157 @@ class ApiService {
     } catch (e) {
       throw ApiException('Gagal memproses response: $e');
     }
+  }
+
+  /// Panggil Moodle REST Web Service menggunakan HTTP POST (cocok untuk payload besar seperti submit kuis).
+  static Future<dynamic> callPost(
+    String wsfunction,
+    Map<String, dynamic> params, {
+    String? token,
+    Duration timeout = const Duration(seconds: 25),
+  }) async {
+    final activeToken = token ?? _token;
+    if (activeToken == null || activeToken.isEmpty) {
+      throw TokenExpiredException('Sesi belum login. Silakan login ulang.');
+    }
+
+    final formParams = <String, String>{
+      'wstoken': activeToken,
+      'wsfunction': wsfunction,
+      'moodlewsrestformat': 'json',
+    };
+    _flattenParams(params, formParams);
+
+    final uri = Uri.parse('$moodleUrl/webservice/rest/server.php');
+    try {
+      final response = await http
+          .post(
+            uri,
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'User-Agent': AppConfig.examBrowserUserAgent,
+            },
+            body: formParams,
+          )
+          .timeout(timeout);
+
+      if (response.statusCode != 200) {
+        throw ApiException('HTTP Error: ${response.statusCode}');
+      }
+
+      final cleaned = _extractJson(response.body);
+      final data = json.decode(cleaned);
+      if (data is Map<String, dynamic> && data.containsKey('exception')) {
+        final errorCode = data['errorcode'] as String?;
+        final message = data['message'] as String? ?? data['exception'] as String? ?? 'API Error';
+        if (errorCode == 'invalidtoken' || errorCode == 'accessdenied') {
+          throw TokenExpiredException(message);
+        }
+        throw ApiException(message, errorCode: errorCode);
+      }
+      return data;
+    } on TimeoutException {
+      throw NetworkException('Koneksi ke server ujian timeout (lambat). Pastikan Wi-Fi sekolah terhubung stabil.');
+    } on SocketException {
+      throw NetworkException();
+    } on TokenExpiredException {
+      rethrow;
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Gagal memproses response: $e');
+    }
+  }
+
+  // ─── Quiz Web Service API (Semi-Offline Android) ─────────────────────────
+
+  /// Ambil daftar attempt user pada suatu quiz (termasuk yang masih inprogress).
+  static Future<List<Map<String, dynamic>>> getUserQuizAttempts(
+    int quizId,
+    int userId,
+  ) async {
+    final data = await call('mod_quiz_get_user_attempts', {
+      'quizid': quizId,
+      'userid': userId,
+      'status': 'all',
+      'includepreviews': 0,
+    });
+    if (data is Map<String, dynamic>) {
+      final list = data['attempts'] as List<dynamic>? ?? [];
+      return list.whereType<Map<String, dynamic>>().toList();
+    }
+    return [];
+  }
+
+  /// Mulai attempt baru pada [quizId].
+  static Future<Map<String, dynamic>> startQuizAttempt(
+    int quizId, {
+    String? quizPassword,
+  }) async {
+    final params = <String, dynamic>{'quizid': quizId};
+    if (quizPassword != null && quizPassword.isNotEmpty) {
+      params['preflightdata'] = [
+        {'name': 'quizpassword', 'value': quizPassword},
+      ];
+    }
+    final data = await callPost('mod_quiz_start_attempt', params);
+    if (data is Map<String, dynamic> && data['attempt'] is Map<String, dynamic>) {
+      return Map<String, dynamic>.from(data['attempt'] as Map);
+    }
+    throw ApiException('Gagal memulai sesi kuis di server.');
+  }
+
+  /// Ambil data soal pada satu halaman attempt ([page] dimulai dari 0).
+  static Future<Map<String, dynamic>> getQuizAttemptData(
+    int attemptId,
+    int page, {
+    String? quizPassword,
+  }) async {
+    final params = <String, dynamic>{
+      'attemptid': attemptId,
+      'page': page,
+    };
+    if (quizPassword != null && quizPassword.isNotEmpty) {
+      params['preflightdata'] = [
+        {'name': 'quizpassword', 'value': quizPassword},
+      ];
+    }
+    final data = await callPost('mod_quiz_get_attempt_data', params);
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+    throw ApiException('Gagal mengunduh halaman soal $page.');
+  }
+
+  /// Kirim jawaban kuis (batch) dan selesaikan attempt jika [finishAttempt] = true.
+  static Future<String> processQuizAttempt(
+    int attemptId,
+    List<Map<String, String>> answerData, {
+    bool finishAttempt = true,
+    bool timeUp = false,
+    String? quizPassword,
+  }) async {
+    final params = <String, dynamic>{
+      'attemptid': attemptId,
+      'data': answerData,
+      'finishattempt': finishAttempt ? 1 : 0,
+      'timeup': timeUp ? 1 : 0,
+    };
+    if (quizPassword != null && quizPassword.isNotEmpty) {
+      params['preflightdata'] = [
+        {'name': 'quizpassword', 'value': quizPassword},
+      ];
+    }
+    final data = await callPost(
+      'mod_quiz_process_attempt',
+      params,
+      timeout: const Duration(seconds: 30),
+    );
+    if (data is Map<String, dynamic>) {
+      return (data['state'] as String? ?? 'finished').toLowerCase();
+    }
+    throw ApiException('Respon server saat submit tidak valid.');
   }
 
   // ─── Core Moodle functions ─────────────────────────────────────────────────

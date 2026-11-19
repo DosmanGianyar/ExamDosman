@@ -39,6 +39,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
+    - assets/katex/
+    - assets/katex/fonts/
 
 # Ikon launcher APK / iOS — gaya: latar navy gradasi + logo sekolah besar.
 # Cara utama (tanpa Flutter): powershell -ExecutionPolicy Bypass -File tool\generate_app_icons.ps1
