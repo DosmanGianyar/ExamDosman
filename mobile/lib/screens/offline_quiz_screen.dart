@@ -285,11 +285,20 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
   .q-card {
     background: #FFFFFF;
     border-radius: 18px;
-    padding: 16px 16px 18px 16px;
+    padding: 18px 18px 22px 18px;
     border: 1px solid #E2E8F0;
-    margin-bottom: 16px;
-    box-shadow: 0 4px 16px rgba(15,23,42,0.05);
+    border-top: 4px solid #1E3A8A;
+    margin-bottom: 24px;
+    box-shadow: 0 6px 20px rgba(15,23,42,0.06);
     overflow-x: auto;
+  }
+  .options-label {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.9px;
+    color: #64748B;
+    margin: 0 0 10px 4px;
+    text-transform: uppercase;
   }
   .q-badge {
     display: inline-flex;
@@ -406,6 +415,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     <div class="q-badge">PERTANYAAN NOMOR ${q.number}</div>
     ${q.questionHtml}
   </div>
+  <div class="options-label">Pilihan Jawaban</div>
   <div class="options-wrap">$optionsHtml</div>
   <script src="katex.min.js"></script>
   <script src="auto-render.min.js"></script>
@@ -1032,14 +1042,15 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
               const SizedBox(height: 14),
               ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.48,
+                  maxHeight: MediaQuery.of(context).size.height * 0.36,
                 ),
                 child: GridView.builder(
                   shrinkWrap: true,
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 5,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
+                    crossAxisCount: 8,
+                    mainAxisSpacing: 6,
+                    crossAxisSpacing: 6,
+                    childAspectRatio: 1.05,
                   ),
                   itemCount: pkg.questions.length,
                   itemBuilder: (_, i) {
@@ -1063,8 +1074,8 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
                       child: Container(
                         decoration: BoxDecoration(
                           color: bg,
-                          borderRadius: BorderRadius.circular(11),
-                          border: isCur ? Border.all(color: Colors.white, width: 2) : null,
+                          borderRadius: BorderRadius.circular(8),
+                          border: isCur ? Border.all(color: Colors.white, width: 1.8) : null,
                         ),
                         alignment: Alignment.center,
                         child: Text(
@@ -1072,7 +1083,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,
-                            fontSize: 14,
+                            fontSize: 12,
                           ),
                         ),
                       ),
@@ -1307,21 +1318,13 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
                         ),
                       ),
                     ),
-                  const SizedBox(width: 6),
-                  IconButton(
-                    icon: const Icon(Icons.grid_view_rounded, color: Color(0xFFFBBF24), size: 24),
-                    onPressed: _showQuestionGridSheet,
-                    tooltip: 'Daftar Soal',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                  ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 8),
                   ElevatedButton.icon(
                     onPressed: _handleExit,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFDC2626),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       shape: RoundedRectangleBorder(
@@ -1329,7 +1332,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
                       ),
                       elevation: 0,
                     ),
-                    icon: const Icon(Icons.exit_to_app_rounded, size: 16),
+                    icon: const Icon(Icons.exit_to_app_rounded, size: 17),
                     label: const Text(
                       'Keluar',
                       style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
@@ -1338,27 +1341,63 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
                 ],
               ),
               const SizedBox(height: 8),
-              if (_studentName.isNotEmpty)
-                Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(bottom: 6),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _studentClass.isNotEmpty
-                        ? '$_studentName  •  Kelas $_studentClass'
-                        : _studentName,
-                    style: const TextStyle(
-                      color: Color(0xFFE2E8F0),
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        _studentName.isNotEmpty
+                            ? (_studentClass.isNotEmpty
+                                ? '$_studentName  •  Kelas $_studentClass'
+                                : _studentName)
+                            : 'Mode Ujian Aktif',
+                        style: const TextStyle(
+                          color: Color(0xFFE2E8F0),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        softWrap: true,
+                      ),
                     ),
-                    softWrap: true,
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: _showQuestionGridSheet,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF59E0B).withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: const Color(0xFFF59E0B).withValues(alpha: 0.6),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.grid_view_rounded, color: Color(0xFFFBBF24), size: 15),
+                          SizedBox(width: 5),
+                          Text(
+                            'No. Soal',
+                            style: TextStyle(
+                              color: Color(0xFFFDE68A),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
               LinearProgressIndicator(
                 value: progressVal,
                 minHeight: 3,
