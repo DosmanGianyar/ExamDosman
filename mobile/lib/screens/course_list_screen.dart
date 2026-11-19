@@ -278,13 +278,16 @@ class _CourseListScreenState extends State<CourseListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
-      appBar: _buildAppBar(),
-      body: RefreshIndicator(
-        onRefresh: _loadCourses,
-        color:     const Color(0xFF1E3A8A),
-        child:     _buildBody(),
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF1F5F9),
+        appBar: _buildAppBar(),
+        body: RefreshIndicator(
+          onRefresh: _loadCourses,
+          color:     const Color(0xFF1E3A8A),
+          child:     _buildBody(),
+        ),
       ),
     );
   }

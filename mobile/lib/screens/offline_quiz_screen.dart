@@ -19,6 +19,7 @@ import '../services/kiosk_controller.dart';
 import '../services/offline_quiz_service.dart';
 import '../widgets/exit_password_dialog.dart';
 import 'blocked_screen.dart';
+import 'exam_screen.dart';
 
 class OfflineQuizScreen extends StatefulWidget {
   final Quiz quiz;
@@ -741,12 +742,18 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
   Future<void> _triggerSuspend(String reason) async {
     _pingTimer?.cancel();
     _countdownTimer?.cancel();
+    bool suspended = false;
     try {
-      await ExamService.suspendStudent(
+      suspended = await ExamService.suspendStudent(
         userId: widget.userId,
-        reason: 'Pelanggaran keamanan ujian offline: $reason',
+        reason: 'Pelanggaran keamanan ujian: $reason',
       );
-    } catch (_) {}
+    } catch (_) {
+      suspended = false;
+    }
+    if (!suspended && widget.userId > 0) {
+      await ExamScreen.savePendingSuspend(widget.userId);
+    }
     await AuthService.saveBlockedStatus(true);
     await AuthService.saveSuspendedByAdmin(true);
     await KioskController.instance.unlock();

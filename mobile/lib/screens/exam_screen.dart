@@ -52,9 +52,11 @@ class ExamScreen extends StatefulWidget {
   static const _kPendingSuspendKey = 'dosman_pending_suspend_userid';
   static const _storage = FlutterSecureStorage();
 
-  static Future<void> _savePendingSuspend(int userId) async {
+  static Future<void> savePendingSuspend(int userId) async {
     await _storage.write(key: _kPendingSuspendKey, value: userId.toString());
   }
+
+  static Future<void> _savePendingSuspend(int userId) => savePendingSuspend(userId);
 
   static Future<void> clearPendingSuspend() async {
     await _storage.delete(key: _kPendingSuspendKey);
