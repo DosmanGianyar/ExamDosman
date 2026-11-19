@@ -222,8 +222,21 @@ try {
             SET status = 'blocked',
                 block_reason = ?,
                 blocked_at = UNIX_TIMESTAMP()
-          WHERE userid = ? AND status = 'active'"
+          WHERE userid = ? AND status IN ('active', 'blocked')"
     )->execute([$reason, $userid]);
+
+    // 8. Selalu catat alasan suspend ke tabel logs agar tetap terbaca meski device belum terdaftar
+    $pdo->prepare(
+        "INSERT INTO {$prefix}local_dosman_ujian_logs
+             (userid, courseid, quizid, eventtype, eventdata, suspicious, timecreated)
+         VALUES (?, 1, 0, 'account_suspended', ?, 1, UNIX_TIMESTAMP())"
+    )->execute([
+        $userid,
+        json_encode([
+            'reason' => $reason,
+            'source' => $isApiKeyValid ? 'app' : 'dashboard',
+        ], JSON_UNESCAPED_UNICODE),
+    ]);
 
     $pdo->commit();
     @unlink('/dev/shm/dosman_app_users_cache.json');

@@ -65,6 +65,10 @@ try {
                                 ORDER BY s.blocked_at DESC, s.id DESC LIMIT 1), ''),
                        ''
                    ) AS reason,
+                   (SELECT l.eventdata FROM {$prefix}local_dosman_ujian_logs l
+                     WHERE l.userid = u.id
+                       AND l.eventtype IN ('account_suspended', 'device_blocked_tier1', 'violation_ignored_pre_quiz')
+                     ORDER BY l.timecreated DESC, l.id DESC LIMIT 1) AS log_eventdata,
                    COALESCE(
                        (SELECT d2.platform FROM {$prefix}local_dosman_ujian_devices d2
                          WHERE d2.userid = u.id
@@ -80,6 +84,13 @@ try {
     $rows     = $pdo->query($sql)->fetchAll(PDO::FETCH_OBJ);
     $students = [];
     foreach ($rows as $r) {
+        $reason = trim((string)($r->reason ?? ''));
+        if ($reason === '' && !empty($r->log_eventdata)) {
+            $logJson = json_decode((string)$r->log_eventdata, true);
+            if (is_array($logJson) && !empty($logJson['reason'])) {
+                $reason = trim((string)$logJson['reason']);
+            }
+        }
         $students[] = [
             'userid'       => (int)$r->userid,
             'firstname'    => $r->firstname,
@@ -88,7 +99,7 @@ try {
             'email'        => $r->email ?? '',
             'department'   => $r->department ?? '',
             'timemodified' => (int)$r->timemodified,
-            'reason'       => $r->reason ?? '',
+            'reason'       => $reason,
             'platform'     => $r->platform ?? '',
         ];
     }
