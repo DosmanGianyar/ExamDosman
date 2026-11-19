@@ -131,10 +131,23 @@
         switchTab(targetTab);
       });
     });
+
+    // Pulihkan tab terakhir saat halaman di-refresh
+    const hashTab = (window.location.hash || '').replace(/^#/, '');
+    let savedTab = '';
+    try { savedTab = localStorage.getItem('dosman_admin_active_tab') || ''; } catch (_) {}
+    const restoreTab = hashTab || savedTab;
+    if (restoreTab && document.querySelector(`.tab-btn[data-tab="${restoreTab}"]`)) {
+      switchTab(restoreTab, { skipFetch: true });
+    }
   }
 
-  function switchTab(tabId) {
+  function switchTab(tabId, opts = {}) {
     state.activeTab = tabId;
+    try { localStorage.setItem('dosman_admin_active_tab', tabId); } catch (_) {}
+    if (history.replaceState) {
+      history.replaceState(null, '', `#${tabId}`);
+    }
 
     // Update Tab Buttons
     document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
@@ -154,12 +167,14 @@
       }
     });
 
-    if (tabId === 'suspended-violations') {
-      loadViolations();
-    } else if (tabId === 'security-password') {
-      loadExitPassword();
-    } else if (tabId === 'live-monitor') {
-      loadLiveUsers();
+    if (!opts.skipFetch) {
+      if (tabId === 'suspended-violations') {
+        loadViolations();
+      } else if (tabId === 'security-password') {
+        loadExitPassword();
+      } else if (tabId === 'live-monitor') {
+        loadLiveUsers();
+      }
     }
   }
 
