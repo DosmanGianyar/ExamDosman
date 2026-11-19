@@ -7,7 +7,6 @@
 // ===========================
 
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -75,6 +74,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     KioskController.instance.addViolationListener(_onNativeViolation);
+    KioskController.instance.lock(userId: widget.userId);
     KioskController.instance.enterExam();
     _startDownload();
     _startHeartbeat();
@@ -237,9 +237,9 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     for (final opt in q.options) {
       final isSelected = q.selectedValue == opt.value;
       final cls = isSelected ? 'opt-card selected' : 'opt-card';
-      final valJson = jsonEncode(opt.value);
+      final escapedVal = _escapeHtml(opt.value);
       optionsHtml.write('''
-        <div class="$cls" onclick="selectOpt($valJson)">
+        <div class="$cls" data-val="$escapedVal" onclick="selectOpt(this)">
           <div class="opt-letter">${_escapeHtml(opt.labelLetter)}</div>
           <div class="opt-body">${opt.html}</div>
         </div>
@@ -338,7 +338,13 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
   <script src="katex.min.js"></script>
   <script src="auto-render.min.js"></script>
   <script>
-    function selectOpt(val) {
+    function selectOpt(el) {
+      var val = el.getAttribute('data-val');
+      var cards = document.querySelectorAll('.opt-card');
+      for (var i = 0; i < cards.length; i++) {
+        cards[i].classList.remove('selected');
+      }
+      el.classList.add('selected');
       if (window.flutter_inappwebview) {
         window.flutter_inappwebview.callHandler('selectOption', val);
       }
@@ -383,7 +389,6 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
       pkg.questions[_currentIndex].selectedValue = value;
     });
     OfflineQuizService.saveAnswersState(pkg);
-    _renderCurrentQuestion();
   }
 
   void _goToQuestion(int idx) {

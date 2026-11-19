@@ -64,7 +64,9 @@ class _CourseListScreenState extends State<CourseListScreen> {
 
   Future<void> _init() async {
     final fullname = await AuthService.getFullname();
+    final userId = await AuthService.getUserId();
     if (mounted) setState(() => _fullname = fullname);
+    await KioskController.instance.lock(userId: userId);
     await _loadCourses();
   }
 
