@@ -13,6 +13,7 @@ import '../services/exam_service.dart';
 import '../services/kiosk_controller.dart';
 import '../services/offline_quiz_service.dart';
 import '../widgets/course_card.dart';
+import '../widgets/exit_password_dialog.dart';
 import 'quiz_list_screen.dart';
 import 'offline_quiz_screen.dart';
 import 'login_screen.dart';
@@ -254,37 +255,59 @@ class _CourseListScreenState extends State<CourseListScreen> {
   // ─── Logout ───────────────────────────────────────────────────────────────────
 
   Future<void> _logout() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Keluar',
-          style: TextStyle(fontWeight: FontWeight.w700),
+    final fetch = await KioskController.instance.fetchExitPassword();
+    if (!fetch.success) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tidak dapat memverifikasi password keluar. Periksa sinyal Wi-Fi.'),
+          backgroundColor: Color(0xFFD97706),
         ),
-        content: const Text('Yakin ingin keluar dari aplikasi?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text(
-              'Batal',
-              style: TextStyle(color: Color(0xFF6B7280)),
-            ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    bool? confirmed;
+    if (fetch.password.isNotEmpty) {
+      confirmed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const ExitPasswordDialog(),
+      );
+    } else {
+      confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text(
+            'Keluar',
+            style: TextStyle(fontWeight: FontWeight.w700),
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+          content: const Text('Yakin ingin keluar dari aplikasi?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text(
+                'Batal',
+                style: TextStyle(color: Color(0xFF6B7280)),
               ),
             ),
-            child: const Text('Keluar'),
-          ),
-        ],
-      ),
-    );
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text('Keluar'),
+            ),
+          ],
+        ),
+      );
+    }
 
     if (confirmed == true) {
       await KioskController.instance.unlock();
