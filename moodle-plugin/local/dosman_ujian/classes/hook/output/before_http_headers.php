@@ -41,12 +41,13 @@ class before_http_headers {
 
             $now    = time();
             $ip     = $_SERVER['REMOTE_ADDR'] ?? '';
+            $isSuspendedUser = !empty($USER->suspended)
+                || (int)$DB->get_field('user', 'suspended', ['id' => (int)$USER->id]) === 1;
             $appRow = $DB->get_record('local_dosman_ujian_appstatus', ['userid' => (int)$USER->id]);
             $lock   = $appRow ? (int)$appRow->lock_status : 0;
 
-            if ($lock === 2) {
-                // Akun diblokir global oleh guru.
-                // Kebijakan baru: tidak tampilkan halaman blokir.
+            if ($lock === 2 || $isSuspendedUser) {
+                // Akun diblokir global / di-suspend (termasuk menutup sesi Redis yang masih hidup).
                 // Paksa logout agar alur kembali ke login Moodle.
                 if (defined('AJAX_SCRIPT') && AJAX_SCRIPT) {
                     header('Content-Type: application/json; charset=utf-8');
