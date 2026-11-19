@@ -578,7 +578,7 @@ class _LoginScreenState extends State<LoginScreen>
               Icon(Icons.lock_rounded, color: Colors.white, size: 13),
               SizedBox(width: 6),
               Text(
-                'Dosman Exam',
+                'EXAM DOSMAN',
                 style: TextStyle(
                   color:         Colors.white,
                   fontSize:      12,
@@ -1115,7 +1115,7 @@ class _LoginScreenState extends State<LoginScreen>
             Container(width: 40, height: 1, color: Colors.white12),
             const SizedBox(width: 10),
             Text(
-              'Dosman Exam © SMAN 1 Gianyar',
+              'EXAM DOSMAN © SMAN 1 Gianyar',
               style: TextStyle(
                 fontSize: 10,
                 color:    Colors.white.withValues(alpha: 0.35),

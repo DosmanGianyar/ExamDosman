@@ -178,7 +178,7 @@ class _SplashScreenState extends State<SplashScreen>
 
                           // Nama aplikasi
                           const Text(
-                            'Dosman Ujian',
+                            'EXAM DOSMAN',
                             style: TextStyle(
                               fontSize: 32,
                               fontWeight: FontWeight.w800,

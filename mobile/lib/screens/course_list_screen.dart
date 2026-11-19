@@ -320,6 +320,46 @@ class _CourseListScreenState extends State<CourseListScreen> {
           color:     const Color(0xFF1E3A8A),
           child:     _buildBody(),
         ),
+        bottomNavigationBar: Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF0F172A),
+            border: Border(
+              top: BorderSide(color: Color(0xFFF59E0B), width: 1.5),
+            ),
+          ),
+          padding: EdgeInsets.fromLTRB(
+            16,
+            10,
+            16,
+            10 + MediaQuery.of(context).padding.bottom,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFF59E0B), width: 1.2),
+                ),
+                child: ClipOval(
+                  child: Image.asset('assets/icon/app_icon_1024.png', fit: BoxFit.cover),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'EXAM DOSMAN  •  SMA Negeri 1 Gianyar',
+                style: TextStyle(
+                  color: Color(0xFFCBD5E1),
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -335,25 +375,31 @@ class _CourseListScreenState extends State<CourseListScreen> {
       title: Row(
         children: [
           Container(
-            width: 30,
-            height: 30,
-            padding: const EdgeInsets.all(2),
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFF59E0B), width: 1.2),
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFF59E0B), width: 1.8),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                  blurRadius: 8,
+                ),
+              ],
             ),
-            child: Image.asset('assets/logo_sekolah.png', fit: BoxFit.contain),
+            child: ClipOval(
+              child: Image.asset('assets/icon/app_icon_1024.png', fit: BoxFit.cover),
+            ),
           ),
           const SizedBox(width: 10),
           const Expanded(
             child: Text(
-              'Dosman Exam',
+              'EXAM DOSMAN',
               style: TextStyle(
                 fontSize:   17,
                 fontWeight: FontWeight.w800,
                 color:      Colors.white,
-                letterSpacing: 0.3,
+                letterSpacing: 0.8,
               ),
               overflow: TextOverflow.ellipsis,
             ),
@@ -361,11 +407,25 @@ class _CourseListScreenState extends State<CourseListScreen> {
         ],
       ),
       actions: [
-        // Tombol logout
-        IconButton(
-          icon:    const Icon(Icons.logout_rounded, size: 20, color: Color(0xFFFCA5A5)),
-          tooltip: 'Keluar',
-          onPressed: _logout,
+        Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: ElevatedButton.icon(
+            onPressed: _logout,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              elevation: 0,
+            ),
+            icon: const Icon(Icons.logout_rounded, size: 17),
+            label: const Text(
+              'Keluar',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+            ),
+          ),
         ),
       ],
       bottom: PreferredSize(

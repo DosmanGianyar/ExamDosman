@@ -22,7 +22,7 @@
     <!-- ─── Application ──────────────────────────────────────────────── -->
 
     <application
-        android:label="Dosman Exam"
+        android:label="EXAM DOSMAN"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:hardwareAccelerated="true"

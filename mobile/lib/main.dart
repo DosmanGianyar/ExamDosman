@@ -75,7 +75,7 @@ class _DosmanUjianAppState extends State<DosmanUjianApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: _rootNavKey,
-      title:        'Dosman Ujian',
+      title:        'EXAM DOSMAN',
       debugShowCheckedModeBanner: false,
 
       // ─── Theme ───────────────────────────────────────────────────────────

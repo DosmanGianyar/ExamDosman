@@ -1353,32 +1353,33 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
               children: [
                 // Logo bulat dengan bayangan
                 Container(
-                  width: 32,
-                  height: 32,
+                  width: 34,
+                  height: 34,
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFFF59E0B), width: 1.8),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF2563EB).withValues(alpha: 0.4),
+                        color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
                     ],
                   ),
-                  padding: const EdgeInsets.all(2),
-                  child: Image.asset('assets/logo_sekolah.png', fit: BoxFit.contain),
+                  child: ClipOval(
+                    child: Image.asset('assets/icon/app_icon_1024.png', fit: BoxFit.cover),
+                  ),
                 ),
                 const SizedBox(width: 9),
 
                 // Nama aplikasi
                 const Text(
-                  'Dosman Exam',
+                  'EXAM DOSMAN',
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 14.5,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
-                    letterSpacing: 0.3,
+                    letterSpacing: 0.6,
                   ),
                 ),
 
@@ -2026,26 +2027,26 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
                     ),
                   ),
 
-                  // Tombol Keluar — pojok kiri bawah (floating)
+                  // Tombol Keluar — pojok kiri bawah (lebih besar & jelas)
                   Positioned(
                     bottom: MediaQuery.of(context).padding.bottom + 16,
                     left: 16,
-                    child: FloatingActionButton.extended(
-                      heroTag: 'locked_exit_btn',
+                    child: ElevatedButton.icon(
                       onPressed: _handleExit,
-                      backgroundColor: Colors.red.withValues(alpha: 0.15),
-                      foregroundColor: Colors.red.withValues(alpha: 0.85),
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        side: BorderSide(
-                            color: Colors.red.withValues(alpha: 0.3)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFDC2626).withValues(alpha: 0.92),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        elevation: 6,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          side: const BorderSide(color: Color(0xFFFCA5A5), width: 1),
+                        ),
                       ),
-                      icon: const Icon(Icons.exit_to_app_rounded, size: 16),
+                      icon: const Icon(Icons.exit_to_app_rounded, size: 20),
                       label: const Text(
                         'Keluar',
-                        style: TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w600),
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                       ),
                     ),
                   ),
