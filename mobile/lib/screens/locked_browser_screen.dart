@@ -40,7 +40,6 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
   // ─── Background / violation detection ────────────────────────────────────
   DateTime? _backgroundedAt;
   bool      _blockSent          = false;
-  bool      _wifiSettingsActive = false; // true saat WiFi settings terbuka
   bool      _screenWasOff       = false; // true saat paused karena layar mati (bukan minimize)
   Timer?    _blockTimer;
   int       _cachedUserId = 0;
@@ -853,7 +852,6 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
       return;
     }
     if (_blockSent || !mounted) return;
-    if (_wifiSettingsActive) return;
     _blockSent = true;
     _doBlockStudent(violationReason: reason);
   }
@@ -891,7 +889,6 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
   ///   - Layar HIDUP tapi app diminimize: siswa pindah app → mulai timer blokir
   Future<void> _onAppPaused() async {
     if (_blockSent) return;
-    if (_wifiSettingsActive) return;
     if (_blockTimer != null && _blockTimer!.isActive) return;
     _backgroundedAt = DateTime.now();
 
@@ -940,13 +937,6 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
     _screenWasOff = false;
 
     if (_blockSent) return;
-
-    // Kembali dari WiFi settings — reset flag, tidak ada penalti
-    if (_wifiSettingsActive) {
-      _wifiSettingsActive = false;
-      _backgroundedAt = null;
-      return;
-    }
 
     // Layar mati tadi → siswa meletakkan HP
     // Tidak ada penalti kecuali durasi melebihi batas (45 menit)
@@ -1244,68 +1234,6 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
     }
   }
 
-  Future<void> _openWifiSettings() async {
-    _wifiSettingsActive = true;
-    bool opened = false;
-    try {
-      opened = (await const MethodChannel('com.dosman.ujian/lockdown')
-              .invokeMethod<bool>('openWifiSettings')) ??
-          false;
-    } catch (_) {
-      opened = false;
-    }
-    if (!opened) {
-      _wifiSettingsActive = false;
-      if (!mounted) return;
-      final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF1E293B),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
-            children: [
-              Icon(Icons.wifi_lock_rounded, color: Color(0xFFF59E0B), size: 22),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Pengaturan WiFi Terkunci',
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ],
-          ),
-          content: Text(
-            isIOS
-                ? 'Saat Akses Terpandu (Guided Access) aktif, iOS tidak mengizinkan aplikasi membuka menu Pengaturan.\n\n'
-                  'Untuk mengganti jaringan Wi-Fi, minta pengawas menonaktifkan Akses Terpandu sementara atau gunakan tombol Keluar (password pengawas).'
-                : 'Saat mode Semat Layar (Screen Pinning) aktif, Android mengunci perpindahan ke menu Pengaturan Wi-Fi.\n\n'
-                  'Untuk mengganti jaringan Wi-Fi, gunakan tombol Keluar dengan izin pengawas agar sematan layar dilepas sementara, lalu masuk kembali.',
-            style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.55),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Tutup', style: TextStyle(color: Colors.white70)),
-            ),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pop(ctx);
-                _reloadWebView();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                foregroundColor: Colors.white,
-              ),
-              icon: const Icon(Icons.refresh_rounded, size: 16),
-              label: const Text('Muat Ulang'),
-            ),
-          ],
-        ),
-      );
-    }
-  }
-
   void _showPetunjuk() {
     final items = <List<String>>[
       ['🔒', 'Aplikasi terkunci — kamu tidak dapat keluar tanpa izin guru'],
@@ -1482,14 +1410,6 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
                   icon: Icons.help_outline_rounded,
                   label: 'Petunjuk',
                   onTap: _showPetunjuk,
-                ),
-                const SizedBox(width: 6),
-
-                // Tombol WiFi
-                _navBtn(
-                  icon: Icons.wifi_rounded,
-                  label: 'WiFi',
-                  onTap: _openWifiSettings,
                 ),
               ],
             ),
@@ -1866,40 +1786,21 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
               ),
             ),
             const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _openWifiSettings,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white70,
-                      side: BorderSide(color: Colors.white.withValues(alpha: 0.25)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    icon: const Icon(Icons.wifi_rounded, size: 17),
-                    label: const Text('Atur WiFi', style: TextStyle(fontSize: 13)),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _goBackWebView,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.25)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _goBackWebView,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white70,
-                      side: BorderSide(color: Colors.white.withValues(alpha: 0.25)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    icon: const Icon(Icons.arrow_back_rounded, size: 17),
-                    label: const Text('Kembali', style: TextStyle(fontSize: 13)),
-                  ),
-                ),
-              ],
+                icon: const Icon(Icons.arrow_back_rounded, size: 17),
+                label: const Text('Kembali ke Halaman Sebelumnya', style: TextStyle(fontSize: 13)),
+              ),
             ),
           ],
         ),
