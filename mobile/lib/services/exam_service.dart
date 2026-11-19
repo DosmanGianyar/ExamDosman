@@ -20,6 +20,9 @@ class ExamService {
   /// Berisi: { message: String, created_at: int, expires_at: int, sender: String }
   static final ValueNotifier<Map<String, dynamic>?> activeBroadcast = ValueNotifier(null);
 
+  /// Latency ping terakhir ke server Moodle (ms). null = putus / timeout.
+  static final ValueNotifier<int?> lastPingLatencyMs = ValueNotifier(null);
+
   // ─── Heartbeat: ping server setiap 5 detik ─────────────────────────────
   static bool _heartbeatActive = false;
   static Future<void> startHeartbeat() async {
@@ -420,9 +423,13 @@ class ExamService {
   /// Dipanggil segera setelah login dan setiap 60 detik selama app terbuka.
   /// Returns false jika server mengindikasikan akun disuspend; true untuk semua kasus lain (termasuk error jaringan).
   static Future<bool> pingAppLogin() async {
+    final sw = Stopwatch()..start();
     try {
       final token = await AuthService.getToken();
-      if (token == null || token.isEmpty) return false;
+      if (token == null || token.isEmpty) {
+        lastPingLatencyMs.value = null;
+        return false;
+      }
       final uri = Uri.parse(
         '${AppConfig.moodleUrl}/local/dosman_ujian/app_ping.php',
       );
@@ -434,6 +441,8 @@ class ExamService {
           'platform': kIsWeb ? 'web' : (Platform.isIOS ? 'ios' : 'android'),
         }),
       ).timeout(const Duration(seconds: 5));
+      sw.stop();
+      lastPingLatencyMs.value = sw.elapsedMilliseconds;
 
       if (resp.statusCode == 401) {
         try {
@@ -456,6 +465,7 @@ class ExamService {
       return true;
     } catch (_) {
       // Error jaringan — jangan kick siswa, anggap masih valid
+      lastPingLatencyMs.value = null;
       return true;
     }
   }

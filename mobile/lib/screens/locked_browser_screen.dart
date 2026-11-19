@@ -1446,23 +1446,11 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
             ),
           ),
 
-          // ── Baris 2: Nama sekolah rata tengah ────────────────────
+          // ── Baris 2: Nama sekolah + indikator kualitas sinyal ──────
           Padding(
-            padding: const EdgeInsets.only(top: 5, bottom: 6),
+            padding: const EdgeInsets.fromLTRB(12, 5, 12, 6),
             child: Row(
               children: [
-                // Garis kiri
-                Expanded(
-                  child: Container(
-                    margin: const EdgeInsets.only(left: 12, right: 8),
-                    height: 1,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.transparent, const Color(0xFF3B82F6).withValues(alpha: 0.4)],
-                      ),
-                    ),
-                  ),
-                ),
                 // Teks sekolah
                 Row(
                   mainAxisSize: MainAxisSize.min,
@@ -1479,29 +1467,90 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                         color: Color(0xFF93C5FD),
-                        letterSpacing: 2.2,
+                        letterSpacing: 2.0,
                       ),
                     ),
                   ],
                 ),
-                // Garis kanan
+                // Garis pemisah fleksibel
                 Expanded(
                   child: Container(
-                    margin: const EdgeInsets.only(left: 8, right: 12),
+                    margin: const EdgeInsets.symmetric(horizontal: 10),
                     height: 1,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [const Color(0xFF3B82F6).withValues(alpha: 0.4), Colors.transparent],
+                        colors: [
+                          const Color(0xFF3B82F6).withValues(alpha: 0.4),
+                          Colors.transparent,
+                        ],
                       ),
                     ),
                   ),
                 ),
+                // Indikator kualitas sinyal (tap untuk cek ulang)
+                _buildSignalBadge(),
               ],
             ),
           ),
 
         ],
       ),
+    );
+  }
+
+  Widget _buildSignalBadge() {
+    return ValueListenableBuilder<int?>(
+      valueListenable: ExamService.lastPingLatencyMs,
+      builder: (context, ms, _) {
+        final Color color;
+        final IconData icon;
+        final String label;
+
+        if (ms == null) {
+          color = const Color(0xFFEF4444);
+          icon = Icons.wifi_off_rounded;
+          label = 'Sinyal: Putus';
+        } else if (ms <= 250) {
+          color = const Color(0xFF22C55E);
+          icon = Icons.wifi_rounded;
+          label = 'Sinyal: Baik (${ms}ms)';
+        } else if (ms <= 800) {
+          color = const Color(0xFFF59E0B);
+          icon = Icons.wifi_rounded;
+          label = 'Sinyal: Sedang (${ms}ms)';
+        } else {
+          color = const Color(0xFFF97316);
+          icon = Icons.wifi_rounded;
+          label = 'Sinyal: Lemah (${ms}ms)';
+        }
+
+        return GestureDetector(
+          onTap: () => ExamService.pingAppLogin(),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: color.withValues(alpha: 0.45), width: 0.8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 11, color: color),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -1912,6 +1961,9 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
                               onLoadStop: (ctrl, url) async {
                                 _pullToRefreshController?.endRefreshing();
                                 if (mounted) setState(() => _isLoading = false);
+                                if (ExamService.lastPingLatencyMs.value == null) {
+                                  ExamService.pingAppLogin().ignore();
+                                }
 
                                 // Auto-login: isi form Moodle otomatis jika halaman login muncul dan belum ada error login
                                 final urlStr = url?.toString() ?? '';
@@ -1995,12 +2047,15 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
                               },
                               onReceivedError: (ctrl, request, error) {
                                 _pullToRefreshController?.endRefreshing();
-                                if (request.isForMainFrame == true && mounted) {
-                                  setState(() {
-                                    _isLoading = false;
-                                    _hasLoadError = true;
-                                    _loadErrorDesc = error.description;
-                                  });
+                                if (request.isForMainFrame == true) {
+                                  ExamService.lastPingLatencyMs.value = null;
+                                  if (mounted) {
+                                    setState(() {
+                                      _isLoading = false;
+                                      _hasLoadError = true;
+                                      _loadErrorDesc = error.description;
+                                    });
+                                  }
                                 }
                               },
                               onWebContentProcessDidTerminate: (ctrl) {
