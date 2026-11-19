@@ -1365,36 +1365,6 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  InkWell(
-                    onTap: _showQuestionGridSheet,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF59E0B).withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: const Color(0xFFF59E0B).withValues(alpha: 0.6),
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.grid_view_rounded, color: Color(0xFFFBBF24), size: 15),
-                          SizedBox(width: 5),
-                          Text(
-                            'No. Soal',
-                            style: TextStyle(
-                              color: Color(0xFFFDE68A),
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
                 ],
               ),
               const SizedBox(height: 6),
@@ -1466,26 +1436,45 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
                 child: OutlinedButton.icon(
                   onPressed: _currentIndex > 0 ? () => _goToQuestion(_currentIndex - 1) : null,
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 11),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 11),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     side: BorderSide(
                       color: _currentIndex > 0 ? const Color(0xFF94A3B8) : const Color(0xFFE2E8F0),
                     ),
                   ),
-                  icon: const Icon(Icons.chevron_left_rounded, size: 18),
+                  icon: const Icon(Icons.chevron_left_rounded, size: 17),
                   label: const FittedBox(
                     fit: BoxFit.scaleDown,
-                    child: Text('Sebelum', style: TextStyle(fontWeight: FontWeight.w700)),
+                    child: Text('Sebelum', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
+              Expanded(
+                flex: 3,
+                child: OutlinedButton.icon(
+                  onPressed: _showQuestionGridSheet,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 11),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    backgroundColor: const Color(0xFFFFFBEB),
+                    foregroundColor: const Color(0xFFB45309),
+                    side: const BorderSide(color: Color(0xFFF59E0B)),
+                  ),
+                  icon: const Icon(Icons.grid_view_rounded, size: 15),
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('No. Soal', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
               Expanded(
                 flex: 3,
                 child: OutlinedButton.icon(
                   onPressed: _toggleFlag,
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 11),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 11),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     backgroundColor: q.isFlagged ? const Color(0xFFFEF3C7) : null,
                     foregroundColor: q.isFlagged ? const Color(0xFFB45309) : const Color(0xFF475569),
@@ -1493,14 +1482,14 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
                       color: q.isFlagged ? const Color(0xFFF59E0B) : const Color(0xFFCBD5E1),
                     ),
                   ),
-                  icon: Icon(q.isFlagged ? Icons.flag_rounded : Icons.flag_outlined, size: 16),
+                  icon: Icon(q.isFlagged ? Icons.flag_rounded : Icons.flag_outlined, size: 15),
                   label: const FittedBox(
                     fit: BoxFit.scaleDown,
-                    child: Text('Ragu-ragu', style: TextStyle(fontWeight: FontWeight.w700)),
+                    child: Text('Ragu', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Expanded(
                 flex: 3,
                 child: !isLast
@@ -1509,13 +1498,13 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF1E3A8A),
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 11),
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 11),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
-                        icon: const Icon(Icons.chevron_right_rounded, size: 18),
+                        icon: const Icon(Icons.chevron_right_rounded, size: 17),
                         label: const FittedBox(
                           fit: BoxFit.scaleDown,
-                          child: Text('Lanjut', style: TextStyle(fontWeight: FontWeight.w700)),
+                          child: Text('Lanjut', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                         ),
                       )
                     : ElevatedButton.icon(
@@ -1523,15 +1512,15 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF16A34A),
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 11),
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 11),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
-                        icon: const Icon(Icons.check_circle_outline_rounded, size: 17),
+                        icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
                         label: FittedBox(
                           fit: BoxFit.scaleDown,
                           child: Text(
                             _isSubmitting ? 'Kirim...' : 'Selesai',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                           ),
                         ),
                       ),
