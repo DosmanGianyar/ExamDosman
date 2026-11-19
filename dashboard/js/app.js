@@ -858,7 +858,8 @@
       const name = `${s.firstname || ''} ${s.lastname || ''}`.toLowerCase();
       const uname = (s.username || '').toLowerCase();
       const email = (s.email || '').toLowerCase();
-      return name.includes(q) || uname.includes(q) || email.includes(q);
+      const reason = (s.reason || '').toLowerCase();
+      return name.includes(q) || uname.includes(q) || email.includes(q) || reason.includes(q);
     });
 
     if (countEl) countEl.textContent = `${filtered.length} akun`;
@@ -866,7 +867,7 @@
     if (filtered.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="6">
+          <td colspan="7">
             <div class="empty-state">
               <div class="empty-icon">&#x1F389;</div>
               <div class="empty-title">Tidak Ada Siswa Tersuspend</div>
@@ -883,6 +884,10 @@
       const name = `${s.firstname || ''} ${s.lastname || ''}`.trim() || s.username;
       const isSelected = state.selectedSuspendedIds.has(s.userid);
       const timeStr = s.timemodified ? new Date(s.timemodified * 1000).toLocaleString('id-ID') : '—';
+      const reasonText = (s.reason || '').trim() || 'Disuspend oleh pengawas / sistem';
+      const platBadge = s.platform
+        ? `<span style="display:inline-block; margin-left:6px; padding:1px 6px; font-size:0.7rem; border-radius:4px; background:rgba(148,163,184,0.18); color:#cbd5e1; text-transform:uppercase;">${escapeHtml(s.platform)}</span>`
+        : '';
 
       html += `
         <tr>
@@ -895,6 +900,11 @@
               <span class="student-name">${escapeHtml(name)}</span>
               <span class="student-sub">@${escapeHtml(s.username || '')} &bull; ${escapeHtml(s.department || '')}</span>
             </div>
+          </td>
+          <td>
+            <span style="display:inline-block; padding:4px 8px; border-radius:6px; background:rgba(239,68,68,0.14); border:1px solid rgba(239,68,68,0.3); color:#fca5a5; font-size:0.78rem; line-height:1.35;">
+              ${escapeHtml(reasonText)}
+            </span>${platBadge}
           </td>
           <td><span style="font-size:0.825rem; color:var(--text-muted);">${escapeHtml(s.email || '—')}</span></td>
           <td style="font-size:0.825rem; font-family:'JetBrains Mono'; color:var(--text-muted);">${timeStr}</td>

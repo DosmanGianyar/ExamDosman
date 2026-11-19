@@ -53,8 +53,24 @@ try {
     }
 
     // Ambil semua siswa yang di-suspend (kecuali admin/guest, id > 2)
+    // Sertakan alasan blokir terbaru dari tabel devices atau sessions
     $sql = "SELECT u.id AS userid, u.firstname, u.lastname, u.username, u.email,
-                   u.department, u.timemodified
+                   u.department, u.timemodified,
+                   COALESCE(
+                       NULLIF((SELECT d.block_reason FROM {$prefix}local_dosman_ujian_devices d
+                                WHERE d.userid = u.id AND d.block_reason IS NOT NULL AND d.block_reason <> ''
+                                ORDER BY d.blocked_at DESC, d.id DESC LIMIT 1), ''),
+                       NULLIF((SELECT s.blocked_reason FROM {$prefix}local_dosman_ujian_sessions s
+                                WHERE s.userid = u.id AND s.blocked_reason IS NOT NULL AND s.blocked_reason <> ''
+                                ORDER BY s.blocked_at DESC, s.id DESC LIMIT 1), ''),
+                       ''
+                   ) AS reason,
+                   COALESCE(
+                       (SELECT d2.platform FROM {$prefix}local_dosman_ujian_devices d2
+                         WHERE d2.userid = u.id
+                         ORDER BY d2.last_seen DESC, d2.id DESC LIMIT 1),
+                       ''
+                   ) AS platform
               FROM {$prefix}user u
              WHERE u.suspended = 1
                AND u.deleted  = 0
@@ -72,6 +88,8 @@ try {
             'email'        => $r->email ?? '',
             'department'   => $r->department ?? '',
             'timemodified' => (int)$r->timemodified,
+            'reason'       => $r->reason ?? '',
+            'platform'     => $r->platform ?? '',
         ];
     }
 
