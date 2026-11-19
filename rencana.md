@@ -50,12 +50,12 @@
 
 ## 3. Alur Teknis Detail (3 Fase)
 
-### Fase 1: Download Paket Soal (Online di Awal)
-1. Siswa Android login $\rightarrow$ masuk ke [`CourseListScreen`](file:///c:/Users/dosman/Projects/exam/mobile/lib/screens/course_list_screen.dart) $\rightarrow$ pilih kuis di [`QuizListScreen`](file:///c:/Users/dosman/Projects/exam/mobile/lib/screens/quiz_list_screen.dart).
-2. Saat siswa menekan **"Mulai Ujian"**:
-   - Cek attempt aktif dengan `mod_quiz_get_user_attempts` (jika ada status `inprogress`, gunakan `attemptid` tersebut).
-   - Jika belum ada, panggil `mod_quiz_start_attempt`.
-   - Ambil seluruh halaman soal dengan loop `mod_quiz_get_attempt_data` hingga semua nomor soal terkumpul.
+### Fase 1: Download Paket Soal Saat Start Kuis (Online di Awal)
+1. Siswa Android login $\rightarrow$ masuk ke [`CourseListScreen`](file:///c:/Users/dosman/Projects/exam/mobile/lib/screens/course_list_screen.dart) $\rightarrow$ memilih kuis di [`QuizListScreen`](file:///c:/Users/dosman/Projects/exam/mobile/lib/screens/quiz_list_screen.dart). *(Pada tahap ini belum ada soal yang diunduh agar keamanan soal terjaga dan server tidak terbebani sebelum siswa benar-benar memulai).*
+2. Proses download soal **baru berjalan tepat ketika siswa menekan tombol "Mulai Ujian" (Start Quiz)** — setelah validasi jadwal buka dan password kuis (jika ada):
+   - Cek attempt aktif dengan `mod_quiz_get_user_attempts` (jika ada status `inprogress`, gunakan `attemptid` tersebut untuk melanjutkan; jika paket soal belum ada di HP, unduh ulang).
+   - Jika belum ada attempt, panggil `mod_quiz_start_attempt`.
+   - Tampilkan progress bar unduhan (*"Mengunduh paket soal..."*) sambil mengambil seluruh halaman soal lewat `mod_quiz_get_attempt_data`.
 3. **Ekstraksi Soal Pilihan Ganda:**
    - Dari HTML `question.html` tiap slot, ekstrak:
      - Teks/HTML pertanyaan (pertahankan tag format, tabel, dan LaTeX `\(...\)`).
