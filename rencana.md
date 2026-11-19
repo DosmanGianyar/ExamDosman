@@ -1,140 +1,103 @@
 # Dokumen Rencana & Arsitektur Project Lanjutan: Dosman Exam v3.0
-**Target Pengembangan:** Pasca Ujian (Mulai Akhir Maret 2026 ke Depan)  
-**Tujuan Utama:** 
-1. Tampilan antarmuka khusus (Clean & Modern Native Flutter UI) tanpa elemen web Moodle yang membingungkan siswa.
-2. Mekanisme kuis Semi-Offline (Download Paket Soal Terenkripsi $\rightarrow$ Pengerjaan Mandiri di HP $\rightarrow$ Upload Jawaban Batch) guna meringankan beban server hingga 90%+.
-3. Sistem Keamanan & Kiosk Terpadu (Zero-latency Local Lockout + Ultralight Telemetry Heartbeat untuk pengawasan & suspend).
-4. Opsi Modernisasi Backend: Evaluasi antara Headless Moodle vs Custom CBT Backend (Open Source / Scratch).
+**Target Pengembangan:** Pasca Ujian (Siap Dieksekusi Setelah Periode Ujian Selesai)  
+**Strategi Utama (Dual-Mode):**
+- **iOS:** Tetap menggunakan mode WebView (`LockedBrowserScreen`) yang sudah stabil dan lolos App Store.
+- **Android:** Beralih ke mode **Native Semi-Offline (khusus Pilihan Ganda)** — siswa **hanya butuh sinyal di awal** (download soal) dan **di akhir** (submit jawaban).
 
 ---
 
-## 1. Analisis Kebutuhan & Problem Statement
+## 1. Latar Belakang & Keputusan Teknis
 
-### Masalah pada Sistem Saat Ini (v2.7.x - WebView Mode):
-- **Beban Server & Database:** Setiap siswa berpindah soal atau menyimpan jawaban, Moodle memproses halaman HTML lengkap, sesi PHP, dan query database. Pada 800+ siswa simultan, ini memicu lonjakan CPU/RAM.
-- **Ketergantungan Wi-Fi:** Jika Access Point (AP) di sekolah drop sesaat, halaman web kuis siswa bisa freeze atau blank (ERR_NAME_NOT_RESOLVED / Timeout).
-- **Tampilan Kurang Bersih:** Tampilan kuis di WebView membawa komponen bawaan Moodle (navbar, breadcrumbs, tombol lapor, drawer) yang kurang relevan untuk ujian resmi tingkat sekolah.
+### Mengapa Dual-Mode & Fokus Pilihan Ganda?
+1. **Seluruh guru menggunakan tipe soal Pilihan Ganda (MCQ):** Ini memangkas kompleksitas parser soal hingga ~80% (tidak perlu menangani esai, menjodohkan, atau drag-and-drop yang rumit).
+2. **Bebas Masalah Sinyal Putus di Tengah Ujian:** Saat siswa Android mengerjakan soal, 0 request halaman dikirim ke server. Tidak akan ada lagi layar `ERR_INTERNET_DISCONNECTED` atau siswa bolak-balik meminta password keluar karena Wi-Fi drop sesaat.
+3. **Tetap Menggunakan Backend Moodle yang Ada:** Nilai siswa Android (via API) dan siswa iOS (via WebView) sama-sama masuk ke **satu buku nilai Moodle yang sama (`mdl_quiz_attempts` & `mdl_quiz_grades`)**, tanpa perlu melatih ulang guru membuat soal di sistem baru.
+4. **Beban Server Turun Drastis:** Server hanya melayani 1x download soal di awal dan 1x submit jawaban di akhir per siswa Android.
 
 ---
 
-## 2. Arsitektur Dosman Exam v3.0 (Native Semi-Offline)
+## 2. Arsitektur Android Semi-Offline (Moodle Web Services)
 
 ```
-[ Backend Server (Moodle REST / Custom CBT API) ]
+[ Moodle Server (REST API: mod_quiz_*) ]
        │
-       │ (1) Download Paket Soal Terenkripsi (di awal ujian)
+       │ (1) Fase Awal (Online): start_attempt + get_attempt_data + download gambar
        ▼
-┌─────────────────────────────────────────────────────┐
-│                     HP SISWA                        │
-│                                                     │
-│  [ SQLite / SQLCipher (Secure Local Storage) ]       │
-│  - Paket Soal (AES-256)                             │
-│  - State Jawaban & Ragu-ragu                        │
-│                                                     │
-│  [ Native Flutter Quiz Engine ]                     │
-│  - Render Soal, Pilihan Ganda, Gambar               │
-│  - Local Countdown Timer                            │
-│  - Zero-Latency Lockout (Cegah Curang Lokal)       │
-│                                                     │
-│  [ Background Telemetry Worker ]                    │
-│  - Ultralight Heartbeat (~150 bytes / 30s)          │
-└─────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────┐
+│                    HP ANDROID SISWA                       │
+│                                                           │
+│  [ Local Storage Terenkripsi (SQLite / SecureStorage) ]   │
+│  - Paket Soal Pilihan Ganda (HTML, slot, sequencecheck)   │
+│  - Cache Gambar Soal Lokal                                │
+│  - State Jawaban (A–E) & Ragu-ragu                        │
+│                                                           │
+│  [ Offline Quiz Engine (Flutter) ]                        │
+│  - Render Teks + Gambar Lokal + MathJax/KaTeX Offline APK │
+│  - Pindah Nomor Soal Instan (0 ms, tanpa internet)        │
+│  - Local Countdown Timer + Screen Pinning + Anti-Cheat    │
+│                                                           │
+│  [ Background Telemetry Worker ]                          │
+│  - Ping ringan app_ping.php (kirim quizid ke pengawas)    │
+└───────────────────────────────────────────────────────────┘
        │
-       │ (2) Ultralight Heartbeat & Suspend Status (selama ujian)
+       │ (2) Fase Akhir (Online): process_attempt (finishattempt=1)
        ▼
-[ Dashboard Pengawas Server ]
-       ▲
-       │ (3) Batch Upload Seluruh Jawaban (saat selesai ujian)
-       │
-[ HP SISWA ]
+[ Buku Nilai Moodle Server ]
+(Jika Wi-Fi putus saat submit → Auto-Retry setiap 5 detik; jawaban tetap aman di HP)
 ```
 
 ---
 
-## 3. Komparasi Opsi Backend: Moodle vs Custom / Open Source
+## 3. Alur Teknis Detail (3 Fase)
 
-| Kriteria | Opsi 1: Headless Moodle (REST API) | Opsi 2: Fork Open Source CBT (Laravel/Candy CBT/jujurCBT) | Opsi 3: Custom Micro-Backend (Go Fiber / Node.js) |
-|---|---|---|---|
-| **Kelebihan** | Guru tetap pakai Moodle lama; fitur nilai, bank soal, dan acak soal sudah 100% matang; tidak perlu pelatihan guru baru. | Khusus format sekolah Indonesia (Aiken/Excel/Word); ada role guru & pengawas; kode PHP familiar. | Kinerja paling tinggi di dunia (bisa 10.000 req/s, RAM < 50MB); arsitektur API sangat clean & mudah disesuaikan. |
-| **Kekurangan** | Struktur API Moodle cukup berbelit-belit untuk mobile dev. | Tampilan web default jadul; perlu dipreteli agar murni jadi REST API untuk Flutter; performa PHP standar. | Butuh waktu membuat Web Dashboard admin/guru untuk input soal & rekap nilai (meski dibantu AI). |
-| **Beban Server (800 Siswa)** | Sangat Rendah (turun 85% karena via JSON) | Sangat Rendah (karena pengerjaan semi-offline) | Hampir 0% (Sangat dingin & super efisien) |
-| **Rekomendasi Waktu** | Cepat (2 Minggu) | Sedang (2–3 Minggu) | Cepat dengan AI (2–3 Minggu) |
+### Fase 1: Download Paket Soal (Online di Awal)
+1. Siswa Android login $\rightarrow$ masuk ke [`CourseListScreen`](file:///c:/Users/dosman/Projects/exam/mobile/lib/screens/course_list_screen.dart) $\rightarrow$ pilih kuis di [`QuizListScreen`](file:///c:/Users/dosman/Projects/exam/mobile/lib/screens/quiz_list_screen.dart).
+2. Saat siswa menekan **"Mulai Ujian"**:
+   - Cek attempt aktif dengan `mod_quiz_get_user_attempts` (jika ada status `inprogress`, gunakan `attemptid` tersebut).
+   - Jika belum ada, panggil `mod_quiz_start_attempt`.
+   - Ambil seluruh halaman soal dengan loop `mod_quiz_get_attempt_data` hingga semua nomor soal terkumpul.
+3. **Ekstraksi Soal Pilihan Ganda:**
+   - Dari HTML `question.html` tiap slot, ekstrak:
+     - Teks/HTML pertanyaan (pertahankan tag format, tabel, dan LaTeX `\(...\)`).
+     - Daftar opsi pilihan ganda (`name`, `value` 0–4, label teks/HTML opsi A–E).
+     - `sequencecheck` (`name="q{usageid}:{slot}_:sequencecheck"`).
+   - Unduh seluruh gambar (`<img src=".../pluginfile.php/...">`) menggunakan token siswa dan simpan ke direktori lokal HP agar gambar tetap tampil saat offline.
+4. Simpan paket soal terenkripsi ke database lokal HP (`sqflite`).
 
----
+### Fase 2: Pengerjaan Soal (100% Offline di HP)
+1. **Renderer Soal & LaTeX Offline:**
+   - Sertakan bundel ringan **MathJax/KaTeX langsung di dalam aset APK Android** (`assets/katex/` atau `assets/mathjax/`).
+   - Soal dirender cepat secara lokal tanpa internet, mendukung rumus matematika/kimia dan gambar lokal.
+2. **Navigasi & Penyimpanan Instan:**
+   - Tombol nomor soal (panel grid nomor), tombol **Ragu-ragu**, **Sebelumnya**, **Berikutnya**, dan **Timer Countdown**.
+   - Setiap siswa memilih jawaban A–E, langsung tersimpan ke `sqflite` lokal (aman meskipun baterai habis atau aplikasi tertutup).
+3. **Keamanan & Monitoring Pengawas:**
+   - *Screen Pinning* (`LockTask`), deteksi split-screen, Bluetooth audio, dan timeout background 10 detik tetap berjalan penuh secara lokal.
+   - Worker latar belakang tetap mengirim `app_ping.php` (menyertakan `quizid` aktif agar Dashboard Pengawas tetap melihat siswa sedang mengerjakan kuis; jika sinyal putus sementara, layar soal siswa **tidak terganggu**).
 
-## 4. Referensi Open-Source CBT Terbaik di GitHub
-
-Jika kita memilih jalur menggunakan basis open-source yang sudah ada untuk disesuaikan:
-
-1. **`fadhil-riyanto/jujurCBT` (Laravel 11 + MariaDB/Vite)**
-   - *Kelebihan:* Menggunakan Laravel modern, didesain khusus ujian sekolah di Indonesia yang jujur dan bersih.
-   - *Penyesuaian:* Kita pasang REST API Controller untuk koneksi ke Flutter App.
-2. **`ahmadammarm/ujian-cbt` (Naiju - Laravel 11 + Vue 3)**
-   - *Kelebihan:* Manajemen bank soal privat guru, autosave jawaban, rate limiting, dan proteksi anti-kecurangan.
-3. **`codezelat/laravel-mcq-exam-system` (Laravel)**
-   - *Kelebihan:* Penegakan ujian satu kali pengerjaan (*single attempt*), pencegahan login ganda (*concurrent login prevention* dengan atomic lock), dan penilaian instan.
-4. **`semmidev/lms` (Go / Golang Fiber v2 + React)**
-   - *Kelebihan:* Performa backend luar biasa kencang (Go Fiber), clean architecture, sangat hemat RAM server sekolah.
-5. **Candy CBT (Repositori Komunitas GitHub: `sutam21/candycbt`)**
-   - *Kelebihan:* Sangat familiar bagi operator sekolah SMA/SMK di Indonesia (format import soal Excel/Word sudah standar).
-   - *Kekurangan:* Arsitektur kode lama (PHP procedural), butuh refactoring jika ingin dijadikan API modern.
-
----
-
-## 5. Komponen Utama & Alur Kerja v3.0
-
-### A. Tampilan Kuis (Clean Native Flutter UI)
-1. **Layar Pemilihan Ujian / Course:**
-   - Hanya menampilkan kartu ujian yang dijadwalkan aktif pada hari itu.
-   - Informasi jelas: Nama Mapel, Jumlah Soal, Durasi Waktu, Status Pengerjaan.
-2. **Layar Pengerjaan Kuis (Distraction-Free):**
-   - Header minimalis: Tombol Nomor Soal, Countdown Timer melayang, Indikator Sinyal/Baterai.
-   - Area Soal: Teks soal responsif, dukungan gambar perbesaran (*pinch-to-zoom*), dan render rumus matematika (LaTeX).
-   - Area Pilihan Jawaban: Desain kartu pilihan A, B, C, D yang luas dan mudah ditekan.
-   - Footer: Tombol "Sebelumnya", "Ragu-ragu", "Berikutnya", dan "Selesaikan Ujian".
-
-### B. Mekanisme Semi-Offline (Quiz Engine)
-1. **Fase 1: Download & Enkripsi (Pre-Attempt)**
-   - Siswa menekan tombol "Mulai Ujian".
-   - Aplikasi memanggil endpoint REST: `start_attempt` & download seluruh data soal dalam format JSON.
-   - Data disimpan ke dalam database lokal HP (`sqflite` dengan enkripsi SQLCipher / AES-256).
-   - Seluruh asset gambar soal diunduh dan di-cache secara lokal.
-2. **Fase 2: Pengerjaan Mandiri (Zero Network Dependency)**
-   - Siswa menjawab soal dan berpindah halaman secara instan (0 detik loading).
-   - Setiap perubahan jawaban langsung tersimpan di database lokal HP.
-   - Timer berjalan menggunakan jam internal terproteksi (mencegah manipulasi waktu perangkat).
-3. **Fase 3: Sinkronisasi & Upload Jawaban (Post-Attempt)**
-   - Saat waktu habis atau siswa menekan "Selesai", aplikasi mengemas seluruh jawaban dalam 1 request batch API.
-   - Jika koneksi Wi-Fi sedang padat, jawaban tetap tersimpan aman di HP, dan aplikasi menampilkan tombol *"Kirim Ulang Jawaban"*.
-
-### C. Keamanan & Pengawasan (Hybrid Security)
-1. **Local Security Guardian:**
-   - Deteksi otomatis tombol Home, Recent Apps, Split Screen, Floating Apps, dan Screenshot.
-   - Layar langsung terkunci seketika (Zero Latency) tanpa menunggu perintah server.
-2. **Ultralight Heartbeat & Suspend Checker:**
-   - Selama pengerjaan, aplikasi mengirim paket data sangat kecil (~150 bytes) setiap 20–30 detik ke server.
-   - Mengirim status: Sisa waktu, jumlah pelanggaran lokal, status baterai.
-   - Menerima balasan dari server: `action: "ok"` atau `action: "suspend"`.
-   - Jika pengawas menekan **Suspend** di Dashboard, HP siswa terkunci dalam beberapa detik.
-3. **Data Erasure:**
-   - Setelah server mengonfirmasi jawaban tersimpan dan kuis selesai, data soal di memori lokal HP dihapus bersih (*secure wipe*).
+### Fase 3: Submit Jawaban Batch (Online di Akhir)
+1. Ketika siswa klik **"Selesai & Kirim Jawaban"** (atau timer lokal habis):
+   - Kemas seluruh jawaban lokal ke dalam parameter `data` untuk endpoint `mod_quiz_process_attempt` dengan `finishattempt = 1`.
+2. **Perlindungan Anti-Gagal Submit:**
+   - Jika koneksi Wi-Fi sedang putus pada detik submit:
+     - Jawaban **tidak dihapus**.
+     - Layar menampilkan status **"Menunggu Sinyal untuk Mengirim Jawaban..."** dan melakukan *auto-retry* otomatis setiap 5 detik sampai server membalas sukses (`state = finished`).
+   - Setelah server mengonfirmasi tersimpan, bersihkan cache soal lokal dari HP dan tampilkan ringkasan selesai ujian.
 
 ---
 
-## 6. Tahapan Pengerjaan (Roadmap Pelaksanaan Pasca Ujian)
+## 4. Penyesuaian Server Moodle (Minimal, Tanpa Ganti Backend)
+1. Pastikan service `moodle_mobile_app` aktif dan role `student` memiliki izin webservice untuk `mod_quiz_start_attempt`, `mod_quiz_get_attempt_data`, `mod_quiz_process_attempt`, dan `mod_quiz_get_user_attempts`.
+2. Pada pengaturan setiap Quiz di Moodle: aktifkan opsi **"Allow quiz to be attempted offline using the mobile app"** (atau pastikan tidak ada pembatasan offline di access rule).
+3. Tambah parameter opsional `quizid` pada [`app_ping.php`](file:///c:/Users/dosman/Projects/exam/moodle-plugin/local/dosman_ujian/app_ping.php) agar status `current_quizid` siswa Android tetap terpantau real-time di Dashboard Pengawas meskipun tidak membuka halaman web Moodle.
 
-| Tahap | Fokus Pekerjaan | Estimasi Waktu |
+---
+
+## 5. Roadmap Eksekusi (Estimasi: 10–14 Hari Kerja)
+
+| Tahap | Fokus Pekerjaan | Estimasi |
 |---|---|---|
-| **Tahap 1** | **Keputusan Backend & API:** Menentukan pilihan backend (Headless Moodle / Custom Go / Fork Laravel CBT) dan menyusun spesifikasi REST API. | 3–5 Hari |
-| **Tahap 2** | **Quiz Engine & Local Storage:** Membangun arsitektur SQLite/SQLCipher di Flutter untuk menyimpan attempt soal dan jawaban offline. | 1 Minggu |
-| **Tahap 3** | **Native UI/UX:** Mendesain antarmuka kuis bersih di Flutter (Course List $\rightarrow$ Soal $\rightarrow$ Review Jawaban $\rightarrow$ Submit Dialog). | 1 Minggu |
-| **Tahap 4** | **Integrasi Keamanan & Heartbeat:** Menghubungkan sistem suspend dashboard pengawas dengan worker heartbeat Flutter. | 4 Hari |
-| **Tahap 5** | **Testing & Simulasi Skala Besar:** Uji coba di berbagai varian HP (spek rendah hingga tinggi, Android & iOS), uji coba Wi-Fi mati/hidup. | 5 Hari |
-| **Tahap 6** | **Rilis App Store & Play Store:** Pengajuan update resmi v3.0 ke Apple App Store & Google Play Store jauh-jauh hari sebelum jadwal ujian semester berikutnya. | 1–2 Minggu |
-
----
-
-## 7. Catatan Kesiapan Ujian Tanggal 16 (Status Quo)
-- Untuk ujian tanggal **16**, aplikasi **tetap menggunakan versi 2.7.8 yang sudah disetujui di App Store**.
-- Server Moodle sudah dioptimalkan (PHP-FPM 160 worker, MariaDB 1000 koneksi, Redis session non-blocking).
-- SOP login bertahap (*staggered start*) 3–5 menit antar ruangan wajib diterapkan untuk menjaga stabilitas AP Wi-Fi sekolah.
+| **Tahap 1** | **Moodle API & Downloader:** Uji coba endpoint `mod_quiz_*` di server live, buat downloader soal + gambar lokal + parser Pilihan Ganda + enkripsi `sqflite`. | 3–4 Hari |
+| **Tahap 2** | **Offline Quiz UI & LaTeX Lokal:** Buat `OfflineQuizScreen` (grid nomor soal, opsi A–E, ragu-ragu, timer lokal) + integrasi KaTeX/MathJax offline di aset APK. | 3–4 Hari |
+| **Tahap 3** | **Batch Submit & Auto-Retry:** Implementasi `mod_quiz_process_attempt` (`finishattempt=1`), mekanisme auto-retry saat sinyal putus, dan update `app_ping.php` (`quizid`). | 2–3 Hari |
+| **Tahap 4** | **Uji Coba & Simulasi:** Tes end-to-end dengan soal bergambar + LaTeX, tes matikan Wi-Fi saat mengerjakan lalu nyalakan lagi saat submit, dan verifikasi nilai masuk di Gradebook Moodle. | 2–3 Hari |
