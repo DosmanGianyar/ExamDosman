@@ -200,11 +200,11 @@ class _CourseListScreenState extends State<CourseListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
+      backgroundColor: const Color(0xFFF1F5F9),
       appBar: _buildAppBar(),
       body: RefreshIndicator(
         onRefresh: _loadCourses,
-        color:     const Color(0xFF2563EB),
+        color:     const Color(0xFF1E3A8A),
         child:     _buildBody(),
       ),
     );
@@ -214,21 +214,32 @@ class _CourseListScreenState extends State<CourseListScreen> {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor:  const Color(0xFF1E3A5F),
+      backgroundColor:  const Color(0xFF0F172A),
       foregroundColor:  Colors.white,
       elevation:        0,
       automaticallyImplyLeading: false,
-      title: const Row(
+      title: Row(
         children: [
-          Text('📋 ', style: TextStyle(fontSize: 20)),
-          SizedBox(width: 4),
-          Expanded(
+          Container(
+            width: 30,
+            height: 30,
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFF59E0B), width: 1.2),
+            ),
+            child: Image.asset('assets/logo_sekolah.png', fit: BoxFit.contain),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
             child: Text(
-              'Moodle SMAN 1 GIANYAR',
+              'Dosman Exam',
               style: TextStyle(
-                fontSize:   16,
-                fontWeight: FontWeight.w700,
+                fontSize:   17,
+                fontWeight: FontWeight.w800,
                 color:      Colors.white,
+                letterSpacing: 0.3,
               ),
               overflow: TextOverflow.ellipsis,
             ),
@@ -236,22 +247,9 @@ class _CourseListScreenState extends State<CourseListScreen> {
         ],
       ),
       actions: [
-        // Info user
-        Padding(
-          padding: const EdgeInsets.only(right: 4),
-          child: Center(
-            child: Text(
-              '👤 $_fullname',
-              style: TextStyle(
-                fontSize: 12,
-                color:    Colors.white.withValues(alpha: 0.8),
-              ),
-            ),
-          ),
-        ),
         // Tombol logout
         IconButton(
-          icon:    const Icon(Icons.logout, size: 20),
+          icon:    const Icon(Icons.logout_rounded, size: 20, color: Color(0xFFFCA5A5)),
           tooltip: 'Keluar',
           onPressed: _logout,
         ),
@@ -410,65 +408,112 @@ class _CourseListScreenState extends State<CourseListScreen> {
 
     return Column(
       children: [
-        // ── Header + Search ──────────────────────────────────────────────────
+        // ── Banner Selamat Datang Mewah + Search bar ─────────────────────────
         Container(
-          color:   Colors.white,
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-          child:   Column(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF0F172A), Color(0xFF1E3A5F)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+            borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+          ),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Sapaan
-              Text(
-                'Halo, $_fullname! 👋',
-                style: const TextStyle(
-                  fontSize:   15,
-                  fontWeight: FontWeight.w700,
-                  color:      Color(0xFF1F2937),
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Selamat Datang,',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF93C5FD),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _fullname,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: const Color(0xFFF59E0B).withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.bolt_rounded, color: Color(0xFFFBBF24), size: 14),
+                        SizedBox(width: 4),
+                        Text(
+                          'Semi-Offline',
+                          style: TextStyle(
+                            color: Color(0xFFFDE68A),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 2),
-              Text(
-                'Pilih course untuk mulai ujian',
-                style: TextStyle(
-                  fontSize: 12,
-                  color:    Colors.grey.shade500,
-                ),
-              ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
 
-              // Search bar
+              // Search bar mengambang
               TextField(
                 controller: _searchCtrl,
+                style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A)),
                 decoration: InputDecoration(
-                  hintText:  '🔍  Cari course...',
+                  hintText: 'Cari mata pelajaran ujian...',
                   hintStyle: const TextStyle(
                     fontSize: 13,
-                    color:    Color(0xFF9CA3AF),
+                    color: Color(0xFF94A3B8),
                   ),
                   prefixIcon: const Icon(
-                    Icons.search,
-                    size:  18,
-                    color: Color(0xFF9CA3AF),
+                    Icons.search_rounded,
+                    size: 20,
+                    color: Color(0xFF64748B),
                   ),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear, size: 18),
-                          color: const Color(0xFF9CA3AF),
+                          icon: const Icon(Icons.clear_rounded, size: 18),
+                          color: const Color(0xFF64748B),
                           onPressed: () {
                             _searchCtrl.clear();
                             setState(() => _searchQuery = '');
                           },
                         )
                       : null,
-                  filled:    true,
-                  fillColor: const Color(0xFFF3F4F6),
+                  filled: true,
+                  fillColor: Colors.white,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14,
-                    vertical:   10,
+                    vertical: 12,
                   ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide:   BorderSide.none,
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
                   ),
                 ),
                 onChanged: (val) => setState(() => _searchQuery = val),
@@ -479,36 +524,33 @@ class _CourseListScreenState extends State<CourseListScreen> {
 
         // ── Course count info ────────────────────────────────────────────────
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
           child: Row(
             children: [
+              const Icon(Icons.layers_rounded, size: 15, color: Color(0xFF475569)),
+              const SizedBox(width: 6),
               Text(
                 _searchQuery.isEmpty
-                    ? '${_courses.length} course terdaftar'
-                    : '${filtered.length} dari ${_courses.length} course',
+                    ? '${_courses.length} Mata Pelajaran Tersedia'
+                    : '${filtered.length} dari ${_courses.length} Mata Pelajaran',
                 style: const TextStyle(
                   fontSize:   12,
-                  color:      Color(0xFF6B7280),
-                  fontWeight: FontWeight.w500,
+                  color:      Color(0xFF475569),
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
           ),
         ),
 
-        // ── Grid ─────────────────────────────────────────────────────────────
+        // ── Daftar Course Elegan ─────────────────────────────────────────────
         Expanded(
           child: filtered.isEmpty
               ? _buildNoResult()
-              : GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount:   MediaQuery.of(context).size.width > 600 ? 3 : 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing:  12,
-                    childAspectRatio: 0.82,
-                  ),
-                  itemCount:   filtered.length,
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final course = filtered[index];
                     return CourseCard(

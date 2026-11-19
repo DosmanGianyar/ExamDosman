@@ -13,167 +13,148 @@ class CourseCard extends StatelessWidget {
     required this.colorIndex,
   });
 
-  // Warna banner course (bergilir berdasarkan index)
-  static const List<Color> _bannerColors = [
-    Color(0xFF2563EB), // biru
-    Color(0xFF7C3AED), // ungu
-    Color(0xFFDB2777), // pink
-    Color(0xFFEA580C), // oranye
-    Color(0xFF16A34A), // hijau
-    Color(0xFF0891B2), // cyan
-    Color(0xFFDC2626), // merah
-    Color(0xFFCA8A04), // kuning
+  static const List<List<Color>> _cardGradients = [
+    [Color(0xFF1E3A8A), Color(0xFF2563EB)], // Navy -> Royal Blue
+    [Color(0xFF0F172A), Color(0xFF334155)], // Dark Slate
+    [Color(0xFF1D4ED8), Color(0xFF0284C7)], // Blue -> Cyan
+    [Color(0xFF5B21B6), Color(0xFF7C3AED)], // Deep Violet
+    [Color(0xFF065F46), Color(0xFF059669)], // Emerald
+    [Color(0xFFB45309), Color(0xFFD97706)], // Amber Gold
   ];
 
-  Color get _bannerColor => _bannerColors[colorIndex % _bannerColors.length];
+  List<Color> get _gradient =>
+      _cardGradients[colorIndex % _cardGradients.length];
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ─── Banner warna ─────────────────────────────────────────────
-            Container(
-              height: 8,
-              decoration: BoxDecoration(
-                color: _bannerColor,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(12),
+    final accent = _gradient.last;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Ikon Gradien Mewah
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: _gradient,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: accent.withValues(alpha: 0.28),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.menu_book_rounded,
+                  color: Colors.white,
+                  size: 26,
                 ),
               ),
-            ),
+              const SizedBox(width: 14),
 
-            // ─── Body ─────────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Nama course
-                  Text(
-                    course.fullname,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1F2937),
-                      height: 1.4,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  // Kode / shortname
-                  Text(
-                    course.shortname,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF9CA3AF),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-
-                  // Summary (jika ada)
-                  if (course.summary.isNotEmpty) ...[
-                    const SizedBox(height: 6),
+              // Detail Mata Pelajaran / Course
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      course.summary,
+                      course.fullname,
                       style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF6B7280),
-                        height: 1.4,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                        height: 1.3,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-
-                  const SizedBox(height: 12),
-
-                  // ─── Footer ───────────────────────────────────────────
-                  Row(
-                    children: [
-                      // Badge kategori (jika ada)
-                      if (course.categoryname.isNotEmpty)
-                        Expanded(
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Flexible(
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
-                              vertical: 4,
+                              vertical: 3,
                             ),
                             decoration: BoxDecoration(
-                              color: _bannerColor.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(20),
+                              color: accent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              course.categoryname,
+                              course.categoryname.isNotEmpty
+                                  ? course.categoryname
+                                  : course.shortname,
                               style: TextStyle(
                                 fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                color: _bannerColor,
+                                fontWeight: FontWeight.w600,
+                                color: accent,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        )
-                      else
-                        Text(
-                          'ID: ${course.id}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Color(0xFF9CA3AF),
-                          ),
                         ),
-
-                      const SizedBox(width: 8),
-
-                      // Tombol "Pilih"
-                      ElevatedButton(
-                        onPressed: onTap,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _bannerColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 6,
-                          ),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          elevation: 0,
-                          textStyle: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        child: const Text('Pilih'),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 10),
+
+              // Tombol Masuk Elegan
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Buka',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(width: 4),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: Color(0xFFFBBF24),
+                      size: 12,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
