@@ -4,11 +4,15 @@ import '../models/quiz.dart';
 class QuizCard extends StatelessWidget {
   final Quiz quiz;
   final VoidCallback onTap;
+  final int? finishedAttempts;
+  final int? inProgressCount;
 
   const QuizCard({
     super.key,
     required this.quiz,
     required this.onTap,
+    this.finishedAttempts,
+    this.inProgressCount,
   });
 
   @override
@@ -84,19 +88,38 @@ class QuizCard extends StatelessWidget {
               const SizedBox(height: 12),
 
               // ── Info row: waktu & jadwal ──
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
                 children: [
                   _InfoChip(
                     icon: Icons.timer_outlined,
                     label: quiz.timeLimitLabel,
                     color: const Color(0xFF2563EB),
                   ),
-                  const SizedBox(width: 8),
                   if (quiz.attempts > 0)
                     _InfoChip(
                       icon: Icons.replay_outlined,
-                      label: '${quiz.attempts}x percobaan',
+                      label: '${quiz.attempts}x maks',
                       color: const Color(0xFF7C3AED),
+                    ),
+                  if (finishedAttempts != null)
+                    _InfoChip(
+                      icon: (finishedAttempts ?? 0) > 0
+                          ? Icons.check_circle_rounded
+                          : ((inProgressCount ?? 0) > 0
+                              ? Icons.pending_rounded
+                              : Icons.radio_button_unchecked_rounded),
+                      label: (finishedAttempts ?? 0) > 0
+                          ? 'Nilai Terkirim (${finishedAttempts}x)'
+                          : ((inProgressCount ?? 0) > 0
+                              ? 'Belum Dikirim'
+                              : 'Belum Dikerjakan (0x)'),
+                      color: (finishedAttempts ?? 0) > 0
+                          ? const Color(0xFF15803D)
+                          : ((inProgressCount ?? 0) > 0
+                              ? const Color(0xFFB45309)
+                              : const Color(0xFF475569)),
                     ),
                 ],
               ),

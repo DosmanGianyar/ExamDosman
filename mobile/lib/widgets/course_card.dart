@@ -5,12 +5,16 @@ class CourseCard extends StatelessWidget {
   final Course course;
   final VoidCallback onTap;
   final int colorIndex;
+  final int? finishedAttempts;
+  final int? inProgressCount;
 
   const CourseCard({
     super.key,
     required this.course,
     required this.onTap,
     required this.colorIndex,
+    this.finishedAttempts,
+    this.inProgressCount,
   });
 
   static const List<List<Color>> _cardGradients = [
@@ -93,32 +97,33 @@ class CourseCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 6),
-                    Row(
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 5,
                       children: [
-                        Flexible(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: accent.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            course.categoryname.isNotEmpty
+                                ? course.categoryname
+                                : course.shortname,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: accent,
                             ),
-                            decoration: BoxDecoration(
-                              color: accent.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              course.categoryname.isNotEmpty
-                                  ? course.categoryname
-                                  : course.shortname,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: accent,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        if (finishedAttempts != null) _buildAttemptBadge(),
                       ],
                     ),
                   ],
@@ -156,6 +161,56 @@ class CourseCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildAttemptBadge() {
+    final fin = finishedAttempts ?? 0;
+    final inp = inProgressCount ?? 0;
+
+    final Color bg;
+    final Color fg;
+    final IconData icon;
+    final String text;
+
+    if (fin > 0) {
+      bg = const Color(0xFFDCFCE7);
+      fg = const Color(0xFF15803D);
+      icon = Icons.check_circle_rounded;
+      text = 'Nilai Terkirim • ${fin}x Dikerjakan';
+    } else if (inp > 0) {
+      bg = const Color(0xFFFEF3C7);
+      fg = const Color(0xFFB45309);
+      icon = Icons.pending_rounded;
+      text = 'Belum Dikirim';
+    } else {
+      bg = const Color(0xFFF1F5F9);
+      fg = const Color(0xFF475569);
+      icon = Icons.radio_button_unchecked_rounded;
+      text = '0x Dikerjakan';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: fg),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: fg,
+            ),
+          ),
+        ],
       ),
     );
   }

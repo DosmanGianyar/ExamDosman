@@ -31,6 +31,8 @@ class _CourseListScreenState extends State<CourseListScreen> {
   String       _searchQuery = '';
   String       _fullname    = 'Siswa';
   String       _department  = '';
+  int          _userId      = 0;
+  final Map<int, ({int finished, int inProgress})> _courseStats = {};
 
   final _searchCtrl = TextEditingController();
   Timer? _pingTimer;
@@ -203,9 +205,11 @@ class _CourseListScreenState extends State<CourseListScreen> {
 
       if (!mounted) return;
       setState(() {
+        _userId    = userId;
         _courses   = courses;
         _isLoading = false;
       });
+      _loadCourseStats(userId, courses);
     } on TokenExpiredException {
       await KioskController.instance.unlock();
       await AuthService.logout();
@@ -293,10 +297,42 @@ class _CourseListScreenState extends State<CourseListScreen> {
     }
   }
 
+  Future<void> _loadCourseStats(int userId, List<Course> courses) async {
+    if (userId <= 0 || courses.isEmpty) return;
+    await Future.wait(courses.map((c) async {
+      try {
+        final rawQuizzes = await ApiService.getQuizzes(c.id);
+        int fin = 0;
+        int inp = 0;
+        for (final q in rawQuizzes) {
+          if (q is! Map<String, dynamic>) continue;
+          final visible = q['visible'] == 1 || q['visible'] == true;
+          if (!visible) continue;
+          final qid = (q['id'] as num?)?.toInt() ?? 0;
+          if (qid <= 0) continue;
+          final attempts = await ApiService.getUserQuizAttempts(qid, userId);
+          for (final a in attempts) {
+            final st = (a['state'] as String? ?? '').toLowerCase();
+            if (st == 'finished' || st == 'overdue') {
+              fin++;
+            } else if (st == 'inprogress') {
+              inp++;
+            }
+          }
+        }
+        if (mounted) {
+          setState(() {
+            _courseStats[c.id] = (finished: fin, inProgress: inp);
+          });
+        }
+      } catch (_) {}
+    }));
+  }
+
   // ─── Navigate ke QuizList ─────────────────────────────────────────────────────
 
-  void _openCourse(Course course) {
-    Navigator.of(context).push(
+  Future<void> _openCourse(Course course) async {
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => QuizListScreen(
           courseId:   course.id,
@@ -304,6 +340,9 @@ class _CourseListScreenState extends State<CourseListScreen> {
         ),
       ),
     );
+    if (_userId > 0 && _courses.isNotEmpty) {
+      _loadCourseStats(_userId, _courses);
+    }
   }
 
   // ─── Build ────────────────────────────────────────────────────────────────────
@@ -751,10 +790,13 @@ class _CourseListScreenState extends State<CourseListScreen> {
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final course = filtered[index];
+                    final stat = _courseStats[course.id];
                     return CourseCard(
-                      course:     course,
-                      onTap:      () => _openCourse(course),
-                      colorIndex: _courses.indexOf(course),
+                      course:           course,
+                      onTap:            () => _openCourse(course),
+                      colorIndex:       _courses.indexOf(course),
+                      finishedAttempts: stat?.finished,
+                      inProgressCount:  stat?.inProgress,
                     );
                   },
                 ),

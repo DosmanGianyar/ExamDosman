@@ -31,6 +31,7 @@ class _QuizListScreenState extends State<QuizListScreen> {
   bool       _isLoading   = true;
   String     _errorMsg    = '';
   String     _searchQuery = '';
+  final Map<int, ({int finished, int inProgress})> _quizStats = {};
 
   final _searchCtrl = TextEditingController();
 
@@ -74,6 +75,7 @@ class _QuizListScreenState extends State<QuizListScreen> {
         _quizzes   = quizzes;
         _isLoading = false;
       });
+      _loadQuizStats(quizzes);
     } on TokenExpiredException {
       await KioskController.instance.unlock();
       await AuthService.logout();
@@ -112,6 +114,31 @@ class _QuizListScreenState extends State<QuizListScreen> {
       return quiz.name.toLowerCase().contains(q) ||
              quiz.intro.toLowerCase().contains(q);
     }).toList();
+  }
+
+  Future<void> _loadQuizStats(List<Quiz> quizzes) async {
+    final userId = await AuthService.getUserId();
+    if (userId <= 0 || quizzes.isEmpty) return;
+    await Future.wait(quizzes.map((q) async {
+      try {
+        final attempts = await ApiService.getUserQuizAttempts(q.id, userId);
+        int fin = 0;
+        int inp = 0;
+        for (final a in attempts) {
+          final st = (a['state'] as String? ?? '').toLowerCase();
+          if (st == 'finished' || st == 'overdue') {
+            fin++;
+          } else if (st == 'inprogress') {
+            inp++;
+          }
+        }
+        if (mounted) {
+          setState(() {
+            _quizStats[q.id] = (finished: fin, inProgress: inp);
+          });
+        }
+      } catch (_) {}
+    }));
   }
 
   // ─── Navigate ke ExamReady ────────────────────────────────────────────────────
@@ -433,9 +460,12 @@ class _QuizListScreenState extends State<QuizListScreen> {
                   itemCount:   filtered.length,
                   itemBuilder: (context, index) {
                     final quiz = filtered[index];
+                    final stat = _quizStats[quiz.id];
                     return QuizCard(
-                      quiz:  quiz,
-                      onTap: () => _openQuiz(quiz),
+                      quiz:             quiz,
+                      onTap:            () => _openQuiz(quiz),
+                      finishedAttempts: stat?.finished,
+                      inProgressCount:  stat?.inProgress,
                     );
                   },
                 ),
