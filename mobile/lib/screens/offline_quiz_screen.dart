@@ -417,56 +417,100 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     final answered = pkg.questions.where((q) => q.selectedValue != null).length;
     final unanswered = pkg.questions.length - answered;
     final flagged = pkg.questions.where((q) => q.isFlagged).length;
+    bool agreed = false;
 
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Selesaikan & Kirim Ujian?',
-          style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Terjawab: $answered dari ${pkg.questions.length} soal',
-              style: const TextStyle(color: Color(0xFF86EFAC), fontSize: 14, fontWeight: FontWeight.w600),
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.assignment_turned_in_rounded, color: Color(0xFF60A5FA), size: 22),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Konfirmasi Kirim Jawaban',
+                  style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Terjawab: $answered dari ${pkg.questions.length} soal',
+                style: const TextStyle(color: Color(0xFF86EFAC), fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+              if (unanswered > 0) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Belum dijawab: $unanswered soal',
+                  style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              ],
+              if (flagged > 0) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Ditandai ragu-ragu: $flagged soal',
+                  style: const TextStyle(color: Color(0xFFFDE68A), fontSize: 13),
+                ),
+              ],
+              const SizedBox(height: 14),
+              InkWell(
+                onTap: () => setDlgState(() => agreed = !agreed),
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: agreed
+                        ? const Color(0xFF16A34A).withValues(alpha: 0.16)
+                        : Colors.white.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: agreed ? const Color(0xFF22C55E) : Colors.white24,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Checkbox(
+                        value: agreed,
+                        onChanged: (v) => setDlgState(() => agreed = v == true),
+                        activeColor: const Color(0xFF16A34A),
+                        side: const BorderSide(color: Colors.white54),
+                      ),
+                      const Expanded(
+                        child: Text(
+                          'Saya yakin sudah memeriksa seluruh jawaban dan siap mengakhiri ujian ini.',
+                          style: TextStyle(color: Colors.white, fontSize: 12, height: 1.4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Batal / Periksa Lagi', style: TextStyle(color: Colors.white70)),
             ),
-            if (unanswered > 0) ...[
-              const SizedBox(height: 6),
-              Text(
-                'Belum dijawab: $unanswered soal',
-                style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 13),
+            ElevatedButton(
+              onPressed: agreed ? () => Navigator.pop(ctx, true) : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF16A34A),
+                disabledBackgroundColor: Colors.white12,
+                disabledForegroundColor: Colors.white38,
               ),
-            ],
-            if (flagged > 0) ...[
-              const SizedBox(height: 6),
-              Text(
-                'Ditandai ragu-ragu: $flagged soal',
-                style: const TextStyle(color: Color(0xFFFDE68A), fontSize: 13),
-              ),
-            ],
-            const SizedBox(height: 12),
-            const Text(
-              'Setelah dikirim, jawaban tidak dapat diubah lagi.',
-              style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+              child: const Text('Kirim Jawaban'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Periksa Lagi', style: TextStyle(color: Colors.white70)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
-            child: const Text('Kirim Jawaban'),
-          ),
-        ],
       ),
     );
 
@@ -486,13 +530,23 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
 
     try {
       final payload = OfflineQuizService.buildSubmitPayload(pkg);
-      await ApiService.processQuizAttempt(
+      final attemptState = await ApiService.processQuizAttempt(
         pkg.attemptId,
         payload,
         finishAttempt: true,
         timeUp: timeUp,
         quizPassword: _quizPassword,
       );
+
+      if (attemptState != 'finished' && attemptState != 'overdue' && attemptState != 'abandoned') {
+        throw ApiException('Server belum mengonfirmasi status selesai ($attemptState).');
+      }
+
+      final answeredCount = pkg.questions.where((q) => q.selectedValue != null).length;
+      final studentName = await AuthService.getFullname();
+      final sentTime = DateTime.now();
+      final timeLabel =
+          '${sentTime.hour.toString().padLeft(2, '0')}:${sentTime.minute.toString().padLeft(2, '0')}:${sentTime.second.toString().padLeft(2, '0')}';
 
       _submitRetryTimer?.cancel();
       await OfflineQuizService.clearSavedPackage(
@@ -511,27 +565,62 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF1E293B),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          backgroundColor: const Color(0xFF064E3B),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: const BorderSide(color: Color(0xFF34D399), width: 1.5),
+          ),
           title: const Row(
             children: [
-              Icon(Icons.check_circle_rounded, color: Color(0xFF22C55E), size: 26),
+              Icon(Icons.verified_rounded, color: Color(0xFF34D399), size: 28),
               SizedBox(width: 10),
-              Text(
-                'Ujian Terkirim!',
-                style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700),
+              Expanded(
+                child: Text(
+                  'BUKTI UJIAN TERKIRIM',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+                ),
               ),
             ],
           ),
-          content: Text(
-            'Seluruh jawaban untuk "${pkg.quizName}" telah berhasil disimpan ke server Moodle.',
-            style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.5),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Jawaban Anda telah diterima dan tersimpan resmi di server Moodle.',
+                style: TextStyle(color: Color(0xFFD1FAE5), fontSize: 13, height: 1.45),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Siswa: $studentName', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    Text('Ujian: ${pkg.quizName}', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                    const SizedBox(height: 4),
+                    Text('Terjawab: $answeredCount / ${pkg.questions.length} soal', style: const TextStyle(color: Color(0xFF6EE7B7), fontSize: 12, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 4),
+                    Text('Jam Kirim: $timeLabel WITA (ID #${pkg.attemptId})', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                  ],
+                ),
+              ),
+            ],
           ),
           actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx),
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
-              child: const Text('Kembali ke Daftar Ujian'),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+                child: const Text('Selesai & Kembali', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+              ),
             ),
           ],
         ),
@@ -674,6 +763,51 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
   }
 
   Future<void> _handleExit() async {
+    final pkg = _package;
+    if (pkg != null) {
+      final answered = pkg.questions.where((q) => q.selectedValue != null).length;
+      final proceedExit = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF450A0A),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Color(0xFFFCA5A5), size: 26),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'JAWABAN BELUM DIKIRIM!',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'PERHATIAN: Jawaban ujian Anda ($answered/${pkg.questions.length} soal) BELUM dikirim ke server Moodle!\n\n'
+            'Jika belum selesai, kembali ke ujian dan tekan tombol "Selesai" untuk mengirim nilai.',
+            style: const TextStyle(color: Color(0xFFFEE2E2), fontSize: 13, height: 1.5),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
+              child: const Text('Kembali ke Ujian'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Tetap Keluar', style: TextStyle(color: Color(0xFFFCA5A5))),
+            ),
+          ],
+        ),
+      );
+      if (proceedExit != true) return;
+    }
+
     final fetch = await KioskController.instance.fetchExitPassword();
     if (!fetch.success) {
       if (!mounted) return;

@@ -215,6 +215,30 @@ class OfflineQuizService {
     } catch (_) {}
   }
 
+  /// Cari paket ujian lokal milik [userId] yang belum disubmit (untuk auto-recovery).
+  static Future<List<OfflineQuizPackage>> findPendingPackages(int userId) async {
+    final result = <OfflineQuizPackage>[];
+    if (userId <= 0) return result;
+    try {
+      final prefix = 'dosman_offline_pkg_${userId}_';
+      final dir = Directory.systemTemp;
+      await for (final entity in dir.list()) {
+        if (entity is! File) continue;
+        final name = entity.uri.pathSegments.last;
+        if (!name.startsWith(prefix) || !name.endsWith('.json')) continue;
+        final quizIdStr = name.substring(prefix.length, name.length - 5);
+        final quizId = int.tryParse(quizIdStr) ?? 0;
+        if (quizId > 0) {
+          final pkg = await loadSavedPackage(userId: userId, quizId: quizId);
+          if (pkg != null && pkg.questions.isNotEmpty) {
+            result.add(pkg);
+          }
+        }
+      }
+    } catch (_) {}
+    return result;
+  }
+
   /// Download paket soal dari Moodle tepat saat siswa klik Start Quiz.
   static Future<OfflineQuizPackage> downloadQuizPackage({
     required int quizId,

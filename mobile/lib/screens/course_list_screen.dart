@@ -6,12 +6,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/course.dart';
+import '../models/quiz.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/exam_service.dart';
 import '../services/kiosk_controller.dart';
+import '../services/offline_quiz_service.dart';
 import '../widgets/course_card.dart';
 import 'quiz_list_screen.dart';
+import 'offline_quiz_screen.dart';
 import 'login_screen.dart';
 
 class CourseListScreen extends StatefulWidget {
@@ -68,6 +71,82 @@ class _CourseListScreenState extends State<CourseListScreen> {
     if (mounted) setState(() => _fullname = fullname);
     await KioskController.instance.lock(userId: userId);
     await _loadCourses();
+    await _checkPendingOfflineSubmissions(userId);
+  }
+
+  Future<void> _checkPendingOfflineSubmissions(int userId) async {
+    if (!mounted || userId <= 0) return;
+    final pending = await OfflineQuizService.findPendingPackages(userId);
+    if (pending.isEmpty || !mounted) return;
+    final pkg = pending.first;
+    final answered = pkg.questions.where((q) => q.selectedValue != null).length;
+
+    final resume = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFFF59E0B), width: 1.5),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Color(0xFFFBBF24), size: 24),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Jawaban Belum Terkirim',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Ditemukan jawaban ujian "${pkg.quizName}" ($answered/${pkg.questions.length} soal) yang belum dikirim ke server.\n\n'
+          'Silakan lanjutkan dan tekan "Selesai" untuk mengirim jawaban Anda.',
+          style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Nanti', style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
+            icon: const Icon(Icons.play_arrow_rounded, size: 18),
+            label: const Text('Lanjutkan & Kirim'),
+          ),
+        ],
+      ),
+    );
+
+    if (resume == true && mounted) {
+      final dummyQuiz = Quiz(
+        id: pkg.quizId,
+        coursemodule: 0,
+        course: pkg.courseId,
+        name: pkg.quizName,
+        intro: '',
+        timeopen: 0,
+        timeclose: pkg.endTimeEpochSec,
+        timelimit: 0,
+        attempts: 1,
+        gradepass: 0,
+        grade: 100,
+        visible: true,
+      );
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => OfflineQuizScreen(
+            quiz: dummyQuiz,
+            courseId: pkg.courseId,
+            userId: userId,
+          ),
+        ),
+      );
+    }
   }
 
   // ─── Load Courses ─────────────────────────────────────────────────────────────
