@@ -30,6 +30,7 @@ class _CourseListScreenState extends State<CourseListScreen> {
   String       _errorMsg    = '';
   String       _searchQuery = '';
   String       _fullname    = 'Siswa';
+  String       _department  = '';
 
   final _searchCtrl = TextEditingController();
   Timer? _pingTimer;
@@ -67,11 +68,42 @@ class _CourseListScreenState extends State<CourseListScreen> {
 
   Future<void> _init() async {
     final fullname = await AuthService.getFullname();
+    final department = await AuthService.getDepartment();
     final userId = await AuthService.getUserId();
-    if (mounted) setState(() => _fullname = fullname);
+    if (mounted) {
+      setState(() {
+        _fullname = fullname;
+        _department = department;
+      });
+    }
+    _fetchUserDepartmentIfNeeded(userId);
     await KioskController.instance.lock(userId: userId);
     await _loadCourses();
     await _checkPendingOfflineSubmissions(userId);
+  }
+
+  Future<void> _fetchUserDepartmentIfNeeded(int userId) async {
+    if (userId <= 0) return;
+    try {
+      final res = await ApiService.call('core_user_get_users_by_field', {
+        'field': 'id',
+        'values[0]': userId,
+      });
+      if (res is List && res.isNotEmpty && res.first is Map<String, dynamic>) {
+        final u = res.first as Map<String, dynamic>;
+        final dept = (u['department'] as String? ?? '').trim();
+        final full = (u['fullname'] as String? ?? '').trim();
+        if (dept.isNotEmpty) {
+          await AuthService.saveDepartment(dept);
+        }
+        if (mounted && (dept.isNotEmpty || full.isNotEmpty)) {
+          setState(() {
+            if (dept.isNotEmpty) _department = dept;
+            if (full.isNotEmpty) _fullname = full;
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _checkPendingOfflineSubmissions(int userId) async {
@@ -508,29 +540,53 @@ class _CourseListScreenState extends State<CourseListScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Selamat Datang,',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF93C5FD),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _fullname,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                    child: Builder(
+                      builder: (_) {
+                        final parsed = AuthService.parseNameAndClass(_fullname, _department);
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Selamat Datang,',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF93C5FD),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              parsed.name,
+                              style: const TextStyle(
+                                fontSize: 16.5,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                height: 1.25,
+                              ),
+                              softWrap: true,
+                            ),
+                            if (parsed.studentClass.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.white24),
+                                ),
+                                child: Text(
+                                  'Kelas: ${parsed.studentClass}',
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        );
+                      },
                     ),
                   ),
                   Container(

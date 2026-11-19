@@ -25,6 +25,7 @@ class AuthService {
   static const _keyUserId   = 'dosman_userid';
   static const _keyUsername = 'dosman_username';
   static const _keyFullname = 'dosman_fullname';
+  static const _keyDepartment = 'dosman_department';
   static const _keyPassword = 'dosman_password'; // untuk auto-login WebView
   static const _keyBlockedStatus    = 'dosman_blocked_status';
   static const _keySuspendedByAdmin = 'dosman_suspended_by_admin';
@@ -73,6 +74,29 @@ class AuthService {
 
   static Future<String> getFullname() async {
     return await _storage.read(key: _keyFullname) ?? 'Siswa';
+  }
+
+  static Future<void> saveDepartment(String department) async {
+    await _storage.write(key: _keyDepartment, value: department);
+  }
+
+  static Future<String> getDepartment() async {
+    return await _storage.read(key: _keyDepartment) ?? '';
+  }
+
+  /// Pisahkan nama siswa dan kelas secara rapi tanpa memotong nama.
+  static ({String name, String studentClass}) parseNameAndClass(
+    String fullname,
+    String department,
+  ) {
+    final raw = fullname.trim();
+    if (raw.contains('|')) {
+      final parts = raw.split('|').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+      final name = parts.isNotEmpty ? parts.first : raw;
+      final cls = parts.length >= 2 ? parts[1] : department.trim();
+      return (name: name, studentClass: cls);
+    }
+    return (name: raw, studentClass: department.trim());
   }
 
   static Future<String?> getPassword() => _storage.read(key: _keyPassword);
@@ -155,6 +179,7 @@ class AuthService {
       _storage.delete(key: _keyUserId),
       _storage.delete(key: _keyUsername),
       _storage.delete(key: _keyFullname),
+      _storage.delete(key: _keyDepartment),
       _storage.delete(key: _keySuspendedByAdmin),
     ]);
     ApiService.clearToken();

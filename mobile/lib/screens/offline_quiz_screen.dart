@@ -70,16 +70,31 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
   DateTime? _backgroundedAt;
   bool _screenWasOff = false;
   bool _blockSent = false;
+  String _studentName = '';
+  String _studentClass = '';
 
   @override
   void initState() {
     super.initState();
+    _loadStudentInfo();
     WidgetsBinding.instance.addObserver(this);
     KioskController.instance.addViolationListener(_onNativeViolation);
     KioskController.instance.lock(userId: widget.userId);
     KioskController.instance.enterExam();
     _startDownload();
     _startHeartbeat();
+  }
+
+  Future<void> _loadStudentInfo() async {
+    final full = await AuthService.getFullname();
+    final dept = await AuthService.getDepartment();
+    final parsed = AuthService.parseNameAndClass(full, dept);
+    if (mounted) {
+      setState(() {
+        _studentName = parsed.name;
+        _studentClass = parsed.studentClass;
+      });
+    }
   }
 
   @override
@@ -669,7 +684,13 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Siswa: $studentName', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                    Text(
+                        'Siswa: ${_studentName.isNotEmpty ? _studentName : studentName}',
+                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                    if (_studentClass.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text('Kelas: $_studentClass', style: const TextStyle(color: Color(0xFF93C5FD), fontSize: 12, fontWeight: FontWeight.w600)),
+                    ],
                     const SizedBox(height: 4),
                     Text('Ujian: ${pkg.quizName}', style: const TextStyle(color: Colors.white, fontSize: 12)),
                     const SizedBox(height: 4),
@@ -1304,6 +1325,27 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
                 ],
               ),
               const SizedBox(height: 8),
+              if (_studentName.isNotEmpty)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _studentClass.isNotEmpty
+                        ? '$_studentName  •  Kelas $_studentClass'
+                        : _studentName,
+                    style: const TextStyle(
+                      color: Color(0xFFE2E8F0),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    softWrap: true,
+                  ),
+                ),
               LinearProgressIndicator(
                 value: progressVal,
                 minHeight: 3,
