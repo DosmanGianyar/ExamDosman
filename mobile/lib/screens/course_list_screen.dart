@@ -463,10 +463,10 @@ class _CourseListScreenState extends State<CourseListScreen> {
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.bolt_rounded, color: Color(0xFFFBBF24), size: 14),
+                        Icon(Icons.verified_user_rounded, color: Color(0xFFFBBF24), size: 14),
                         SizedBox(width: 4),
                         Text(
-                          'Semi-Offline',
+                          'Mode Ujian',
                           style: TextStyle(
                             color: Color(0xFFFDE68A),
                             fontSize: 11,

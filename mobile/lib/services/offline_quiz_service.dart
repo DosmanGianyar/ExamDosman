@@ -226,7 +226,7 @@ class OfflineQuizService {
     String? quizPassword,
     void Function(String status, double progress)? onProgress,
   }) async {
-    onProgress?.call('Memeriksa sesi ujian di server...', 0.05);
+    onProgress?.call('Menyiapkan ujian...', 0.05);
 
     // 1. Cek apakah ada attempt inprogress yang bisa dilanjutkan
     Map<String, dynamic>? activeAttempt;
@@ -243,7 +243,7 @@ class OfflineQuizService {
       final attId = (activeAttempt['id'] as num?)?.toInt() ?? 0;
       final existing = await loadSavedPackage(userId: userId, quizId: quizId);
       if (existing != null && existing.attemptId == attId && existing.questions.isNotEmpty) {
-        onProgress?.call('Melanjutkan paket soal tersimpan...', 1.0);
+        onProgress?.call('Melanjutkan sesi ujian...', 1.0);
         return existing;
       }
     }
@@ -278,7 +278,7 @@ class OfflineQuizService {
 
     while (page >= 0 && safetyGuard < 150) {
       safetyGuard++;
-      onProgress?.call('Mengunduh halaman soal ${page + 1}...', 0.15 + (safetyGuard * 0.03).clamp(0.0, 0.45));
+      onProgress?.call('Menyiapkan lembar soal ${page + 1}...', 0.15 + (safetyGuard * 0.03).clamp(0.0, 0.45));
       final pageData = await ApiService.getQuizAttemptData(
         attemptId,
         page,
@@ -322,7 +322,7 @@ class OfflineQuizService {
     );
 
     await savePackage(pkg);
-    onProgress?.call('Paket soal siap!', 1.0);
+    onProgress?.call('Soal ujian siap!', 1.0);
     return pkg;
   }
 

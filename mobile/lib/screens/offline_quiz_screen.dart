@@ -99,7 +99,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     setState(() {
       _isDownloading = true;
       _downloadError = null;
-      _downloadStatus = 'Menghubungi server ujian...';
+      _downloadStatus = 'Menyiapkan soal ujian...';
       _downloadProgress = 0.05;
     });
 
@@ -804,7 +804,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.cloud_download_rounded, color: Color(0xFF60A5FA), size: 54),
+            const Icon(Icons.assignment_rounded, color: Color(0xFF60A5FA), size: 54),
             const SizedBox(height: 18),
             Text(
               widget.quiz.name,
@@ -842,7 +842,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
             const Icon(Icons.error_outline_rounded, color: Color(0xFFEF4444), size: 52),
             const SizedBox(height: 16),
             const Text(
-              'Gagal Mengunduh Paket Soal',
+              'Gagal Menyiapkan Soal Ujian',
               style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
@@ -857,7 +857,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
               child: ElevatedButton.icon(
                 onPressed: () => _startDownload(),
                 icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Coba Unduh Lagi'),
+                label: const Text('Coba Lagi'),
               ),
             ),
             const SizedBox(height: 10),
@@ -944,7 +944,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Soal ${q.number} dari ${pkg.questions.length} • Mode Semi-Offline',
+                          'Soal ${q.number} dari ${pkg.questions.length}',
                           style: const TextStyle(color: Color(0xFF86EFAC), fontSize: 11, fontWeight: FontWeight.w600),
                         ),
                       ],
