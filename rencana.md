@@ -101,3 +101,14 @@
 | **Tahap 2** | **Offline Quiz UI & LaTeX Lokal:** Buat `OfflineQuizScreen` (grid nomor soal, opsi A–E, ragu-ragu, timer lokal) + integrasi KaTeX/MathJax offline di aset APK. | 3–4 Hari |
 | **Tahap 3** | **Batch Submit & Auto-Retry:** Implementasi `mod_quiz_process_attempt` (`finishattempt=1`), mekanisme auto-retry saat sinyal putus, dan update `app_ping.php` (`quizid`). | 2–3 Hari |
 | **Tahap 4** | **Uji Coba & Simulasi:** Tes end-to-end dengan soal bergambar + LaTeX, tes matikan Wi-Fi saat mengerjakan lalu nyalakan lagi saat submit, dan verifikasi nilai masuk di Gradebook Moodle. | 2–3 Hari |
+
+---
+
+## 6. Kompatibilitas Masa Transisi (Multi-Versi Berjalan Bersamaan)
+
+Karena di lapangan selalu ada kemungkinan sebagian siswa belum memperbarui APK Android mereka, arsitektur ini **dirancang agar semua versi tetap bisa ujian bersamaan di 1 server Moodle yang sama**:
+1. **Android APK Versi Lama (WebView Online):** Tetap berjalan normal via `/mod/quiz/attempt.php` tanpa terganggu.
+2. **Android APK Versi Baru (Semi-Offline):** Mengunduh paket soal saat klik *Start Quiz* dan mengirim jawaban akhir via `mod_quiz_process_attempt`.
+3. **iOS App (WebView Online):** Tetap berjalan normal via `LockedBrowserScreen`.
+4. **Satu Buku Nilai & Satu Dashboard Pengawas:** Seluruh hasil nilai masuk ke `mdl_quiz_attempts` & `mdl_quiz_grades` yang sama, serta seluruh siswa tetap terpantau dan bisa di-*suspend* dari satu Dashboard Pengawas yang sama melalui `app_ping.php` dan `suspend_student.php`.
+
