@@ -6,6 +6,7 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
@@ -142,8 +143,28 @@ class OfflineQuizService {
   static String _answersKey(int userId, int quizId) =>
       'dosman_offline_ans_${userId}_$quizId';
 
-  static File _packageFile(int userId, int quizId) =>
-      File('${Directory.systemTemp.path}/dosman_offline_pkg_${userId}_$quizId.json');
+  static String? _cachedBaseDir;
+
+  /// Gunakan direktori permanen aplikasi (filesDir) agar tidak ikut terhapus
+  /// oleh fitur pembersih cache bawaan HP (Xiaomi/Oppo/Vivo).
+  static Future<String> _getStorageDir() async {
+    if (_cachedBaseDir != null) return _cachedBaseDir!;
+    try {
+      final dir = await const MethodChannel(AppConfig.lockdownChannel)
+          .invokeMethod<String>('getAppFilesDir');
+      if (dir != null && dir.isNotEmpty) {
+        _cachedBaseDir = dir;
+        return dir;
+      }
+    } catch (_) {}
+    _cachedBaseDir = Directory.systemTemp.path;
+    return _cachedBaseDir!;
+  }
+
+  static Future<File> _packageFile(int userId, int quizId) async {
+    final dir = await _getStorageDir();
+    return File('$dir/dosman_offline_pkg_${userId}_$quizId.json');
+  }
 
   /// Cek apakah sudah ada paket soal tersimpan untuk [userId] & [quizId].
   static Future<OfflineQuizPackage?> loadSavedPackage({
@@ -151,7 +172,7 @@ class OfflineQuizService {
     required int quizId,
   }) async {
     try {
-      final f = _packageFile(userId, quizId);
+      final f = await _packageFile(userId, quizId);
       if (!await f.exists()) return null;
       final raw = await f.readAsString();
       if (raw.trim().isEmpty) return null;
@@ -180,7 +201,7 @@ class OfflineQuizService {
   /// Simpan paket soal lengkap ke file lokal.
   static Future<void> savePackage(OfflineQuizPackage pkg) async {
     try {
-      final f = _packageFile(pkg.userId, pkg.quizId);
+      final f = await _packageFile(pkg.userId, pkg.quizId);
       await f.writeAsString(json.encode(pkg.toJson()));
       await saveAnswersState(pkg);
     } catch (_) {}
@@ -209,7 +230,7 @@ class OfflineQuizService {
     required int quizId,
   }) async {
     try {
-      final f = _packageFile(userId, quizId);
+      final f = await _packageFile(userId, quizId);
       if (await f.exists()) await f.delete();
       await _storage.delete(key: _answersKey(userId, quizId));
     } catch (_) {}
@@ -221,7 +242,8 @@ class OfflineQuizService {
     if (userId <= 0) return result;
     try {
       final prefix = 'dosman_offline_pkg_${userId}_';
-      final dir = Directory.systemTemp;
+      final baseDir = await _getStorageDir();
+      final dir = Directory(baseDir);
       await for (final entity in dir.list()) {
         if (entity is! File) continue;
         final name = entity.uri.pathSegments.last;

@@ -1004,6 +1004,10 @@ class MainActivity : FlutterActivity() {
                     result.success(true)
                 }
 
+                "getAppFilesDir" -> {
+                    result.success(filesDir.absolutePath)
+                }
+
                 else -> result.notImplemented()
             }
         }
