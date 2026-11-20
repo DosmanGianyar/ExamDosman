@@ -169,19 +169,7 @@ class MainActivity : FlutterActivity() {
                 if (!wasPinnedSuccessfully) wasPinnedSuccessfully = true
             }
 
-            // 2. Cek Split-screen & Floating Window (jika siswa membagi layar)
-            if (isSplitScreenOrFloating()) {
-                forceMaxVolume()
-                playUnpinAlert()
-                triggerNativeStudentSuspension(currentUserId, "Siswa menggunakan split screen / floating window saat ujian")
-                mainHandler.post {
-                    flutterChannel?.invokeMethod("onSplitScreenDetected", null)
-                }
-                stopKiosk()
-                return
-            }
-
-            // 3. Cek Virtual Machine (jika app dipindahkan atau berjalan di VMOS/VPhone)
+            // 2. Cek Virtual Machine (Virtual Master, VMOS, VPhone, dll.)
             if (isVirtualMachineOrEmulator(this@MainActivity)) {
                 forceMaxVolume()
                 triggerNativeStudentSuspension(currentUserId, "Siswa menjalankan aplikasi di Virtual Machine")
@@ -733,47 +721,12 @@ class MainActivity : FlutterActivity() {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus && kioskActive) {
             try { hideSystemBars() } catch (_: Exception) {}
-            // Focus kembali — batalkan pengecekan overlay yang pending
-            overlayCheckRunnable?.let { mainHandler.removeCallbacks(it) }
-            overlayCheckRunnable = null
-        } else if (!hasFocus && kioskActive && wasPinnedSuccessfully) {
-            // Focus hilang saat kiosk aktif DAN app sudah berhasil terpinned.
-            // Sebelum pinned, focus hilang karena dialog "App pinned" — wajar, bukan overlay.
-            // Jadwalkan pengecekan: jika masih tidak ada focus setelah [overlayThresholdMs],
-            // kemungkinan besar ada overlay app asing di atas layar ujian.
-            overlayCheckRunnable?.let { mainHandler.removeCallbacks(it) }
-            val check = Runnable {
-                overlayCheckRunnable = null
-                val pm = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-                if (!hasWindowFocus() && kioskActive && pm.isInteractive && isLockTaskActive()) {
-                    flutterChannel?.invokeMethod("onOverlayDetected", null)
-                }
-            }
-            overlayCheckRunnable = check
-            mainHandler.postDelayed(check, overlayThresholdMs)
         }
     }
 
-    /**
-     * Deteksi split-screen / multi-window saat kiosk aktif.
-     * Android 7.0+ (API 24) memungkinkan siswa membuka dua app bersamaan.
-     * Ketika terdeteksi: coba re-pin (debounced) + kirim event ke Flutter untuk trigger blokir.
-     */
     @Suppress("OVERRIDE_DEPRECATION")
     override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean) {
         super.onMultiWindowModeChanged(isInMultiWindowMode)
-        if (isInMultiWindowMode && kioskActive) {
-            forceMaxVolume()
-            playUnpinAlert()
-            triggerNativeStudentSuspension(currentUserId, "Siswa menggunakan split screen / floating window saat ujian")
-            // Coba paksa full-screen kembali (berhasil di beberapa device) — debounced
-            startLockTaskDebounced()
-            // Beritahu Flutter untuk memicu alur pelanggaran
-            mainHandler.post {
-                flutterChannel?.invokeMethod("onSplitScreenDetected", null)
-            }
-            stopKiosk()
-        }
     }
 
     @Suppress("DEPRECATION")
@@ -859,12 +812,6 @@ class MainActivity : FlutterActivity() {
                             result.success(false)
                             return@setMethodCallHandler
                         }
-                        if (isSplitScreenOrFloating()) {
-                            triggerNativeStudentSuspension(currentUserId, "Siswa menggunakan split screen / floating window saat ujian")
-                            mainHandler.post { flutterChannel?.invokeMethod("onSplitScreenDetected", null) }
-                            result.success(false)
-                            return@setMethodCallHandler
-                        }
                     }
 
                     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
@@ -882,9 +829,6 @@ class MainActivity : FlutterActivity() {
                             // yang menampilkan pesan "App pinned" lagi.
                             mainHandler.postDelayed(startPinLoopDelayed, 3_000L)
                         }
-                        // Mulai pantau display baru (screen cast / mirroring)
-                        val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-                        dm.registerDisplayListener(displayListener, mainHandler)
                         result.success(true)
                     } catch (e: Exception) {
                         stopKiosk()

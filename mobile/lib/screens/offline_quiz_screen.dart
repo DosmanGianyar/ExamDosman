@@ -781,19 +781,12 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
   }
 
   void _onNativeViolation(String reason) {
-    if (reason == 'screenshot_attempt') return;
-    if (reason == 'overlay') {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Peringatan: Tutup popup / jendela lain di atas layar ujian.'),
-            backgroundColor: Color(0xFFD97706),
-            duration: Duration(seconds: 4),
-          ),
-        );
-      }
-      return;
-    }
+    final allowedFatal = reason == 'lock_task_lost' ||
+        reason.contains('unpin') ||
+        reason == 'virtual_environment' ||
+        reason == 'cloned_app' ||
+        reason == 'bluetooth_audio';
+    if (!allowedFatal) return;
     if (_blockSent || !mounted) return;
     _blockSent = true;
     _triggerSuspend(reason);

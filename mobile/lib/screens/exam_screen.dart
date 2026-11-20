@@ -209,19 +209,11 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
       return;
     }
 
-    // Khusus iOS: abaikan lock_task_lost & unpin karena screen pinning adalah fitur khusus Android
-    if (defaultTargetPlatform == TargetPlatform.iOS &&
-        (reason == 'lock_task_lost' || reason.contains('unpin'))) {
-      return;
-    }
-
     final fatalReasons = [
       'lock_task_lost',
       'unpin',
-      'split_screen',
       'virtual_environment',
       'cloned_app',
-      'screen_cast',
       'bluetooth_audio',
     ];
 

@@ -10,6 +10,7 @@ import AVFoundation
     private let lockdownChannel = "com.dosman.ujian/lockdown"
     private var flutterChannel: FlutterMethodChannel?
     private var isLockdownActive = false
+    private var wasGuidedAccessEnabled = false
     private var isReviewerMode = false
     private var isScreenLocked = false
     private var privacyOverlay: UIView?
@@ -46,6 +47,7 @@ import AVFoundation
 
             case "disableLockdown":
                 self.isLockdownActive = false
+                self.wasGuidedAccessEnabled = false
                 UIApplication.shared.isIdleTimerDisabled = false
                 self.hidePrivacyOverlay()
                 result(true)
@@ -59,6 +61,8 @@ import AVFoundation
                 result(true)
 
             case "unpinPasswordAck":
+                self.isLockdownActive = false
+                self.wasGuidedAccessEnabled = false
                 result(true)
 
             case "checkVirtualEnvironment", "checkClonedApp", "isSplitScreenActive":
@@ -73,11 +77,13 @@ import AVFoundation
 
             case "enterLockTask", "requestScreenPin":
                 self.isLockdownActive = true
+                self.wasGuidedAccessEnabled = UIAccessibility.isGuidedAccessEnabled
                 UIApplication.shared.isIdleTimerDisabled = true
                 result(true)
 
             case "exitLockTask":
                 self.isLockdownActive = false
+                self.wasGuidedAccessEnabled = false
                 UIApplication.shared.isIdleTimerDisabled = false
                 self.hidePrivacyOverlay()
                 result(true)
@@ -263,7 +269,18 @@ import AVFoundation
     }
 
     @objc private func guidedAccessChanged() {
-        // Guided access status changed - dicatat untuk status sistem tanpa memblokir akun
+        let enabled = UIAccessibility.isGuidedAccessEnabled
+        if enabled {
+            if isLockdownActive {
+                wasGuidedAccessEnabled = true
+            }
+            return
+        }
+        // Jika Akses Terpadu dimatikan oleh siswa saat ujian/lockdown aktif tanpa lewat password keluar
+        if isLockdownActive && wasGuidedAccessEnabled && !isReviewerMode {
+            wasGuidedAccessEnabled = false
+            flutterChannel?.invokeMethod("onLockTaskLost", arguments: nil)
+        }
     }
 
     // MARK: - App Lifecycle Privacy Overlay (App Switcher Protection)

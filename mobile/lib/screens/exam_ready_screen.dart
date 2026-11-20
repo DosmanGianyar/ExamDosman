@@ -182,59 +182,15 @@ class _ExamReadyScreenState extends State<ExamReadyScreen>
         );
         return false;
       }
-
-      // 3. USB Debugging
-      final flags = await KioskController.instance.checkDeviceSecurityFlags();
-      if (flags?.usbDebugging == true && mounted) {
-        _showSecurityWarningDialog(
-          title: 'USB Debugging Aktif',
-          message: 'USB Debugging aktif di HP Anda. Matikan USB Debugging di menu Pengaturan HP → Opsi Pengembang sebelum memulai ujian.',
-          icon: Icons.usb,
-        );
-        return false;
-      }
     }
 
-    // 4. Split Screen / Floating Window
-    final isSplit = await KioskController.instance.isSplitScreenActive();
-    if (isSplit && mounted) {
-      _showSecurityWarningDialog(
-        title: 'Layar Terbagi Terdeteksi',
-        message: 'Tampilan layar belah (Split Screen) atau jendela mengambang aktif. Ubah ke layar penuh (Full Screen) sebelum memulai ujian.',
-        icon: Icons.splitscreen,
-      );
-      return false;
-    }
-
-    // 5. Bluetooth Audio
+    // 3. Bluetooth Audio
     final hasBtAudio = await KioskController.instance.checkBluetoothAudio();
     if (hasBtAudio && mounted) {
       _showSecurityWarningDialog(
         title: 'Audio Bluetooth Terdeteksi',
         message: 'Perangkat kamu terhubung ke earphone / headset Bluetooth. Harap lepaskan dan matikan koneksi Bluetooth sebelum memulai ujian.',
         icon: Icons.headset_off,
-      );
-      return false;
-    }
-
-    // 6. Screen Cast
-    final casting = await KioskController.instance.checkScreenCast();
-    if (casting == true && mounted) {
-      _showSecurityWarningDialog(
-        title: 'Screen Cast Terdeteksi',
-        message: 'Perangkat kamu sedang melakukan screen cast / mirroring ke layar lain. Matikan screen cast sebelum memulai ujian.',
-        icon: Icons.cast,
-      );
-      return false;
-    }
-
-    // 7. VPN
-    final vpn = await KioskController.instance.checkVpn();
-    if (vpn == true && mounted) {
-      _showSecurityWarningDialog(
-        title: 'VPN Aktif Terdeteksi',
-        message: 'Koneksi VPN aktif di HP Anda. Matikan VPN sebelum memulai ujian.',
-        icon: Icons.vpn_lock,
       );
       return false;
     }
