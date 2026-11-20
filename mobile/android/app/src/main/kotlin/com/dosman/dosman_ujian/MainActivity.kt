@@ -62,10 +62,25 @@ class MainActivity : FlutterActivity() {
     private var overlayCheckRunnable: Runnable? = null
     private val overlayThresholdMs   = 5_000L
 
-    // Deteksi screen cast / mirroring: DisplayListener memantau display baru saat kiosk aktif
+    private fun isPresentationDisplayActive(displayId: Int? = null): Boolean {
+        return try {
+            val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+            val presDisplays = dm.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
+            presDisplays.any { d ->
+                d.displayId != Display.DEFAULT_DISPLAY &&
+                    d.state != Display.STATE_OFF &&
+                    (displayId == null || d.displayId == displayId)
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    // Deteksi screen cast / mirroring: DisplayListener memantau display presentasi baru saat kiosk aktif
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) {
             if (!kioskActive) return
+            if (!isPresentationDisplayActive(displayId)) return
             mainHandler.post {
                 flutterChannel?.invokeMethod("onScreenCastDetected", null)
             }
@@ -885,20 +900,8 @@ class MainActivity : FlutterActivity() {
                 }
 
                 "checkScreenCast" -> {
-                    // Cek apakah ada display tambahan (mirroring / Chromecast / screen recorder virtual display).
-                    // Display.TYPE_BUILT_IN = 1 (layar fisik utama). Jika ada display lain, kemungkinan screen cast.
-                    val casting = try {
-                        val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-                        val displays = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            dm.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
-                        } else {
-                            @Suppress("DEPRECATION")
-                            dm.displays.filter { it.displayId != Display.DEFAULT_DISPLAY }
-                                .toTypedArray()
-                        }
-                        displays.isNotEmpty()
-                    } catch (_: Exception) { false }
-                    result.success(casting)
+                    // Cek hanya display kategori presentasi/cast yang aktif (bukan virtual/private display bawaan sistem).
+                    result.success(isPresentationDisplayActive())
                 }
 
                 "lockBackButton"   -> { backLocked = true;  result.success(true) }
