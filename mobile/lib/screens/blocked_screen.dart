@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
@@ -57,39 +56,33 @@ class _BlockedScreenState extends State<BlockedScreen> {
       if (!result.blocked) {
         await AuthService.saveBlockedStatus(false);
         await AuthService.saveSuspendedByAdmin(false);
-        final isAndroid = defaultTargetPlatform == TargetPlatform.android;
-        if (isAndroid) {
-          // Pastikan token REST API aktif kembali setelah di-unsuspend
-          // (suspend_student.php menghapus token lama di server).
-          final hasSession = await AuthService.restoreSession();
-          bool tokenOk = false;
-          if (hasSession) {
+        // Pastikan token REST API aktif kembali setelah di-unsuspend
+        // (suspend_student.php menghapus token lama di server).
+        final hasSession = await AuthService.restoreSession();
+        bool tokenOk = false;
+        if (hasSession) {
+          try {
+            await ApiService.getSiteInfo();
+            tokenOk = true;
+          } catch (_) {
+            tokenOk = false;
+          }
+        }
+        if (!tokenOk) {
+          final uname = await AuthService.getUsername();
+          final pwd = await AuthService.getPassword();
+          if (uname.isNotEmpty && pwd != null && pwd.isNotEmpty) {
             try {
-              await ApiService.getSiteInfo();
+              await AuthService.login(uname, pwd);
               tokenOk = true;
-            } catch (_) {
-              tokenOk = false;
-            }
+            } catch (_) {}
           }
-          if (!tokenOk) {
-            final uname = await AuthService.getUsername();
-            final pwd = await AuthService.getPassword();
-            if (uname.isNotEmpty && pwd != null && pwd.isNotEmpty) {
-              try {
-                await AuthService.login(uname, pwd);
-                tokenOk = true;
-              } catch (_) {}
-            }
-          }
-          if (!mounted) return;
-          Navigator.of(context).pushNamedAndRemoveUntil(
-            tokenOk ? '/courses' : '/login',
-            (route) => false,
-          );
-          return;
         }
         if (!mounted) return;
-        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          tokenOk ? '/courses' : '/login',
+          (route) => false,
+        );
         return;
       }
 

@@ -8,6 +8,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -72,6 +73,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
   bool _blockSent = false;
   String _studentName = '';
   String _studentClass = '';
+  WebUri? _katexBaseUri;
 
   @override
   void initState() {
@@ -462,12 +464,30 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
 </html>
 ''';
 
+    final katexUri = await _resolveKatexBaseUri();
     await ctrl.loadData(
       data: fullHtml,
-      baseUrl: WebUri('file:///android_asset/flutter_assets/assets/katex/'),
+      baseUrl: katexUri,
+      allowingReadAccessTo: katexUri,
       mimeType: 'text/html',
       encoding: 'utf-8',
     );
+  }
+
+  Future<WebUri> _resolveKatexBaseUri() async {
+    if (_katexBaseUri != null) return _katexBaseUri!;
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      try {
+        final dir = await const MethodChannel(AppConfig.lockdownChannel)
+            .invokeMethod<String>('getKatexBaseDir');
+        if (dir != null && dir.isNotEmpty) {
+          _katexBaseUri = WebUri('file://$dir');
+          return _katexBaseUri!;
+        }
+      } catch (_) {}
+    }
+    _katexBaseUri = WebUri('file:///android_asset/flutter_assets/assets/katex/');
+    return _katexBaseUri!;
   }
 
   String _escapeHtml(String s) => s

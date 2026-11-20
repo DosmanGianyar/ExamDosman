@@ -62,9 +62,7 @@ class _DeviceBlockedScreenState extends State<DeviceBlockedScreen> {
     if (!result.blocked) {
       final hasSession = await AuthService.restoreSession();
       if (!mounted) return;
-      final targetRoute = !hasSession
-          ? '/login'
-          : (defaultTargetPlatform == TargetPlatform.android ? '/courses' : '/home');
+      final targetRoute = !hasSession ? '/login' : '/courses';
       Navigator.of(context).pushNamedAndRemoveUntil(targetRoute, (route) => false);
     }
   }

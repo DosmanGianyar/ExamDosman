@@ -3,13 +3,11 @@
 // Informasi ujian + aturan lockdown sebelum mulai
 // ===========================
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/quiz.dart';
 import '../services/auth_service.dart';
 import '../services/exam_service.dart';
 import '../services/kiosk_controller.dart';
-import 'exam_screen.dart';
 import 'offline_quiz_screen.dart';
 
 class ExamReadyScreen extends StatefulWidget {
@@ -126,30 +124,18 @@ class _ExamReadyScreenState extends State<ExamReadyScreen>
       // Jika gagal cek, biarkan lanjut (jangan blokir tanpa sebab)
     }
 
-    // Ambil password untuk auto-login WebView
-    final password = await AuthService.getPassword();
-    final username = await AuthService.getUsername();
-
     if (!mounted) return;
 
     setState(() => _isStarting = false);
 
-    // Navigasi ke OfflineQuizScreen di Android (Semi-Offline), atau ExamScreen di iOS
+    // Navigasi ke OfflineQuizScreen (Semi-Offline untuk Android & iOS)
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => defaultTargetPlatform == TargetPlatform.android
-            ? OfflineQuizScreen(
-                quiz:     widget.quiz,
-                courseId: widget.courseId,
-                userId:   userId,
-              )
-            : ExamScreen(
-                quiz:     widget.quiz,
-                courseId: widget.courseId,
-                userId:   _userId,
-                username: username,
-                password: password ?? '',
-              ),
+        builder: (_) => OfflineQuizScreen(
+          quiz:     widget.quiz,
+          courseId: widget.courseId,
+          userId:   userId,
+        ),
       ),
     );
   }

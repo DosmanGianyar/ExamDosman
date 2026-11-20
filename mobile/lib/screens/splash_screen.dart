@@ -68,9 +68,9 @@ class _SplashScreenState extends State<SplashScreen>
       // Verifikasi token masih valid dengan call get_site_info
       try {
         await ApiService.getSiteInfo();
-        // Token valid → lanjutkan
+        // Token valid → lanjutkan ke daftar course (semi-offline Android & iOS)
         ExamService.pingAppLogin();
-        _navigate(defaultTargetPlatform == TargetPlatform.android ? '/courses' : '/home');
+        _navigate('/courses');
       } on TokenExpiredException {
         // Token kedaluwarsa
         await AuthService.logout();

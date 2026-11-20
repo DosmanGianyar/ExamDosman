@@ -170,6 +170,33 @@ import AVFoundation
                 }
                 result(false)
 
+            case "keepScreenOn":
+                UIApplication.shared.isIdleTimerDisabled = true
+                result(true)
+
+            case "clearScreenOn":
+                UIApplication.shared.isIdleTimerDisabled = false
+                result(true)
+
+            case "getAppFilesDir":
+                if let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+                    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                    result(dir.path)
+                } else if let doc = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+                    result(doc.path)
+                } else {
+                    result(NSTemporaryDirectory())
+                }
+
+            case "getKatexBaseDir":
+                let katexPath = (Bundle.main.bundlePath as NSString)
+                    .appendingPathComponent("Frameworks/App.framework/flutter_assets/assets/katex")
+                if FileManager.default.fileExists(atPath: (katexPath as NSString).appendingPathComponent("katex.min.js")) {
+                    result(katexPath.hasSuffix("/") ? katexPath : katexPath + "/")
+                } else {
+                    result(nil)
+                }
+
             default:
                 result(FlutterMethodNotImplemented)
             }
