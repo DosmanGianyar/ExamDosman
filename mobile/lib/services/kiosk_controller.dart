@@ -295,9 +295,10 @@ class KioskController {
     _notify();
   }
 
-  /// Tandai sedang di dalam ExamScreen — sembunyikan tombol Keluar overlay.
+  /// Tandai sedang di dalam ExamScreen — sembunyikan tombol Keluar overlay & pastikan layar tetap menyala.
   void enterExam() {
     _inExamMode = true;
+    _channel.invokeMethod('keepScreenOn').catchError((_) {});
     _notify();
   }
 

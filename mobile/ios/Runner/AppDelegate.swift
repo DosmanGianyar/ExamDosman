@@ -322,6 +322,9 @@ import AVFoundation
     override func applicationDidBecomeActive(_ application: UIApplication) {
         super.applicationDidBecomeActive(application)
         isScreenLocked = false
+        if isLockdownActive {
+            UIApplication.shared.isIdleTimerDisabled = true
+        }
         if !(isLockdownActive && !isReviewerMode && (UIScreen.main.isCaptured || UIScreen.screens.count > 1)) {
             hidePrivacyOverlay()
         }
