@@ -603,6 +603,7 @@ class _LockedBrowserScreenState extends State<LockedBrowserScreen>
     final fatalReasons = [
       'lock_task_lost',
       'unpin',
+      'split_screen',
       'virtual_environment',
       'cloned_app',
       'bluetooth_audio',

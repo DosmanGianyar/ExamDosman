@@ -212,6 +212,7 @@ class _ExamScreenState extends State<ExamScreen> with WidgetsBindingObserver {
     final fatalReasons = [
       'lock_task_lost',
       'unpin',
+      'split_screen',
       'virtual_environment',
       'cloned_app',
       'bluetooth_audio',

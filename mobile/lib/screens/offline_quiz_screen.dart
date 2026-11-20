@@ -783,6 +783,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
   void _onNativeViolation(String reason) {
     final allowedFatal = reason == 'lock_task_lost' ||
         reason.contains('unpin') ||
+        reason == 'split_screen' ||
         reason == 'virtual_environment' ||
         reason == 'cloned_app' ||
         reason == 'bluetooth_audio';

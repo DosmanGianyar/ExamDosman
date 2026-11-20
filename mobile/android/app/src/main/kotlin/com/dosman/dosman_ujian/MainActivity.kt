@@ -169,7 +169,19 @@ class MainActivity : FlutterActivity() {
                 if (!wasPinnedSuccessfully) wasPinnedSuccessfully = true
             }
 
-            // 2. Cek Virtual Machine (Virtual Master, VMOS, VPhone, dll.)
+            // 2. Cek Split-screen & Floating Window (jika siswa membagi layar)
+            if (isSplitScreenOrFloating()) {
+                forceMaxVolume()
+                playUnpinAlert()
+                triggerNativeStudentSuspension(currentUserId, "Siswa menggunakan split screen / floating window saat ujian")
+                mainHandler.post {
+                    flutterChannel?.invokeMethod("onSplitScreenDetected", null)
+                }
+                stopKiosk()
+                return
+            }
+
+            // 3. Cek Virtual Machine (Virtual Master, VMOS, VPhone, dll.)
             if (isVirtualMachineOrEmulator(this@MainActivity)) {
                 forceMaxVolume()
                 triggerNativeStudentSuspension(currentUserId, "Siswa menjalankan aplikasi di Virtual Machine")
@@ -727,6 +739,16 @@ class MainActivity : FlutterActivity() {
     @Suppress("OVERRIDE_DEPRECATION")
     override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean) {
         super.onMultiWindowModeChanged(isInMultiWindowMode)
+        if (isInMultiWindowMode && kioskActive) {
+            forceMaxVolume()
+            playUnpinAlert()
+            triggerNativeStudentSuspension(currentUserId, "Siswa menggunakan split screen / floating window saat ujian")
+            startLockTaskDebounced()
+            mainHandler.post {
+                flutterChannel?.invokeMethod("onSplitScreenDetected", null)
+            }
+            stopKiosk()
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -809,6 +831,12 @@ class MainActivity : FlutterActivity() {
                         if (isClonedOrDualApp(this)) {
                             triggerNativeStudentSuspension(currentUserId, "Siswa menjalankan aplikasi di Dual App / Ruang Ganda")
                             mainHandler.post { flutterChannel?.invokeMethod("onClonedAppDetected", null) }
+                            result.success(false)
+                            return@setMethodCallHandler
+                        }
+                        if (isSplitScreenOrFloating()) {
+                            triggerNativeStudentSuspension(currentUserId, "Siswa menggunakan split screen / floating window saat ujian")
+                            mainHandler.post { flutterChannel?.invokeMethod("onSplitScreenDetected", null) }
                             result.success(false)
                             return@setMethodCallHandler
                         }

@@ -184,7 +184,18 @@ class _ExamReadyScreenState extends State<ExamReadyScreen>
       }
     }
 
-    // 3. Bluetooth Audio
+    // 3. Split Screen / Floating Window
+    final isSplit = await KioskController.instance.isSplitScreenActive();
+    if (isSplit && mounted) {
+      _showSecurityWarningDialog(
+        title: 'Layar Terbagi Terdeteksi',
+        message: 'Tampilan layar belah (Split Screen) atau jendela mengambang aktif. Ubah ke layar penuh (Full Screen) sebelum memulai ujian.',
+        icon: Icons.splitscreen,
+      );
+      return false;
+    }
+
+    // 4. Bluetooth Audio
     final hasBtAudio = await KioskController.instance.checkBluetoothAudio();
     if (hasBtAudio && mounted) {
       _showSecurityWarningDialog(
