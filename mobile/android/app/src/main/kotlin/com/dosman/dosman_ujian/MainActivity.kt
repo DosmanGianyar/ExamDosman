@@ -438,9 +438,9 @@ class MainActivity : FlutterActivity() {
             val sm = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
             if (sm != null) {
                 val sensorList = sm.getSensorList(Sensor.TYPE_ALL)
-                // HP fisik memiliki banyak sensor (> 5, rata-rata 10-30 sensor).
-                // VM/emulator memiliki 0 atau < 5 sensor.
-                if (sensorList.size < 5) {
+                // HP fisik murah/entry-level kadang hanya punya 2-4 sensor (akselerometer, jarak, cahaya).
+                // Hanya anggap VM jika sensor 0 atau 1.
+                if (sensorList.size <= 1) {
                     return true
                 }
             }
@@ -521,7 +521,7 @@ class MainActivity : FlutterActivity() {
                 val maxBounds = wm.maximumWindowMetrics.bounds
                 val currentArea = (currentBounds.width().toLong() * currentBounds.height().toLong()).toDouble()
                 val maxArea = (maxBounds.width().toLong() * maxBounds.height().toLong()).toDouble()
-                if (maxArea > 0 && (currentArea / maxArea) < 0.85) {
+                if (maxArea > 0 && (currentArea / maxArea) < 0.72) {
                     return true
                 }
             } else {
@@ -536,7 +536,7 @@ class MainActivity : FlutterActivity() {
                 if (currentWidth > 0 && currentHeight > 0 && realMetrics.widthPixels > 0 && realMetrics.heightPixels > 0) {
                     val currentArea = (currentWidth.toLong() * currentHeight.toLong()).toDouble()
                     val realArea = (realMetrics.widthPixels.toLong() * realMetrics.heightPixels.toLong()).toDouble()
-                    if (realArea > 0 && (currentArea / realArea) < 0.85) {
+                    if (realArea > 0 && (currentArea / realArea) < 0.72) {
                         return true
                     }
                 }
@@ -744,7 +744,8 @@ class MainActivity : FlutterActivity() {
             overlayCheckRunnable?.let { mainHandler.removeCallbacks(it) }
             val check = Runnable {
                 overlayCheckRunnable = null
-                if (!hasWindowFocus() && kioskActive) {
+                val pm = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+                if (!hasWindowFocus() && kioskActive && pm.isInteractive && isLockTaskActive()) {
                     flutterChannel?.invokeMethod("onOverlayDetected", null)
                 }
             }
