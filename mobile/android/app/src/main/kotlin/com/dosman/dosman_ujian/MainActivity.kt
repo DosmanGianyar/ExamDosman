@@ -314,14 +314,18 @@ class MainActivity : FlutterActivity() {
                                 break@outer
                             }
                         }
-                        if (path == "/proc/self/maps" || path == "/proc/self/mountinfo") {
+                        if (path == "/proc/self/maps") {
                             val match = foreignPkgRegex.find(line)
                             if (match != null) {
                                 val pkg = match.groupValues[1]
-                                if (pkg != ownPkg &&
-                                    !pkg.startsWith("com.google.android.") &&
-                                    !pkg.startsWith("com.android.")
-                                ) {
+                                val allowedPrefixes = listOf(
+                                    "com.google.android.", "com.android.", "org.chromium.",
+                                    "com.miui.", "com.xiaomi.", "com.samsung.", "com.sec.",
+                                    "com.oppo.", "com.oplus.", "com.coloros.", "com.realme.",
+                                    "com.oneplus.", "com.vivo.", "com.iqoo.", "com.huawei.",
+                                    "com.hihonor.", "com.transsion.", "com.qualcomm.", "com.mediatek."
+                                )
+                                if (pkg != ownPkg && allowedPrefixes.none { pkg.startsWith(it) }) {
                                     detected = true
                                     break@outer
                                 }
@@ -357,9 +361,9 @@ class MainActivity : FlutterActivity() {
 
             val vmKeywords = listOf(
                 "virtualmaster", "virtual_master", "vandroid", "twoyi",
-                "vmos", "vphone", "f1vm", "x8zs", "titan", "goldfish", "ranchu",
-                "vbox", "nox", "genymotion", "sdk_gphone", "google_sdk", "emulator",
-                "simulator", "andy", "ttvm", "aosp_arm", "aosp_x86", "generic_x86", "generic_arm"
+                "vmos", "vphone", "vphonegaga", "f1vm", "x8zs", "goldfish", "ranchu",
+                "vbox", "noxplayer", "bignox", "genymotion", "sdk_gphone", "google_sdk", "emulator",
+                "simulator", "andyos", "ttvm", "aosp_arm", "aosp_x86", "generic_x86", "generic_arm"
             )
 
             for (kw in vmKeywords) {
@@ -381,17 +385,6 @@ class MainActivity : FlutterActivity() {
             }
 
             val vmPaths = listOf(
-                "/data/data/com.clone.android.dual.space",
-                "/data/user/0/com.clone.android.dual.space",
-                "/data/data/com.virtualmaster.android",
-                "/data/data/com.vm.virtualmaster",
-                "/data/data/com.pspace.vandroid",
-                "/data/data/com.twoyi.app",
-                "/data/data/com.vmos.pro",
-                "/data/data/com.vmos.app",
-                "/data/data/com.vphonegaga.titan",
-                "/data/data/com.f1player",
-                "/data/data/com.x8zs.sandbox",
                 "/dev/socket/qemud",
                 "/dev/qemu_pipe",
                 "/dev/goldfish_pipe",
@@ -411,9 +404,11 @@ class MainActivity : FlutterActivity() {
                 if (java.io.File(path).exists()) return true
             }
 
-            val ldPreload = System.getenv("LD_PRELOAD") ?: ""
+            val ldPreload = (System.getenv("LD_PRELOAD") ?: "").lowercase()
             val prootTmp = System.getenv("PROOT_TMP_DIR") ?: ""
-            if (ldPreload.isNotEmpty() || prootTmp.isNotEmpty()) {
+            if (prootTmp.isNotEmpty() ||
+                (ldPreload.isNotEmpty() && ldPreload.contains("/data/"))
+            ) {
                 return true
             }
 
