@@ -112,3 +112,57 @@ Karena di lapangan selalu ada kemungkinan sebagian siswa belum memperbarui APK A
 3. **iOS App (WebView Online):** Tetap berjalan normal via `LockedBrowserScreen`.
 4. **Satu Buku Nilai & Satu Dashboard Pengawas:** Seluruh hasil nilai masuk ke `mdl_quiz_attempts` & `mdl_quiz_grades` yang sama, serta seluruh siswa tetap terpantau dan bisa di-*suspend* dari satu Dashboard Pengawas yang sama melalui `app_ping.php` dan `suspend_student.php`.
 
+
+---
+
+## 7. Rencana Lanjutan: Auto-Lock iOS Seperti SEB (`AEAssessmentSession`) + Auto-Unlock (Durasi Kuis Moodle + 2 Menit)
+
+**Status:** Menunggu pengajuan & persetujuan Apple Entitlement (`com.apple.developer.automatic-assessment-configuration`).  
+**Tujuan:** Siswa iOS **tidak perlu lagi mengaktifkan Akses Terpadu (Guided Access) secara manual**, karena aplikasi otomatis mengunci layar saat ujian dimulai (seperti Safe Exam Browser / SEB) dan **otomatis membuka kunci** setelah waktu kuis Moodle habis + 2 menit cadangan.
+
+### Aturan Durasi Penguncian Otomatis
+- **Sumber waktu:** Mengikuti langsung pengaturan waktu kuis di Moodle (`timelimit` / sisa waktu attempt siswa `_remainingSec`).
+- **Formula:**
+  $$\text{Durasi Kunci} = \text{Sisa Waktu Kuis Moodle} + 2\text{ menit (120 detik)}$$
+  - Contoh: Jika durasi kuis di Moodle **120 menit**, maka aplikasi terkunci maksimal **122 menit** lalu otomatis terbuka sendiri.
+  - Jika kuis tidak memiliki `timelimit` (`0`), gunakan fallback `timeclose - sekarang + 2 menit` (atau default aman 122 menit).
+  - Jika siswa **menyelesaikan & mengirim jawaban lebih cepat** atau **guru memasukkan password keluar**, kunci layar tetap bisa langsung dilepas lebih awal tanpa menunggu timer habis.
+- **Berlaku konsisten untuk iOS & Android:** Timer auto-unlock (`durasi kuis + 2 menit`) diterapkan baik pada `AEAssessmentSession.end()` (iOS) maupun `stopLockTask()` (Android) sebagai *failsafe* agar HP siswa tidak pernah terjebak terkunci.
+
+### Alur Pengerjaan (Step-by-Step)
+
+1. **Tahap 1 — Pengajuan Entitlement Resmi ke Apple (Prasyarat)**
+   - Pemilik akun (**Account Holder**) Apple Developer mengajukan permohonan di:  
+     `https://developer.apple.com/contact/request/automatic-assessment-configuration/`
+   - Data utama: App Name `EXAM DOSMAN`, Bundle ID `com.sman1-gianyar.examdosman`, Platform `iOS / iPadOS`, Institusi `SMA Negeri 1 Gianyar`.
+   - Tunggu email persetujuan dari Apple (estimasi 3–14 hari kerja).
+
+2. **Tahap 2 — Aktivasi Capability di Apple Developer Portal & Codemagic**
+   - Masuk ke **Apple Developer Portal → Certificates, Identifiers & Profiles → Identifiers → `com.sman1-gianyar.examdosman`**.
+   - Aktifkan entitlement **Automatic Assessment Configuration** lalu simpan.
+   - Regenerate Provisioning Profile App Store (di Codemagic cukup jalankan build ulang karena `app-store-connect fetch-signing-files` otomatis mengambil profile terbaru).
+
+3. **Tahap 3 — Implementasi Kode Native & Flutter**
+   - **Entitlements iOS:** Buat/update `mobile/ios/Runner/Runner.entitlements` dengan:
+     - `com.apple.developer.automatic-assessment-configuration` = `true`.
+   - **Native iOS (`mobile/ios/Runner/AppDelegate.swift`):**
+     - Import `AutomaticAssessmentConfiguration` (iOS 13.4+).
+     - Saat menerima `enterLockTask` / `startAssessmentSession(durationSeconds)`:
+       - Buat `AEAssessmentConfiguration()` (batasi switch app, autocorrect, spellcheck, predictive keyboard, dictionary, screen capture).
+       - Jalankan `AEAssessmentSession(configuration: config).begin()`.
+       - Pasang timer native (`DispatchSourceTimer` / `Timer`) selama `durationSeconds` (`sisa waktu kuis Moodle + 120 detik`).
+       - Saat timer habis → otomatis panggil `session.end()` agar layar terbuka normal.
+     - Saat menerima `exitLockTask` / `disableLockdown` (selesai ujian atau password keluar) → batalkan timer dan panggil `session.end()`.
+     - Simpan fallback deteksi Guided Access bila perangkat iOS tidak mendukung AAC.
+   - **Flutter (`mobile/lib/screens/offline_quiz_screen.dart` & `kiosk_controller.dart`):**
+     - Hitung `lockDurationSec = _remainingSec + 120` tepat setelah paket soal & durasi kuis Moodle selesai diunduh, lalu kirim ke native (`startAssessmentTimer` / `enterLockTask`).
+     - Terapkan juga timer auto-unlock yang sama pada Android (`MainActivity.kt` → `stopLockTask()`) saat `lockDurationSec` tercapai.
+
+4. **Tahap 4 — Pengujian via TestFlight & Rilis App Store**
+   - Trigger workflow **iOS Build & TestFlight** di Codemagic (`codemagic.yaml`).
+   - Uji langsung di iPhone/iPad menggunakan kuis uji coba (mis. durasi 3 menit di Moodle):
+     1. Masuk ujian → pastikan iPhone langsung terkunci otomatis **tanpa** aktifkan Akses Terpadu manual.
+     2. Cek tidak bisa keluar app / swipe home / buka aplikasi lain.
+     3. Biarkan sampai 3 menit + 2 menit (5 menit) → pastikan kunci **otomatis lepas sendiri**.
+     4. Uji selesai lebih cepat / keluar dengan password → pastikan kunci langsung lepas.
+   - Jika seluruh skenario lolos → submit build ke App Store Review dan rilis untuk seluruh siswa iOS.
