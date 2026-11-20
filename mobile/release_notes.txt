@@ -1,0 +1,7 @@
+EXAM DOSMAN v2.8.0 - Pembaruan Ujian Semi-Offline iOS:
+
+- Mode Ujian Semi-Offline untuk iOS: soal, gambar (termasuk WebP), dan rumus matematika (KaTeX lokal) diunduh sekali di awal ujian sehingga tetap lancar dikerjakan meski sinyal melemah, dan hanya memerlukan koneksi saat mengirim jawaban akhir.
+- Keamanan Akses Terpadu (Guided Access): melepas Akses Terpadu tanpa memasukkan password keluar akan menonaktifkan sesi ujian.
+- Password keluar kini juga berlaku saat keluar dari halaman daftar mata pelajaran (dashboard siswa).
+- Menampilkan jumlah pengerjaan kuis dan status "Nilai Terkirim" di samping daftar course dan daftar kuis.
+- Penyempurnaan tampilan soal, jarak opsi jawaban, tombol No. Soal di bar navigasi bawah, serta tampilan nama dan kelas siswa yang lebih jelas.
