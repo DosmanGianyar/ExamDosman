@@ -9,4 +9,4 @@ EXAM DOSMAN v2.8.0 - What's New (Semi-Offline Exam Mode for iOS):
 Demo / Reviewer Account (App Store & TestFlight Review):
 - Username: appstore.review
 - Password: DosmanReviewer2026!
-- Exit Password (Keluar Aplikasi): uburubur
+- Exit Password (Keluar Aplikasi): 123456
