@@ -248,8 +248,81 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    @Volatile
+    private var cachedProcVmDetected: Boolean? = null
+
+    private fun readSystemProperty(key: String): String {
+        return try {
+            val sp = Class.forName("android.os.SystemProperties")
+            val get = sp.getMethod("get", String::class.java, String::class.java)
+            (get.invoke(null, key, "") as? String)?.trim()?.lowercase() ?: ""
+        } catch (_: Exception) {
+            ""
+        }
+    }
+
+    private fun hasVmOrContainerProcArtifacts(context: Context): Boolean {
+        cachedProcVmDetected?.let { return it }
+
+        val containerMarkers = listOf(
+            "virtualmaster", "virtual_master", "virtual-master",
+            "com.clone.android.dual.space", "dual.space", "dualspace",
+            "virtualandroid", "virtual_android", "vandroid", "com.pspace",
+            "com.vmos", "vmos", "vphone", "f1vm", "f1player", "x8zs",
+            "twoyi", "gspace", "ourplay", "blackbox", "virtualapp",
+            "io.va.exposed", "com.lody.virtual", "lbe.parallel", "parallel.space",
+            "excelliance", "multiapp", "sandhook", "libpine", "libepic",
+            "libwhale", "libdobby", "frida-agent", "frida-gadget",
+            "lsposed", "edxposed", "xposedbridge", "proot"
+        )
+        val ownPkg = context.packageName.lowercase()
+        val foreignPkgRegex = Regex("""/data/(?:data|user/\d+)/([a-z0-9_.]+)/""")
+
+        val procFiles = listOf(
+            "/proc/self/maps",
+            "/proc/self/mountinfo",
+            "/proc/mounts",
+            "/proc/net/unix"
+        )
+
+        var detected = false
+        try {
+            outer@ for (path in procFiles) {
+                val f = java.io.File(path)
+                if (!f.exists() || !f.canRead()) continue
+                f.bufferedReader().useLines { lines ->
+                    for (rawLine in lines) {
+                        val line = rawLine.lowercase()
+                        for (marker in containerMarkers) {
+                            if (line.contains(marker)) {
+                                detected = true
+                                break@outer
+                            }
+                        }
+                        if (path == "/proc/self/maps" || path == "/proc/self/mountinfo") {
+                            val match = foreignPkgRegex.find(line)
+                            if (match != null) {
+                                val pkg = match.groupValues[1]
+                                if (pkg != ownPkg &&
+                                    !pkg.startsWith("com.google.android.") &&
+                                    !pkg.startsWith("com.android.")
+                                ) {
+                                    detected = true
+                                    break@outer
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        cachedProcVmDetected = detected
+        return detected
+    }
+
     /**
-     * Deteksi apakah aplikasi berjalan di dalam Virtual Machine (VMOS, VPhoneGaGa, F1 VM, X8 Sandbox)
+     * Deteksi apakah aplikasi berjalan di dalam Virtual Machine (Virtual Master, VMOS, VPhoneGaGa, F1 VM, X8 Sandbox, Twoyi)
      * atau Android emulator.
      */
     private fun isVirtualMachineOrEmulator(context: Context): Boolean {
@@ -264,21 +337,41 @@ class MainActivity : FlutterActivity() {
             val product      = Build.PRODUCT.lowercase()
             val hardware     = Build.HARDWARE.lowercase()
             val board        = Build.BOARD.lowercase()
+            val display      = Build.DISPLAY.lowercase()
+            val host         = Build.HOST.lowercase()
 
             val vmKeywords = listOf(
+                "virtualmaster", "virtual_master", "vandroid", "twoyi",
                 "vmos", "vphone", "f1vm", "x8zs", "titan", "goldfish", "ranchu",
-                "vbox", "nox", "genymotion", "sdk_gphone", "google_sdk", "emulator", "simulator", "andy", "ttvm"
+                "vbox", "nox", "genymotion", "sdk_gphone", "google_sdk", "emulator",
+                "simulator", "andy", "ttvm", "aosp_arm", "aosp_x86", "generic_x86", "generic_arm"
             )
 
             for (kw in vmKeywords) {
                 if (fingerprint.contains(kw) || model.contains(kw) || manufacturer.contains(kw) ||
                     brand.contains(kw) || device.contains(kw) || product.contains(kw) ||
-                    hardware.contains(kw) || board.contains(kw)) {
+                    hardware.contains(kw) || board.contains(kw) || display.contains(kw) || host.contains(kw)) {
                     return true
                 }
             }
 
+            if (readSystemProperty("ro.kernel.qemu") == "1" ||
+                readSystemProperty("ro.boot.qemu") == "1" ||
+                readSystemProperty("init.svc.qemud").isNotEmpty()) {
+                return true
+            }
+            val virtualProp = readSystemProperty("ro.hardware.virtual")
+            if (virtualProp.isNotEmpty() && virtualProp != "0" && virtualProp != "false") {
+                return true
+            }
+
             val vmPaths = listOf(
+                "/data/data/com.clone.android.dual.space",
+                "/data/user/0/com.clone.android.dual.space",
+                "/data/data/com.virtualmaster.android",
+                "/data/data/com.vm.virtualmaster",
+                "/data/data/com.pspace.vandroid",
+                "/data/data/com.twoyi.app",
                 "/data/data/com.vmos.pro",
                 "/data/data/com.vmos.app",
                 "/data/data/com.vphonegaga.titan",
@@ -286,14 +379,45 @@ class MainActivity : FlutterActivity() {
                 "/data/data/com.x8zs.sandbox",
                 "/dev/socket/qemud",
                 "/dev/qemu_pipe",
+                "/dev/goldfish_pipe",
+                "/dev/vboxguest",
+                "/dev/vboxuser",
                 "/system/lib/libc_vmos.so",
                 "/system/bin/vmos_daemon",
+                "/system/bin/vm_daemon",
                 "/system/bin/nox-prop",
+                "/system/bin/qemu-props",
                 "/ueventd.vmos.rc",
-                "/init.vmos.rc"
+                "/init.vmos.rc",
+                "/init.ranchu.rc",
+                "/init.goldfish.rc"
             )
             for (path in vmPaths) {
                 if (java.io.File(path).exists()) return true
+            }
+
+            val ldPreload = System.getenv("LD_PRELOAD") ?: ""
+            val prootTmp = System.getenv("PROOT_TMP_DIR") ?: ""
+            if (ldPreload.isNotEmpty() || prootTmp.isNotEmpty()) {
+                return true
+            }
+
+            val hookClasses = listOf(
+                "de.robv.android.xposed.XposedBridge",
+                "com.lody.virtual.client.core.VirtualCore",
+                "io.va.exposed.ExposedApplication",
+                "top.niunaijun.blackbox.BlackBoxCore",
+                "com.swift.sandhook.SandHook"
+            )
+            for (cls in hookClasses) {
+                try {
+                    Class.forName(cls, false, context.classLoader)
+                    return true
+                } catch (_: Throwable) {}
+            }
+
+            if (hasVmOrContainerProcArtifacts(context)) {
+                return true
             }
 
             val sm = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
@@ -301,7 +425,7 @@ class MainActivity : FlutterActivity() {
                 val sensorList = sm.getSensorList(Sensor.TYPE_ALL)
                 // HP fisik memiliki banyak sensor (> 5, rata-rata 10-30 sensor).
                 // VM/emulator memiliki 0 atau < 5 sensor.
-                if (sensorList.isNotEmpty() && sensorList.size < 5) {
+                if (sensorList.size < 5) {
                     return true
                 }
             }
@@ -312,7 +436,7 @@ class MainActivity : FlutterActivity() {
 
     /**
      * Deteksi apakah aplikasi berjalan di ruang ganda (Xiaomi Dual Apps, Samsung Secure Folder,
-     * Work Profile Island/Shelter, atau sandbox Parallel Space/Dual Space).
+     * Work Profile Island/Shelter, atau sandbox Parallel Space/Dual Space/Virtual Master).
      */
     private fun isClonedOrDualApp(context: Context): Boolean {
         if (isReviewerAccount) return false
@@ -328,18 +452,29 @@ class MainActivity : FlutterActivity() {
                 return true
             }
 
-            // 2. Cek path direktori file internal
-            val filesPath = context.filesDir.absolutePath.lowercase()
-            if (filesPath.contains("/user/999/") ||
-                filesPath.contains("/user/10/") ||
-                filesPath.contains("/user/11/") ||
-                filesPath.contains("/user/12/") ||
-                filesPath.contains("parallel") ||
-                filesPath.contains("dual") ||
-                filesPath.contains("virtual") ||
-                filesPath.contains("clone") ||
-                filesPath.contains("multi")) {
-                return true
+            // 2. Cek path direktori file internal, canonical path, dan APK sourceDir
+            val pathsToCheck = listOfNotNull(
+                context.filesDir.absolutePath,
+                context.filesDir.canonicalPath,
+                context.applicationInfo.dataDir,
+                context.applicationInfo.sourceDir,
+                context.applicationInfo.nativeLibraryDir
+            ).map { it.lowercase() }
+
+            val nonZeroUserRegex = Regex("""/user/([1-9]\d*)/""")
+            val cloneMarkers = listOf(
+                "parallel", "dual", "virtualmaster", "virtualapp",
+                "clone", "multi", "twoyi", "blackbox", "vmos", "vphone"
+            )
+            for (p in pathsToCheck) {
+                if (nonZeroUserRegex.containsMatchIn(p)) {
+                    return true
+                }
+                for (marker in cloneMarkers) {
+                    if (p.contains(marker)) {
+                        return true
+                    }
+                }
             }
 
             // 3. Pastikan package name sesuai

@@ -112,7 +112,27 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() { _isLoading = true; _errorMsg = ''; });
 
     try {
-      await AuthService.login(_userCtrl.text.trim(), _passCtrl.text);
+      final rawUsername = _userCtrl.text.trim();
+      if (!KioskController.isReviewerUsername(rawUsername)) {
+        final isVm = await KioskController.instance.checkVirtualEnvironment();
+        if (isVm) {
+          _showError(
+            'Virtual Machine / Emulator terdeteksi (Virtual Master, VMOS, VPhone, dll). '
+            'Aplikasi ujian wajib dijalankan langsung di sistem utama HP Anda.',
+          );
+          return;
+        }
+        final isCloned = await KioskController.instance.checkClonedApp();
+        if (isCloned) {
+          _showError(
+            'Ruang Ganda / Aplikasi Kloning terdeteksi (Dual App, Parallel Space, Island, dll). '
+            'Buka aplikasi langsung di ruang utama HP Anda.',
+          );
+          return;
+        }
+      }
+
+      await AuthService.login(rawUsername, _passCtrl.text);
       if (!mounted) return;
 
       // Device Binding: daftarkan perangkat ke server.
