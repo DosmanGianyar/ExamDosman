@@ -593,7 +593,11 @@ class OfflineQuizService {
         ).timeout(const Duration(seconds: 12));
 
         if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
-          final ct = (resp.headers['content-type'] ?? 'image/png').split(';').first.trim();
+          final ct = _inferImageMimeType(
+            fetchUrl,
+            resp.bodyBytes,
+            resp.headers['content-type'],
+          );
           final b64 = base64Encode(resp.bodyBytes);
           final dataUri = 'data:$ct;base64,$b64';
           cache[rawUrl] = dataUri;
@@ -604,5 +608,38 @@ class OfflineQuizService {
       }
     }
     return result;
+  }
+
+  static String _inferImageMimeType(
+    String url,
+    List<int> bytes,
+    String? headerContentType,
+  ) {
+    final headerCt = (headerContentType ?? '').split(';').first.trim().toLowerCase();
+    if (headerCt.startsWith('image/')) {
+      return headerCt;
+    }
+
+    // Cek magic bytes WebP: "RIFF" (0..3) + "WEBP" (8..11)
+    if (bytes.length >= 12 &&
+        bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50) {
+      return 'image/webp';
+    }
+
+    final cleanPath = url.split('?').first.split('#').first.toLowerCase();
+    if (cleanPath.endsWith('.webp')) return 'image/webp';
+    if (cleanPath.endsWith('.jpg') || cleanPath.endsWith('.jpeg')) return 'image/jpeg';
+    if (cleanPath.endsWith('.gif')) return 'image/gif';
+    if (cleanPath.endsWith('.svg')) return 'image/svg+xml';
+    if (cleanPath.endsWith('.bmp')) return 'image/bmp';
+    if (cleanPath.endsWith('.avif')) return 'image/avif';
+    return 'image/png';
   }
 }
