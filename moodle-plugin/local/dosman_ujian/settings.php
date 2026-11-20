@@ -34,6 +34,24 @@ if ($hassiteconfig) {
         PARAM_RAW_TRIMMED
     ));
 
+    // Versi build minimum APK Android (0 = tidak wajib update)
+    $settings->add(new admin_setting_configtext(
+        'local_dosman_ujian/min_android_build',
+        'Build Minimum APK Android',
+        'Isi angka build minimum APK Android yang diizinkan login (mis. 152 untuk v2.8.0+152). Isi 0 untuk menonaktifkan kewajiban update. APK lama otomatis ditolak tanpa memblokir permanen perangkat.',
+        '0',
+        PARAM_INT
+    ));
+
+    // Tautan download APK Android terbaru (opsional)
+    $settings->add(new admin_setting_configtext(
+        'local_dosman_ujian/android_download_url',
+        'Link Download APK Android Terbaru',
+        'Opsional. URL unduhan APK terbaru yang ditampilkan pada pesan wajib update di HP siswa.',
+        '',
+        PARAM_RAW_TRIMMED
+    ));
+
     // Tautan ke dashboard monitor
     $settings->add(new admin_setting_heading(
         'local_dosman_ujian/monitor_link',

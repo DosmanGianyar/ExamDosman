@@ -150,6 +150,17 @@ class _LoginScreenState extends State<LoginScreen>
             platform: DeviceService.platform,
             model: model,
           );
+          if (regResult.updateRequired && mounted) {
+            await AuthService.logout();
+            KioskController.instance.unlock();
+            if (!mounted) return;
+            _showError(
+              regResult.reason.isNotEmpty
+                  ? regResult.reason
+                  : 'Aplikasi versi lama tidak didukung. Wajib update ke EXAM DOSMAN versi terbaru.',
+            );
+            return;
+          }
           if (regResult.deviceBlocked && mounted) {
             await AuthService.logout();
             KioskController.instance.unlock();

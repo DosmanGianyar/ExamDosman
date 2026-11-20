@@ -38,6 +38,8 @@ $token    = trim((string)($body['token']     ?? ''));
 $deviceId = trim((string)($body['device_id'] ?? ''));
 $platform = trim((string)($body['platform']  ?? 'android'));
 $model    = trim((string)($body['model']     ?? ''));
+$appVersion = trim((string)($body['app_version'] ?? ''));
+$appBuild   = (int)($body['app_build'] ?? 0);
 
 if ($token === '') {
     http_response_code(400);
@@ -136,8 +138,43 @@ try {
                 SET status = 'active', block_reason = NULL, blocked_at = NULL
               WHERE device_id = ?"
         )->execute([$deviceId]);
-        echo json_encode(['success' => true, 'device_blocked' => false]);
+        echo json_encode(['success' => true, 'device_blocked' => false, 'update_required' => false]);
         exit;
+    }
+
+    // Penegakan versi minimum APK Android (opsional, dikontrol via min_android_build di plugin settings)
+    // Tidak mengubah status perangkat di DB sehingga langsung bisa login begitu siswa update APK.
+    if ($platform === 'android') {
+        $stmtCfg = $pdo->prepare(
+            "SELECT name, value FROM {$prefix}config_plugins
+              WHERE plugin = 'local_dosman_ujian'
+                AND name IN ('min_android_build', 'android_download_url')"
+        );
+        $stmtCfg->execute();
+        $pluginCfg = [];
+        while ($rowCfg = $stmtCfg->fetch(PDO::FETCH_ASSOC)) {
+            $pluginCfg[$rowCfg['name']] = (string)$rowCfg['value'];
+        }
+        $minAndroidBuild = (int)($pluginCfg['min_android_build'] ?? 0);
+        $downloadUrl     = trim((string)($pluginCfg['android_download_url'] ?? ''));
+
+        if ($minAndroidBuild > 0 && $appBuild < $minAndroidBuild) {
+            $verInfo = $appVersion !== '' ? " (versi Anda: v{$appVersion} / build {$appBuild})" : ' (versi lama)';
+            $reason  = "Aplikasi EXAM DOSMAN{$verInfo} tidak lagi didukung. Wajib update ke APK terbaru (build {$minAndroidBuild}+) sebelum mengikuti ujian.";
+            if ($downloadUrl !== '') {
+                $reason .= "\n\nUnduh APK terbaru di: {$downloadUrl}";
+            }
+            echo json_encode([
+                'success'         => true,
+                'device_blocked'  => true,
+                'update_required' => true,
+                'min_build'       => $minAndroidBuild,
+                'download_url'    => $downloadUrl,
+                'block_reason'    => $reason,
+                'blocked_at'      => $now,
+            ]);
+            exit;
+        }
     }
 
     // Setelah upsert: baca status terkini untuk cek blokir

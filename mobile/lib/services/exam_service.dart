@@ -12,6 +12,7 @@ import '../config/app_config.dart';
 import 'api_service.dart';
 import 'auth_service.dart';
 import '../models/session.dart';
+import '../utils/app_version.dart';
 
 class ExamService {
   ExamService._();
@@ -564,7 +565,7 @@ class ExamService {
   }
 
   /// Daftarkan device ke server setelah login berhasil.
-  static Future<({bool success, bool deviceBlocked, String reason, int blockedAt})>
+  static Future<({bool success, bool deviceBlocked, bool updateRequired, String reason, int blockedAt})>
       registerDevice({
     required String deviceId,
     required String token,
@@ -584,24 +585,27 @@ class ExamService {
               'device_id': deviceId,
               'platform': platform,
               'model': model,
+              'app_version': kAppVersion,
+              'app_build': kBuildNumber,
             }),
           )
           .timeout(const Duration(seconds: 6));
       if (resp.statusCode < 200 || resp.statusCode >= 300) {
-        return (success: false, deviceBlocked: false, reason: '', blockedAt: 0);
+        return (success: false, deviceBlocked: false, updateRequired: false, reason: '', blockedAt: 0);
       }
       final decoded = json.decode(resp.body);
       if (decoded is Map<String, dynamic>) {
         return (
           success: decoded['success'] == true,
           deviceBlocked: decoded['device_blocked'] == true,
+          updateRequired: decoded['update_required'] == true,
           reason: decoded['block_reason'] as String? ?? '',
           blockedAt: (decoded['blocked_at'] as num?)?.toInt() ?? 0,
         );
       }
-      return (success: false, deviceBlocked: false, reason: '', blockedAt: 0);
+      return (success: false, deviceBlocked: false, updateRequired: false, reason: '', blockedAt: 0);
     } catch (_) {
-      return (success: false, deviceBlocked: false, reason: '', blockedAt: 0);
+      return (success: false, deviceBlocked: false, updateRequired: false, reason: '', blockedAt: 0);
     }
   }
 
