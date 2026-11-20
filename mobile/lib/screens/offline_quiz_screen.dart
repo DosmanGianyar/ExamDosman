@@ -782,6 +782,18 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
 
   void _onNativeViolation(String reason) {
     if (reason == 'screenshot_attempt') return;
+    if (reason == 'overlay') {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Peringatan: Tutup popup / jendela lain di atas layar ujian.'),
+            backgroundColor: Color(0xFFD97706),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+      return;
+    }
     if (_blockSent || !mounted) return;
     _blockSent = true;
     _triggerSuspend(reason);

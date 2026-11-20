@@ -58,9 +58,9 @@ class MainActivity : FlutterActivity() {
     // Referensi channel untuk mengirim event ke Flutter (split-screen, overlay, dll.)
     private var flutterChannel: MethodChannel? = null
 
-    // Deteksi overlay: jika focus hilang lebih dari 5 detik saat kiosk aktif → overlay asing
+    // Deteksi overlay: jika focus hilang lebih dari 10 detik saat kiosk aktif → overlay asing
     private var overlayCheckRunnable: Runnable? = null
-    private val overlayThresholdMs   = 5_000L
+    private val overlayThresholdMs   = 10_000L
 
     private fun isPresentationDisplayActive(displayId: Int? = null): Boolean {
         return try {
