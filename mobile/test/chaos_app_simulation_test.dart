@@ -1017,4 +1017,116 @@ void main() {
       }, () => _NonClosingHttpClient(mock));
     });
   });
+
+  group('Grup 9: Moodle Editor HTML Formatting, Tables & Image Reliability', () {
+    test('normalizes justify, cleans MS Word nbsp spacing, keeps center/right, and wraps tables without double-wrap', () {
+      const rawHtml =
+          '<span style="font-size:12pt"><br></span>'
+          '<p style="text-align:justify"><span style="font-size:12pt">Akuntan&nbsp; yang&nbsp; tugas utamanya:</span></p>'
+          '<p style="font-size:2pt"></p>'
+          '<p style="text-align:justify">1)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Membeli peralatan</p>'
+          '<p style="text-align:center">Judul Tengah</p>'
+          '<p align="right">Kanan</p>'
+          '<table border="1"><tr><td>Kas&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Rp10.000</td></tr></table>';
+
+      final sanitized = OfflineQuizService.sanitizeFragmentHtml(rawHtml);
+      expect(sanitized, isNot(contains('text-align:justify')));
+      expect(sanitized, contains('text-align: left'));
+      expect(sanitized, contains('text-align:center'));
+      expect(sanitized, contains('align="right"'));
+      expect(sanitized, contains('Akuntan yang tugas utamanya:'));
+      expect(sanitized, contains('1)&ensp;Membeli peralatan'));
+      expect(sanitized, isNot(contains('font-size:2pt')));
+      expect(sanitized, contains('Kas&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Rp10.000'));
+      expect(sanitized, contains('<div class="moodle-table-wrap"><table border="1">'));
+
+      // Pemanggilan ulang tidak menggandakan wrapper .moodle-table-wrap
+      final sanitizedTwice = OfflineQuizService.sanitizeFragmentHtml(sanitized);
+      expect(RegExp(r'moodle-table-wrap').allMatches(sanitizedTwice).length, 1);
+    });
+
+    test('buildAuthenticatedPluginfileUrl normalizes scheme/port/query & downloadQuizPackage rejects HTML/JSON disguised images and keeps token fallback URL', () async {
+      expect(
+        OfflineQuizService.buildAuthenticatedPluginfileUrl(
+          'http://lms.sman1-gianyar.sch.id/pluginfile.php/910/question/questiontext/10/1/24225/image.png?1794794870331',
+          'TOK123',
+        ),
+        'https://lms.sman1-gianyar.sch.id:9443/webservice/pluginfile.php/910/question/questiontext/10/1/24225/image.png?1794794870331&token=TOK123',
+      );
+      expect(
+        OfflineQuizService.buildAuthenticatedPluginfileUrl(
+          '/pluginfile.php/910/question/questiontext/10/1/24225/grafik%20eko.png',
+          'TOK123',
+        ),
+        'https://lms.sman1-gianyar.sch.id:9443/webservice/pluginfile.php/910/question/questiontext/10/1/24225/grafik%20eko.png?token=TOK123',
+      );
+
+      final mock = MockClient((req) async {
+        final bodyMap = req.method == 'POST'
+            ? Uri.splitQueryString(req.body)
+            : req.url.queryParameters;
+        final fn = bodyMap['wsfunction'] ?? '';
+
+        if (fn == 'mod_quiz_get_user_attempts') {
+          return http.Response(json.encode({'attempts': []}), 200);
+        }
+        if (fn == 'mod_quiz_start_attempt') {
+          return http.Response(
+            json.encode({
+              'attempt': {'id': 7799, 'quiz': 247, 'userid': 2003, 'timestart': 1795250000, 'state': 'inprogress'},
+            }),
+            200,
+          );
+        }
+        if (fn == 'mod_quiz_get_attempt_data') {
+          return http.Response(
+            json.encode({
+              'nextpage': -1,
+              'questions': [
+                {
+                  'slot': 1,
+                  'number': 1,
+                  'type': 'multichoice',
+                  'sequencecheck': 1,
+                  'html': sampleQuestionHtml(
+                    slot: 1,
+                    qNumber: 1,
+                    seqVal: '1',
+                    extraBodyHtml:
+                        '<p>Perhatikan gambar: <img src="https://lms.sman1-gianyar.sch.id:9443/pluginfile.php/910/q/real.png?123">'
+                        '<img src="https://lms.sman1-gianyar.sch.id:9443/pluginfile.php/910/q/redirect_html.png"></p>',
+                  ),
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        if (req.url.path.contains('/webservice/pluginfile.php/910/q/real.png')) {
+          return http.Response.bytes(validPngBytes, 200, headers: {'content-type': 'image/png'});
+        }
+        if (req.url.path.contains('/webservice/pluginfile.php/910/q/redirect_html.png')) {
+          // Simulasi HTTP 200 tetapi berisi HTML halaman redirect Moodle -> harus ditolak!
+          return http.Response('<!DOCTYPE html><html><body>Redirect</body></html>', 200, headers: {'content-type': 'text/html; charset=utf-8'});
+        }
+        return http.Response('Not found', 404);
+      });
+
+      await http.runWithClient(() async {
+        final pkg = await OfflineQuizService.downloadQuizPackage(
+          quizId: 247,
+          courseId: 50,
+          userId: 2003,
+          quizName: 'SAS EKONOMI',
+          timeLimitSec: 3600,
+          timeCloseEpochSec: 1795256000,
+        );
+        final html = pkg.questions.first.questionHtml;
+        expect(html, contains('data:image/png;base64,'));
+        // redirect_html tidak boleh di-encode jadi data URI; tetap fallback /webservice/pluginfile.php?token=...
+        expect(html, isNot(contains(base64Encode(utf8.encode('<!DOCTYPE html><html><body>Redirect</body></html>')))));
+        expect(html, contains('https://lms.sman1-gianyar.sch.id:9443/webservice/pluginfile.php/910/q/redirect_html.png?token=INIT_TOKEN_123'));
+      }, () => _NonClosingHttpClient(mock));
+    });
+  });
 }

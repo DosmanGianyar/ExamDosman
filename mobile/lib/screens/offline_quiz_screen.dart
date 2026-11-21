@@ -349,22 +349,58 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
   body {
     margin: 0;
     padding: 14px 14px 36px 14px;
-    font-family: -apple-system, Roboto, 'Segoe UI', sans-serif;
-    background: #F1F5F9;
-    color: #0F172A;
-    font-size: 15.5px;
-    line-height: 1.65;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+    background: #F4F6F9;
+    color: #1D2125;
+    font-size: 15px;
+    line-height: 1.55;
+    text-align: left;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
   .q-card {
     background: #FFFFFF;
-    border-radius: 18px;
-    padding: 18px 18px 22px 18px;
-    border: 1px solid #E2E8F0;
+    border-radius: 14px;
+    padding: 16px 16px 18px 16px;
+    border: 1px solid #DEE2E6;
     border-top: 4px solid #1E3A8A;
-    margin-bottom: 24px;
-    box-shadow: 0 6px 20px rgba(15,23,42,0.06);
+    margin-bottom: 22px;
+    box-shadow: 0 3px 12px rgba(15,23,42,0.05);
     overflow-x: auto;
   }
+  .q-content {
+    font-size: 15px;
+    line-height: 1.55;
+    color: #1D2125;
+    text-align: left;
+  }
+  .q-content p, .opt-body p {
+    margin: 0 0 0.6em 0;
+    line-height: 1.55 !important;
+  }
+  .q-content p:last-child, .opt-body p:last-child {
+    margin-bottom: 0;
+  }
+  .q-content span[style*="font-size"],
+  .opt-body span[style*="font-size"],
+  .q-content p[style*="font-size"],
+  .opt-body p[style*="font-size"] {
+    font-size: inherit !important;
+    line-height: inherit !important;
+  }
+  .q-content ol, .q-content ul, .opt-body ol, .opt-body ul {
+    margin: 0.35em 0 0.7em 0;
+    padding-left: 1.45em;
+  }
+  .q-content li, .opt-body li {
+    margin-bottom: 0.3em;
+  }
+  .q-content sub, .q-content sup, .opt-body sub, .opt-body sup {
+    font-size: 75% !important;
+    line-height: 0;
+  }
+  .q-content b, .q-content strong, .opt-body b, .opt-body strong { font-weight: 700; }
+  .q-content i, .q-content em, .opt-body i, .opt-body em { font-style: italic; }
   .options-label {
     font-size: 11px;
     font-weight: 800;
@@ -388,13 +424,33 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     border-bottom: 2px solid #F59E0B;
   }
   .q-card img, .opt-body img {
-    max-width: 100%;
-    height: auto;
+    max-width: 100% !important;
+    height: auto !important;
+    vertical-align: middle;
+    cursor: zoom-in;
+  }
+  .q-card img.img-block, .opt-body img.img-block {
     display: block;
-    border-radius: 10px;
     margin: 10px auto;
+    border-radius: 8px;
     border: 1px solid #E2E8F0;
     background: #FFFFFF;
+  }
+  .q-card img.img-inline, .opt-body img.img-inline {
+    display: inline-block;
+    margin: 0 2px;
+    border: none;
+    background: transparent;
+  }
+  .img-fallback {
+    display: inline-block;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: #B45309;
+    background: #FEF3C7;
+    border: 1px solid #FDE68A;
+    border-radius: 6px;
+    margin: 4px 0;
   }
   .img-hint {
     font-size: 11px;
@@ -403,15 +459,34 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     margin-top: -4px;
     margin-bottom: 8px;
   }
-  .q-card table {
-    border-collapse: collapse;
-    max-width: 100%;
-    display: block;
+  .moodle-table-wrap {
+    width: 100%;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 10px 0;
+    border-radius: 8px;
   }
-  .q-card td, .q-card th {
+  .q-card table, .opt-body table {
+    display: table;
+    border-collapse: collapse;
+    width: auto !important;
+    min-width: 100%;
+    font-size: 13.5px;
+    line-height: 1.4;
+    background: #FFFFFF;
+  }
+  .q-card th, .opt-body th {
+    background: #F1F5F9;
+    font-weight: 700;
+  }
+  .q-card td, .q-card th, .opt-body td, .opt-body th {
     border: 1px solid #CBD5E1;
-    padding: 6px 8px;
+    padding: 6px 9px;
+    vertical-align: top;
+    text-align: left;
+  }
+  .q-card tr[height="0"], .opt-body tr[height="0"] {
+    display: none;
   }
   .opt-card {
     display: flex;
@@ -457,8 +532,11 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     flex: 1;
     min-width: 0;
     padding-top: 3px;
+    font-size: 15px;
+    line-height: 1.5;
+    text-align: left;
     word-wrap: break-word;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   .opt-check {
     flex-shrink: 0;
@@ -479,7 +557,6 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     color: #FFFFFF;
   }
   .opt-body p:first-child, .q-card p:first-child { margin-top: 0; }
-  .opt-body p:last-child, .q-card p:last-child { margin-bottom: 0; }
   .q-card .WordSection1, .opt-body .WordSection1 { display: block; width: 100%; }
   .q-card .MsoListParagraph, .opt-body .MsoListParagraph { text-indent: 0 !important; margin-left: 0 !important; }
   .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
@@ -488,7 +565,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
 <body>
   <div class="q-card">
     <div class="q-badge">PERTANYAAN NOMOR ${q.number}</div>
-    $qHtml
+    <div class="q-content">$qHtml</div>
   </div>
   <div class="options-label">Pilihan Jawaban</div>
   <div class="options-wrap">$optionsHtml</div>
@@ -506,10 +583,33 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
         window.flutter_inappwebview.callHandler('selectOption', val);
       }
     }
+    function classifyImage(img) {
+      var w = img.naturalWidth || parseInt(img.getAttribute('width') || '0', 10) || 0;
+      var h = img.naturalHeight || parseInt(img.getAttribute('height') || '0', 10) || 0;
+      var isInline = (w > 0 && h > 0 && w <= 140 && h <= 70) ||
+        (w > 0 && w <= 140 && img.closest('.opt-body') !== null);
+      img.classList.remove('img-block', 'img-inline');
+      img.classList.add(isInline ? 'img-inline' : 'img-block');
+    }
     document.addEventListener('DOMContentLoaded', function() {
       var imgs = document.querySelectorAll('.q-card img, .opt-body img');
       for (var i = 0; i < imgs.length; i++) {
         (function(img) {
+          if (img.complete && img.naturalWidth > 0) {
+            classifyImage(img);
+          } else {
+            classifyImage(img);
+            img.addEventListener('load', function() { classifyImage(img); });
+          }
+          img.addEventListener('error', function() {
+            if (img.dataset.fallbackShown) return;
+            img.dataset.fallbackShown = '1';
+            var note = document.createElement('span');
+            note.className = 'img-fallback';
+            note.textContent = '[Gambar gagal dimuat]';
+            img.style.display = 'none';
+            if (img.parentNode) img.parentNode.insertBefore(note, img.nextSibling);
+          });
           img.addEventListener('click', function(e) {
             e.stopPropagation();
             if (window.flutter_inappwebview && img.src) {

@@ -154,7 +154,7 @@ class OfflineQuizPackage {
 class OfflineQuizService {
   OfflineQuizService._();
 
-  static const int kCurrentParserVersion = 2;
+  static const int kCurrentParserVersion = 3;
   static const int kAutoSubmitBufferSec = 15;
   static const int kBackupSave5MinSec = 300;
   static const int kBackupSave1MinSec = 60;
@@ -364,7 +364,7 @@ class OfflineQuizService {
     }
 
     // 3. Unduh semua halaman soal dengan mod_quiz_get_attempt_data
-    final token = await AuthService.getToken() ?? '';
+    final token = (await AuthService.getToken()) ?? ApiService.currentToken ?? '';
     final rawQuestions = <Map<String, dynamic>>[];
     int page = 0;
     int safetyGuard = 0;
@@ -427,21 +427,22 @@ class OfflineQuizService {
       );
     }
 
+    final shouldRewriteImages = imageCache.isNotEmpty || (imageUrls.isNotEmpty && token.isNotEmpty);
     final parsed = draftQuestions.map((q) {
-      final inlinedQ = imageCache.isEmpty
-          ? q.questionHtml
-          : _replaceCachedImages(q.questionHtml, imageCache);
-      final inlinedOpts = imageCache.isEmpty
+      final inlinedQ = shouldRewriteImages
+          ? _replaceCachedImages(q.questionHtml, imageCache, token: token)
+          : q.questionHtml;
+      final inlinedOpts = shouldRewriteImages
           ? q.options
-          : q.options
               .map(
                 (o) => OfflineOption(
                   value: o.value,
                   labelLetter: o.labelLetter,
-                  html: _replaceCachedImages(o.html, imageCache),
+                  html: _replaceCachedImages(o.html, imageCache, token: token),
                 ),
               )
-              .toList();
+              .toList()
+          : q.options;
       return OfflineQuestion(
         slot: q.slot,
         number: q.number,
@@ -820,6 +821,90 @@ class OfflineQuizService {
       final unclosed = stack.removeLast();
       buf.write('</$unclosed>');
     }
+    return normalizeMoodleHtmlForMobile(buf.toString());
+  }
+
+  /// Normalkan artefak HTML/MS Word khas bank soal Moodle agar rata kiri rapi
+  /// seperti editor Moodle, bersih dari celah spasi berlebih, dan tabel tetap scrollable.
+  static String normalizeMoodleHtmlForMobile(String html) {
+    if (html.isEmpty) return html;
+    var out = html;
+
+    // 1. Hapus elemen spacer kosong di awal (misal <span style="font-size:12pt"><br></span>)
+    //    dan paragraf pemisah 0-4pt yang sering disisipkan MS Word.
+    out = out.replaceFirst(
+      RegExp(r'^\s*<span\b[^>]*>\s*<br\s*/?>\s*</span>\s*', caseSensitive: false),
+      '',
+    );
+    out = out.replaceAll(
+      RegExp(r'<p\b[^>]*font-size\s*:\s*[0-4](?:\.\d+)?pt[^>]*>\s*</p>', caseSensitive: false),
+      '',
+    );
+
+    // 2. Ubah text-align:justify / align="justify" menjadi left (pertahankan center & right).
+    out = out.replaceAllMapped(
+      RegExp(r'text-align\s*:\s*justify\b', caseSensitive: false),
+      (_) => 'text-align: left',
+    );
+    out = out.replaceAllMapped(
+      RegExp(r'\balign\s*=\s*(["\x27]?)justify\1', caseSensitive: false),
+      (_) => 'align="left"',
+    );
+
+    // 3. Rapikan spasi MS Word setelah nomor daftar (misal 1)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -> 1)&ensp;)
+    out = out.replaceAllMapped(
+      RegExp(r'(^|>|\n|\r)(\(?\d{1,3}[\)\.])(?:&nbsp;|\u00A0| ){2,}'),
+      (m) => '${m[1]}${m[2]}&ensp;',
+    );
+
+    // 4. Ubah &nbsp; tunggal yang menempel pada spasi biasa menjadi spasi normal agar line-wrap natural,
+    //    namun biarkan deretan >=2 &nbsp; (misal perataan kolom angka akuntansi) tetap utuh.
+    out = out.replaceAllMapped(
+      RegExp(r'(?<!&nbsp;|\u00A0)(?:&nbsp;|\u00A0) (?![\u00A0]|&nbsp;)'),
+      (_) => ' ',
+    );
+    out = out.replaceAllMapped(
+      RegExp(r' (?<!&nbsp; | )(?:&nbsp;|\u00A0)(?!&nbsp;|\u00A0| )'),
+      (_) => ' ',
+    );
+
+    // 5. Bungkus <table> tingkat atas dengan <div class="moodle-table-wrap"> bila belum terbungkus.
+    out = _wrapTopLevelTables(out);
+    return out;
+  }
+
+  static String _wrapTopLevelTables(String html) {
+    if (!html.toLowerCase().contains('<table') || html.contains('moodle-table-wrap')) {
+      return html;
+    }
+    final buf = StringBuffer();
+    var lastIdx = 0;
+    var depth = 0;
+    for (final m in _htmlTagScanRegex.allMatches(html)) {
+      final rawTag = m.group(2);
+      if (rawTag == null || rawTag.toLowerCase() != 'table') continue;
+      final isClose = m.group(1) == '/';
+      final isSelfClosing = m.group(4) == '/';
+      if (!isClose && !isSelfClosing) {
+        if (depth == 0) {
+          buf.write(html.substring(lastIdx, m.start));
+          buf.write('<div class="moodle-table-wrap">');
+          buf.write(html.substring(m.start, m.end));
+          lastIdx = m.end;
+        }
+        depth++;
+      } else if (isClose && depth > 0) {
+        depth--;
+        if (depth == 0) {
+          buf.write(html.substring(lastIdx, m.end));
+          buf.write('</div>');
+          lastIdx = m.end;
+        }
+      }
+    }
+    if (lastIdx < html.length) {
+      buf.write(html.substring(lastIdx));
+    }
     return buf.toString();
   }
 
@@ -1026,7 +1111,7 @@ class OfflineQuizService {
     caseSensitive: false,
   );
   static final RegExp _imgSrcAttrRegex = RegExp(
-    r'''(\s)src=(["'])([^"']+)\2''',
+    r'''(\s)src\s*=\s*(["'])([^"']+)\2''',
     caseSensitive: false,
   );
 
@@ -1037,9 +1122,59 @@ class OfflineQuizService {
   @visibleForTesting
   static String replaceCachedImagesForTesting(
     String html,
-    Map<String, String> cache,
-  ) =>
-      _replaceCachedImages(html, cache);
+    Map<String, String> cache, {
+    String token = '',
+  }) =>
+      _replaceCachedImages(html, cache, token: token);
+
+  /// Bangun URL `/webservice/pluginfile.php` terautentikasi token untuk host Moodle sekolah.
+  static String buildAuthenticatedPluginfileUrl(String rawUrl, String token) {
+    var fetchUrl = rawUrl.replaceAll('&amp;', '&').trim();
+    if (fetchUrl.isEmpty || fetchUrl.startsWith('data:')) {
+      return fetchUrl;
+    }
+
+    final moodleUri = Uri.parse(AppConfig.moodleUrl);
+    if (fetchUrl.startsWith('//')) {
+      fetchUrl = '${moodleUri.scheme}:$fetchUrl';
+    } else if (fetchUrl.startsWith('/')) {
+      fetchUrl = '${AppConfig.moodleUrl}$fetchUrl';
+    } else {
+      final parsed = Uri.tryParse(fetchUrl);
+      if (parsed != null &&
+          parsed.hasScheme &&
+          parsed.host.toLowerCase() == moodleUri.host.toLowerCase()) {
+        fetchUrl = parsed
+            .replace(
+              scheme: moodleUri.scheme,
+              host: moodleUri.host,
+              port: moodleUri.hasPort ? moodleUri.port : null,
+            )
+            .toString();
+      }
+    }
+
+    final parsedAfterOrigin = Uri.tryParse(fetchUrl);
+    final isSameOrigin = parsedAfterOrigin != null &&
+        parsedAfterOrigin.host.toLowerCase() == moodleUri.host.toLowerCase();
+    if (!isSameOrigin) {
+      return fetchUrl;
+    }
+
+    if (fetchUrl.contains('/pluginfile.php/') &&
+        !fetchUrl.contains('/webservice/pluginfile.php/')) {
+      fetchUrl = fetchUrl.replaceFirst(
+        '/pluginfile.php/',
+        '/webservice/pluginfile.php/',
+      );
+    }
+
+    if (token.isNotEmpty && !fetchUrl.contains('token=')) {
+      final sep = fetchUrl.contains('?') ? '&' : '?';
+      fetchUrl = '$fetchUrl${sep}token=${Uri.encodeComponent(token)}';
+    }
+    return fetchUrl;
+  }
 
   /// Ekstrak seluruh URL gambar eksternal (non-data-URI) dari atribut src tag `<img>`.
   static List<String> _extractExternalImageUrls(String html) {
@@ -1056,56 +1191,110 @@ class OfflineQuizService {
     return urls;
   }
 
-  /// Gantikan atribut `src` gambar pada tag `<img>` dengan hasil data URI dari [cache].
-  static String _replaceCachedImages(String html, Map<String, String> cache) {
-    if (cache.isEmpty) return html;
+  /// Gantikan atribut `src` gambar pada tag `<img>` dengan data URI dari [cache],
+  /// atau URL `/webservice/pluginfile.php?...&token=...` sebagai fallback online.
+  static String _replaceCachedImages(
+    String html,
+    Map<String, String> cache, {
+    String token = '',
+  }) {
+    if (cache.isEmpty && token.isEmpty) return html;
     return html.replaceAllMapped(_imgTagRegex, (tagMatch) {
       final fullTag = tagMatch.group(0) ?? '';
       return fullTag.replaceFirstMapped(_imgSrcAttrRegex, (attrMatch) {
         final rawAttr = attrMatch.group(3) ?? '';
         final normalized = rawAttr.replaceAll('&amp;', '&').trim();
-        final dataUri = cache[normalized];
-        if (dataUri == null || rawAttr.isEmpty) {
+        if (rawAttr.isEmpty || normalized.startsWith('data:')) {
           return attrMatch.group(0) ?? '';
         }
         final ws = attrMatch.group(1) ?? ' ';
         final quote = attrMatch.group(2) ?? '"';
-        return '${ws}src=$quote$dataUri$quote';
+        final dataUri = cache[normalized];
+        if (dataUri != null) {
+          return '${ws}src=$quote$dataUri$quote';
+        }
+        if (token.isNotEmpty) {
+          final authUrl = buildAuthenticatedPluginfileUrl(normalized, token);
+          return '${ws}src=$quote$authUrl$quote';
+        }
+        return attrMatch.group(0) ?? '';
       });
     });
   }
 
-  /// Unduh satu gambar ke data URI base64 (timeout 10 detik + 1x retry jika gagal/5xx).
-  static Future<String?> _downloadImageWithRetry(String rawUrl, String token) async {
-    var fetchUrl = rawUrl;
-    if (fetchUrl.startsWith('/')) {
-      fetchUrl = '${AppConfig.moodleUrl}$fetchUrl';
+  static bool _hasImageMagicBytes(List<int> bytes) {
+    if (bytes.length >= 4 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47) {
+      return true; // PNG
     }
-    // Pastikan URL pluginfile menggunakan endpoint webservice + token agar tidak butuh cookie
-    if (fetchUrl.contains('/pluginfile.php/') &&
-        !fetchUrl.contains('/webservice/pluginfile.php/')) {
-      fetchUrl = fetchUrl.replaceFirst(
-        '/pluginfile.php/',
-        '/webservice/pluginfile.php/',
-      );
+    if (bytes.length >= 3 &&
+        bytes[0] == 0xFF &&
+        bytes[1] == 0xD8 &&
+        bytes[2] == 0xFF) {
+      return true; // JPEG
     }
-    if (token.isNotEmpty &&
-        fetchUrl.startsWith(AppConfig.moodleUrl) &&
-        !fetchUrl.contains('token=')) {
-      final sep = fetchUrl.contains('?') ? '&' : '?';
-      fetchUrl = '$fetchUrl${sep}token=${Uri.encodeComponent(token)}';
+    if (bytes.length >= 4 &&
+        bytes[0] == 0x47 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x38) {
+      return true; // GIF
     }
+    if (bytes.length >= 12 &&
+        bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50) {
+      return true; // WebP
+    }
+    if (bytes.length >= 2 && bytes[0] == 0x42 && bytes[1] == 0x4D) {
+      return true; // BMP
+    }
+    final prefixLen = bytes.length < 128 ? bytes.length : 128;
+    final head = utf8.decode(bytes.sublist(0, prefixLen), allowMalformed: true).trimLeft().toLowerCase();
+    return head.startsWith('<svg') || head.contains('<svg');
+  }
 
-    final uri = Uri.tryParse(fetchUrl);
+  static bool _isValidImagePayload(List<int> bytes, String? headerContentType) {
+    if (bytes.isEmpty) return false;
+    final headerCt = (headerContentType ?? '').split(';').first.trim().toLowerCase();
+    if (headerCt.startsWith('text/html') ||
+        headerCt.startsWith('application/json') ||
+        headerCt.startsWith('text/plain')) {
+      return false;
+    }
+    final prefixLen = bytes.length < 64 ? bytes.length : 64;
+    final head = utf8.decode(bytes.sublist(0, prefixLen), allowMalformed: true).trimLeft().toLowerCase();
+    if (head.startsWith('<!doctype') ||
+        head.startsWith('<html') ||
+        head.startsWith('{')) {
+      return false;
+    }
+    return headerCt.startsWith('image/') || _hasImageMagicBytes(bytes);
+  }
+
+  /// Unduh satu gambar ke data URI base64 (timeout 12 detik + hingga 3x percobaan jika gagal/5xx).
+  static Future<String?> _downloadImageWithRetry(String rawUrl, String token) async {
+    final fetchUrl = buildAuthenticatedPluginfileUrl(rawUrl, token);
+    final uri = Uri.tryParse(fetchUrl) ?? Uri.tryParse(Uri.encodeFull(fetchUrl));
     if (uri == null) return null;
 
-    for (var attempt = 0; attempt < 2; attempt++) {
+    const retryDelaysMs = [400, 900];
+    for (var attempt = 0; attempt < 3; attempt++) {
       try {
         final resp = await http
             .get(uri, headers: {'User-Agent': AppConfig.examBrowserUserAgent})
-            .timeout(const Duration(seconds: 10));
+            .timeout(const Duration(seconds: 12));
 
-        if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+        if (resp.statusCode == 200 &&
+            _isValidImagePayload(resp.bodyBytes, resp.headers['content-type'])) {
           final ct = _inferImageMimeType(
             fetchUrl,
             resp.bodyBytes,
@@ -1114,14 +1303,14 @@ class OfflineQuizService {
           final b64 = base64Encode(resp.bodyBytes);
           return 'data:$ct;base64,$b64';
         }
-        if (resp.statusCode < 500) {
+        if (resp.statusCode >= 300 && resp.statusCode < 500) {
           return null;
         }
       } catch (_) {
-        // Timeout atau error jaringan → retry sekali setelah jeda singkat
+        // Timeout atau error jaringan → retry dengan jeda progresif
       }
-      if (attempt == 0) {
-        await Future<void>.delayed(const Duration(milliseconds: 500));
+      if (attempt < retryDelaysMs.length) {
+        await Future<void>.delayed(Duration(milliseconds: retryDelaysMs[attempt]));
       }
     }
     return null;
@@ -1170,7 +1359,7 @@ class OfflineQuizService {
     final urls = _extractExternalImageUrls(html);
     if (urls.isEmpty) return html;
     await _prefetchImages(urls, token, cache);
-    return _replaceCachedImages(html, cache);
+    return _replaceCachedImages(html, cache, token: token);
   }
 
   static String _inferImageMimeType(
