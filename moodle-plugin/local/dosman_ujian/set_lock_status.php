@@ -74,6 +74,27 @@ try {
 
     $now = time();
 
+    if ($lockStatus === 2 && dosman_is_protected_user($pdo, $prefix, $userid)) {
+        echo json_encode([
+            'success' => false,
+            'error'   => 'Akun admin, manager, atau reviewer tidak dapat diblokir',
+        ]);
+        exit;
+    }
+
+    // Baca data baca-only sebelum transaksi
+    $serviceIds = [];
+    if ($lockStatus === 2) {
+        $svcStmt = $pdo->prepare(
+            "SELECT id FROM {$prefix}external_services
+              WHERE shortname IN ('dosman_ujian_mobile', 'moodle_mobile_app')"
+        );
+        $svcStmt->execute();
+        $serviceIds = array_map('intval', $svcStmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    }
+
+    $pdo->beginTransaction();
+
     // Upsert lock_status
     $pdo->prepare(
         "INSERT INTO {$prefix}local_dosman_ujian_appstatus
@@ -83,65 +104,43 @@ try {
     )->execute([$userid, $now, $lockStatus]);
 
     if ($lockStatus === 2) {
-        $stmtSiteAdmins = $pdo->prepare("SELECT value FROM {$prefix}config WHERE name = 'siteadmins' LIMIT 1");
-        $stmtSiteAdmins->execute();
-        $siteAdminList = array_map('trim', explode(',', (string)($stmtSiteAdmins->fetchColumn() ?: '')));
+        // Auto-suspend akun Moodle saat diblokir (admin/manager/reviewer sudah dicegah di atas)
+        $pdo->prepare(
+            "UPDATE {$prefix}user SET suspended = 1, timemodified = ? WHERE id = ?"
+        )->execute([$now, $userid]);
 
-        $roleCheck = $pdo->prepare(
-            "SELECT COUNT(*) FROM {$prefix}role_assignments ra
-              JOIN {$prefix}role r ON r.id = ra.roleid
-             WHERE ra.userid = ? AND r.shortname = 'manager'"
-        );
-        $roleCheck->execute([$userid]);
-        $isManager = ((int)$roleCheck->fetchColumn() > 0);
-
-        $stmtUser = $pdo->prepare("SELECT username FROM {$prefix}user WHERE id = ? LIMIT 1");
-        $stmtUser->execute([$userid]);
-        $targetUsername = strtolower(trim((string)$stmtUser->fetchColumn()));
-
-        $isProtected = in_array((string)$userid, $siteAdminList, true)
-            || $isManager
-            || dosman_is_reviewer_username($targetUsername);
-
-        if (!$isProtected) {
-            // Auto-suspend akun Moodle saat diblokir (kecuali admin/manager/reviewer)
+        // Hapus token webservice mobile agar sesi app langsung tidak valid
+        if (!empty($serviceIds)) {
+            $placeholders = implode(',', array_fill(0, count($serviceIds), '?'));
+            $delParams = array_merge([$userid], $serviceIds);
             $pdo->prepare(
-                "UPDATE {$prefix}user SET suspended = 1, timemodified = ? WHERE id = ?"
-            )->execute([$now, $userid]);
-
-            // Hapus token webservice mobile agar sesi app langsung tidak valid
-            $svcStmt = $pdo->prepare(
-                "SELECT id FROM {$prefix}external_services
-                  WHERE shortname IN ('dosman_ujian_mobile', 'moodle_mobile_app')"
-            );
-            $svcStmt->execute();
-            $serviceIds = array_map('intval', $svcStmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
-            if (!empty($serviceIds)) {
-                $placeholders = implode(',', array_fill(0, count($serviceIds), '?'));
-                $delParams = array_merge([$userid], $serviceIds);
-                $pdo->prepare(
-                    "DELETE FROM {$prefix}external_tokens
-                      WHERE userid = ? AND externalserviceid IN ({$placeholders})"
-                )->execute($delParams);
-            }
-
-            // Hapus sesi Moodle web → siswa logout dari browser
-            $pdo->prepare(
-                "DELETE FROM {$prefix}sessions WHERE userid = ?"
-            )->execute([$userid]);
+                "DELETE FROM {$prefix}external_tokens
+                  WHERE userid = ? AND externalserviceid IN ({$placeholders})"
+            )->execute($delParams);
         }
 
-    } elseif ($lockStatus === 1) {
-        // Pulihkan akun jika tersuspend & buka blokir perangkat
+        // Hapus sesi Moodle web → siswa logout dari browser
         $pdo->prepare(
-            "UPDATE {$prefix}user SET suspended = 0 WHERE id = ?"
+            "DELETE FROM {$prefix}sessions WHERE userid = ?"
         )->execute([$userid]);
+
+    } elseif ($lockStatus === 1) {
+        // Pulihkan akun jika tersuspend & buka blokir perangkat serta sesi
+        $pdo->prepare(
+            "UPDATE {$prefix}user SET suspended = 0, timemodified = ? WHERE id = ?"
+        )->execute([$now, $userid]);
 
         $pdo->prepare(
             "UPDATE {$prefix}local_dosman_ujian_devices
                 SET status = 'active', block_reason = NULL, blocked_at = NULL
               WHERE userid = ? AND status = 'blocked'"
         )->execute([$userid]);
+
+        $pdo->prepare(
+            "UPDATE {$prefix}local_dosman_ujian_sessions
+                SET status = 'released', blocked_reason = NULL, blocked_at = NULL, timemodified = ?
+              WHERE userid = ? AND status = 'blocked'"
+        )->execute([$now, $userid]);
 
         // Hapus dari blocked_students jika ada
         $stmtBlocked = $pdo->prepare(
@@ -161,10 +160,14 @@ try {
         }
     }
 
+    $pdo->commit();
     @unlink('/dev/shm/dosman_app_users_cache.json');
     echo json_encode(['success' => true]);
 
 } catch (Throwable $e) {
+    if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     http_response_code(500);
     echo json_encode(['error' => 'Server error']);
 }

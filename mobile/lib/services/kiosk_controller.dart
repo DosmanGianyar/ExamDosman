@@ -13,6 +13,11 @@ import 'auth_service.dart';
 import 'exam_service.dart';
 import '../screens/blocked_screen.dart';
 
+typedef SuspendAccountHandler = Future<SuspendAccountOutcome> Function({
+  required int userId,
+  required String reason,
+});
+
 /// Respons [fetchExitPassword]. Hanya saat [success] == true nilai [password]
 /// boleh diartikan sebagai kebijakan server (kosong = admin tidak memakai password).
 class ExitPasswordFetchResult {
@@ -123,10 +128,17 @@ class KioskController {
   bool _handlingFatalViolation = false;
   DateTime? _sessionStartedAt;
   DateTime? _lockedAt;
+  SuspendAccountHandler? _suspendHandlerOverride;
 
   bool get active => _active;
   bool get inExamMode => _inExamMode;
   bool get isHandlingFatalViolation => _handlingFatalViolation;
+
+  /// Atur handler suspend tiruan khusus untuk unit test deterministik.
+  @visibleForTesting
+  void setSuspendHandlerForTesting(SuspendAccountHandler? handler) {
+    _suspendHandlerOverride = handler;
+  }
 
   /// True jika masih dalam 15 detik pertama sejak kiosk diaktifkan.
   bool get isInGracePeriod {
@@ -162,6 +174,7 @@ class KioskController {
     _sessionStartedAt = null;
     _lockedAt = null;
     _rootNavigatorKey = null;
+    _suspendHandlerOverride = null;
     _listeners.clear();
     _violationListeners.clear();
   }
@@ -248,26 +261,38 @@ class KioskController {
       return false;
     }
     _handlingFatalViolation = true;
-    _notifyViolation(reason);
 
     final effectiveUid = (userId != null && userId > 0)
         ? userId
         : await AuthService.getUserId();
 
-    bool suspended = false;
+    var outcome = SuspendAccountOutcome.suspended;
     if (effectiveUid > 0) {
       try {
-        suspended = await ExamService.suspendStudent(
+        final handler =
+            _suspendHandlerOverride ?? ExamService.suspendStudentWithOutcome;
+        outcome = await handler(
           userId: effectiveUid,
           reason: reason,
         );
       } catch (_) {
-        suspended = false;
+        outcome = SuspendAccountOutcome.networkOrServerError;
       }
-      if (!suspended) {
+
+      if (outcome == SuspendAccountOutcome.ignoredByServer) {
+        _handlingFatalViolation = false;
+        await ExamService.clearPendingSuspend();
+        return false;
+      }
+
+      if (outcome == SuspendAccountOutcome.suspended) {
+        await ExamService.clearPendingSuspend();
+      } else {
         await ExamService.savePendingSuspend(effectiveUid);
       }
     }
+
+    _notifyViolation(reason);
     await AuthService.saveBlockedStatus(true);
     await AuthService.saveSuspendedByAdmin(true);
     await unlock();

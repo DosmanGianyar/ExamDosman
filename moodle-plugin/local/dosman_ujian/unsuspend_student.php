@@ -110,6 +110,9 @@ try {
     echo json_encode(['success' => true, 'message' => 'Akun berhasil diaktifkan kembali']);
 
 } catch (Throwable $e) {
+    if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Server error']);
 }

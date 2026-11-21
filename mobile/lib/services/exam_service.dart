@@ -16,6 +16,14 @@ import 'kiosk_controller.dart';
 import '../models/session.dart';
 import '../utils/app_version.dart';
 
+/// Hasil pemanggilan endpoint `suspend_student.php` untuk membedakan
+/// penolakan resmi aturan server (`ignored: true`) dari putus jaringan/error server.
+enum SuspendAccountOutcome {
+  suspended,
+  ignoredByServer,
+  networkOrServerError,
+}
+
 class ExamService {
   ExamService._();
 
@@ -24,11 +32,15 @@ class ExamService {
 
   /// Simpan userId yang gagal disuspend karena offline untuk di-flush saat app dibuka kembali.
   static Future<void> savePendingSuspend(int userId) async {
-    await _storage.write(key: _kPendingSuspendKey, value: userId.toString());
+    try {
+      await _storage.write(key: _kPendingSuspendKey, value: userId.toString());
+    } catch (_) {}
   }
 
   static Future<void> clearPendingSuspend() async {
-    await _storage.delete(key: _kPendingSuspendKey);
+    try {
+      await _storage.delete(key: _kPendingSuspendKey);
+    } catch (_) {}
   }
 
   /// Kirim ulang suspend yang tertunda akibat jaringan putus saat pelanggaran terjadi.
@@ -37,11 +49,14 @@ class ExamService {
     if (val == null) return;
     final uid = int.tryParse(val) ?? 0;
     if (uid <= 0) {
-      await _storage.delete(key: _kPendingSuspendKey);
+      await clearPendingSuspend();
       return;
     }
-    final ok = await suspendStudent(userId: uid);
-    if (ok) await _storage.delete(key: _kPendingSuspendKey);
+    final outcome = await suspendStudentWithOutcome(userId: uid);
+    if (outcome == SuspendAccountOutcome.suspended ||
+        outcome == SuspendAccountOutcome.ignoredByServer) {
+      await clearPendingSuspend();
+    }
   }
 
   /// Pengumuman broadcast aktif dari pengawas/dashboard.
@@ -324,16 +339,35 @@ class ExamService {
     }
   }
 
-  /// Suspend akun siswa di server (paksa logout dari app/web).
-  /// Menggunakan apikey internal dan token siswa jika ada.
-  static Future<bool> suspendStudent({
+  /// Parser respons JSON `suspend_student.php`.
+  @visibleForTesting
+  static SuspendAccountOutcome parseSuspendResponse(int statusCode, String body) {
+    if (statusCode < 200 || statusCode >= 300) {
+      return SuspendAccountOutcome.networkOrServerError;
+    }
+    try {
+      final decoded = json.decode(body);
+      if (decoded is Map<String, dynamic>) {
+        if (decoded['success'] == true) {
+          return SuspendAccountOutcome.suspended;
+        }
+        if (decoded['ignored'] == true) {
+          return SuspendAccountOutcome.ignoredByServer;
+        }
+      }
+    } catch (_) {}
+    return SuspendAccountOutcome.networkOrServerError;
+  }
+
+  /// Suspend akun siswa di server dengan status terperinci (`suspended` / `ignoredByServer` / `networkOrServerError`).
+  static Future<SuspendAccountOutcome> suspendStudentWithOutcome({
     required int userId,
     String reason = 'Siswa memaksa melepas pinned screen (alarm aktif)',
   }) async {
     try {
       final username = (await AuthService.getUsername()).toLowerCase().trim();
       if (KioskController.isReviewerUsername(username)) {
-        return false;
+        return SuspendAccountOutcome.ignoredByServer;
       }
 
       final token = await AuthService.getToken();
@@ -353,15 +387,20 @@ class ExamService {
           )
           .timeout(const Duration(seconds: 6));
 
-      if (resp.statusCode < 200 || resp.statusCode >= 300) return false;
-      final decoded = json.decode(resp.body);
-      if (decoded is Map<String, dynamic>) {
-        return decoded['success'] == true;
-      }
-      return false;
+      return parseSuspendResponse(resp.statusCode, resp.body);
     } catch (_) {
-      return false;
+      return SuspendAccountOutcome.networkOrServerError;
     }
+  }
+
+  /// Suspend akun siswa di server (paksa logout dari app/web).
+  /// Wrapper kompatibel yang mengembalikan true hanya bila server benar-benar men-suspend.
+  static Future<bool> suspendStudent({
+    required int userId,
+    String reason = 'Siswa memaksa melepas pinned screen (alarm aktif)',
+  }) async {
+    return (await suspendStudentWithOutcome(userId: userId, reason: reason)) ==
+        SuspendAccountOutcome.suspended;
   }
 
   /// Tier-1 anti-cheat: blokir perangkat tanpa suspend akun.

@@ -42,6 +42,28 @@ if ($quizid <= 0) {
 
 $now = time();
 
+// Hormati status suspend / blokir global / jeda agar AJAX heartbeat tidak menimpa blokir pengawas.
+$isSuspended = !empty($USER->suspended)
+    || (int)$DB->get_field('user', 'suspended', ['id' => $userid]) === 1;
+$appStatusRow = $DB->get_record('local_dosman_ujian_appstatus', ['userid' => $userid], 'lock_status');
+$curLockStatus = $appStatusRow ? (int)$appStatusRow->lock_status : 0;
+
+if ($isSuspended || $curLockStatus === 2) {
+    if ($appStatusRow) {
+        $DB->execute(
+            'UPDATE {local_dosman_ujian_appstatus} SET current_quizid = 0, lastping = ? WHERE userid = ?',
+            [$now, $userid]
+        );
+    }
+    echo json_encode(['status' => 'blocked', 'reason' => 'Akun Anda diblokir oleh pengawas ujian.']);
+    exit;
+}
+
+if ($curLockStatus === 3) {
+    echo json_encode(['status' => 'paused', 'reason' => 'Ujian Anda sedang dijeda oleh pengawas.']);
+    exit;
+}
+
 $quiz = $DB->get_record('quiz', ['id' => $quizid], 'id,course');
 if (!$quiz) {
     echo json_encode(['status' => 'error', 'reason' => 'quiz_not_found']);
@@ -92,15 +114,13 @@ if ($existing) {
     ]);
 }
 
-// UPSERT appstatus: buat record jika belum ada, update jika sudah ada.
-// Ini memastikan siswa tampil di dashboard monitoring walaupun set_lock_status
-// belum pernah dipanggil sebelumnya.
+// UPSERT appstatus tanpa menimpa lock_status = 2 (blokir) atau 3 (jeda).
 $DB->execute(
     "INSERT INTO {local_dosman_ujian_appstatus}
         (userid, lock_status, current_quizid, lastping, ipaddress)
      VALUES (?, 1, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
-        lock_status = 1,
+        lock_status    = IF(lock_status IN (2, 3), lock_status, 1),
         current_quizid = VALUES(current_quizid),
         lastping       = VALUES(lastping),
         ipaddress      = VALUES(ipaddress)",

@@ -13,6 +13,7 @@ namespace local_dosman_ujian\external;
 defined('MOODLE_INTERNAL') || die();
 require_once($CFG->libdir . '/externallib.php');
 require_once($CFG->dirroot . '/local/dosman_ujian/lib.php');
+require_once($CFG->dirroot . '/local/dosman_ujian/device_id_helper.inc.php');
 
 use external_api;
 use external_value;
@@ -69,6 +70,7 @@ class manage_session extends external_api {
                     'UPDATE {local_dosman_ujian_appstatus} SET lock_status = 3 WHERE userid = ? AND lock_status = 1',
                     [$session->userid]
                 );
+                @unlink('/dev/shm/dosman_app_users_cache.json');
                 return ['success' => true, 'message' => 'Sesi siswa berhasil dijeda.'];
 
             case 'resume':
@@ -84,9 +86,24 @@ class manage_session extends external_api {
                     'UPDATE {local_dosman_ujian_appstatus} SET lock_status = 1 WHERE userid = ? AND lock_status = 3',
                     [$session->userid]
                 );
+                @unlink('/dev/shm/dosman_app_users_cache.json');
                 return ['success' => true, 'message' => 'Sesi siswa berhasil diaktifkan kembali.'];
 
             case 'block':
+                // Pastikan admin, manager, atau reviewer kebal dari blokir/suspend
+                $targetUser = $DB->get_record('user', ['id' => $session->userid], 'id, username');
+                $isManager = $DB->record_exists_sql(
+                    "SELECT 1
+                       FROM {role_assignments} ra
+                       JOIN {role} r ON r.id = ra.roleid
+                      WHERE ra.userid = :uid AND r.shortname = 'manager'",
+                    ['uid' => $session->userid]
+                );
+                if (\is_siteadmin($session->userid) || $isManager
+                    || ($targetUser && dosman_is_reviewer_username((string)$targetUser->username))) {
+                    return ['success' => false, 'message' => 'Akun admin, manager, atau reviewer tidak dapat diblokir.'];
+                }
+
                 // Guru blokir manual
                 $DB->update_record('local_dosman_ujian_sessions', (object)[
                     'id'             => $session->id,
@@ -103,6 +120,22 @@ class manage_session extends external_api {
                 // Auto-suspend akun Moodle: siswa tidak bisa login ke app maupun web
                 $DB->set_field('user', 'suspended',     1,    ['id' => $session->userid]);
                 $DB->set_field('user', 'timemodified',  $now, ['id' => $session->userid]);
+                // Hapus token webservice mobile agar sesi app langsung tidak valid
+                $svcRows = $DB->get_records_list(
+                    'external_services',
+                    'shortname',
+                    ['dosman_ujian_mobile', 'moodle_mobile_app'],
+                    '',
+                    'id'
+                );
+                if (!empty($svcRows)) {
+                    list($insql, $inparams) = $DB->get_in_or_equal(array_keys($svcRows), SQL_PARAMS_NAMED);
+                    $DB->delete_records_select(
+                        'external_tokens',
+                        "userid = :uid AND externalserviceid $insql",
+                        array_merge(['uid' => $session->userid], $inparams)
+                    );
+                }
                 // Hapus sesi Moodle web → siswa logout dari browser
                 \core\session\manager::kill_user_sessions($session->userid);
                 // Catat ke log
@@ -124,6 +157,7 @@ class manage_session extends external_api {
                       WHERE userid = ? AND status = 'active'",
                     [$params['reason'] ?: 'Diblokir oleh guru', $now, $session->userid]
                 );
+                @unlink('/dev/shm/dosman_app_users_cache.json');
                 return ['success' => true, 'message' => 'Siswa berhasil diblokir dan akun di-suspend.'];
 
             case 'reset':
@@ -162,6 +196,7 @@ class manage_session extends external_api {
                       WHERE userid = ?",
                     [$session->userid]
                 );
+                @unlink('/dev/shm/dosman_app_users_cache.json');
                 return ['success' => true, 'message' => 'Blokir sesi direset dan akun diaktifkan kembali.'];
 
             case 'approve_exit':

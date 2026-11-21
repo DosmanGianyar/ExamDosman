@@ -56,6 +56,7 @@ class _BlockedScreenState extends State<BlockedScreen> {
       if (!result.blocked) {
         await AuthService.saveBlockedStatus(false);
         await AuthService.saveSuspendedByAdmin(false);
+        await ExamService.clearPendingSuspend();
         // Pastikan token REST API aktif kembali setelah di-unsuspend
         // (suspend_student.php menghapus token lama di server).
         final hasSession = await AuthService.restoreSession();

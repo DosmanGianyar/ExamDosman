@@ -1,6 +1,7 @@
 import 'package:dosman_ujian/config/app_config.dart';
 import 'package:dosman_ujian/services/api_service.dart';
 import 'package:dosman_ujian/services/device_service.dart';
+import 'package:dosman_ujian/services/exam_service.dart';
 import 'package:dosman_ujian/services/kiosk_controller.dart';
 import 'package:dosman_ujian/services/offline_quiz_service.dart';
 import 'package:dosman_ujian/widgets/pin_reminder_layer.dart';
@@ -218,6 +219,124 @@ void main() {
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }
+    });
+  });
+
+  group('ExamService.parseSuspendResponse & KioskController fatal outcome contract', () {
+    const secureStorageChannel = MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
+    final storageStore = <String, String>{};
+    final invokedMethods = <String>[];
+
+    setUp(() {
+      storageStore.clear();
+      invokedMethods.clear();
+      KioskController.instance.resetForTesting();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(lockdownChannel, (call) async {
+        invokedMethods.add(call.method);
+        return true;
+      });
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(secureStorageChannel, (call) async {
+        final args = call.arguments as Map<dynamic, dynamic>?;
+        final key = args?['key'] as String?;
+        switch (call.method) {
+          case 'read':
+            return key != null ? storageStore[key] : null;
+          case 'write':
+            if (key != null) {
+              storageStore[key] = args?['value'] as String? ?? '';
+            }
+            return null;
+          case 'delete':
+            if (key != null) storageStore.remove(key);
+            return null;
+          default:
+            return null;
+        }
+      });
+    });
+
+    tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(lockdownChannel, null);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(secureStorageChannel, null);
+      KioskController.instance.resetForTesting();
+    });
+
+    test('parseSuspendResponse separates suspended, ignoredByServer, and network/server error', () {
+      expect(
+        ExamService.parseSuspendResponse(200, '{"success":true}'),
+        SuspendAccountOutcome.suspended,
+      );
+      expect(
+        ExamService.parseSuspendResponse(200, '{"success":false,"ignored":true,"message":"diabaikan"}'),
+        SuspendAccountOutcome.ignoredByServer,
+      );
+      expect(
+        ExamService.parseSuspendResponse(200, '{"success":false,"message":"gagal"}'),
+        SuspendAccountOutcome.networkOrServerError,
+      );
+      expect(
+        ExamService.parseSuspendResponse(500, '{"success":true}'),
+        SuspendAccountOutcome.networkOrServerError,
+      );
+      expect(
+        ExamService.parseSuspendResponse(200, 'not-json'),
+        SuspendAccountOutcome.networkOrServerError,
+      );
+    });
+
+    test('handleFatalViolation aborts lockout and clears pendingSuspend when server returns ignoredByServer', () async {
+      await ExamService.savePendingSuspend(99);
+      expect(storageStore['dosman_pending_suspend_userid'], '99');
+
+      final kiosk = KioskController.instance;
+      await kiosk.ensureLockedAndEnterExam(userId: 99);
+      kiosk.setSuspendHandlerForTesting(({required int userId, required String reason}) async {
+        return SuspendAccountOutcome.ignoredByServer;
+      });
+
+      var notified = false;
+      kiosk.addViolationListener((_) => notified = true);
+
+      final triggered = await kiosk.handleFatalViolation(
+        reason: 'Siswa memaksa melepas pinned screen (alarm aktif)',
+        userId: 99,
+      );
+
+      expect(triggered, isFalse);
+      expect(notified, isFalse);
+      expect(kiosk.isHandlingFatalViolation, isFalse);
+      expect(kiosk.active, isTrue);
+      expect(kiosk.inExamMode, isTrue);
+      expect(storageStore.containsKey('dosman_pending_suspend_userid'), isFalse);
+    });
+
+    test('handleFatalViolation unlocks kiosk and records blocked state when server confirms suspended', () async {
+      await ExamService.savePendingSuspend(99);
+      final kiosk = KioskController.instance;
+      await kiosk.ensureLockedAndEnterExam(userId: 99);
+      kiosk.setSuspendHandlerForTesting(({required int userId, required String reason}) async {
+        return SuspendAccountOutcome.suspended;
+      });
+
+      var notifiedReason = '';
+      kiosk.addViolationListener((r) => notifiedReason = r);
+
+      final triggered = await kiosk.handleFatalViolation(
+        reason: 'Pelanggaran keamanan ujian: bluetooth_audio',
+        userId: 99,
+      );
+
+      expect(triggered, isTrue);
+      expect(notifiedReason, 'Pelanggaran keamanan ujian: bluetooth_audio');
+      expect(kiosk.active, isFalse);
+      expect(kiosk.inExamMode, isFalse);
+      expect(storageStore['dosman_blocked_status'], '1');
+      expect(storageStore['dosman_suspended_by_admin'], '1');
+      expect(storageStore.containsKey('dosman_pending_suspend_userid'), isFalse);
     });
   });
 }

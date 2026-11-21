@@ -78,35 +78,9 @@ try {
         }
     }
 
-    // Pastikan target bukan site admin Moodle (dicatat di mdl_config, bukan role_assignments)
-    $stmtSiteAdmins = $pdo->prepare(
-        "SELECT value FROM {$prefix}config WHERE name = 'siteadmins' LIMIT 1"
-    );
-    $stmtSiteAdmins->execute();
-    $siteAdminList = array_map('trim', explode(',', (string)($stmtSiteAdmins->fetchColumn() ?: '')));
-    if (in_array((string)$userid, $siteAdminList, true)) {
-        echo json_encode(['success' => false, 'message' => 'Tidak dapat suspend akun site admin']);
-        exit;
-    }
-
-    // Pastikan target bukan manager
-    $roleCheck = $pdo->prepare(
-        "SELECT COUNT(*) FROM {$prefix}role_assignments ra
-          JOIN {$prefix}role r ON r.id = ra.roleid
-         WHERE ra.userid = ? AND r.shortname = 'manager'"
-    );
-    $roleCheck->execute([$userid]);
-    if ((int)$roleCheck->fetchColumn() > 0) {
-        echo json_encode(['success' => false, 'message' => 'Tidak dapat suspend akun manager']);
-        exit;
-    }
-
-    // Pastikan target bukan akun reviewer App Store / Play Store
-    $stmtUser = $pdo->prepare("SELECT username FROM {$prefix}user WHERE id = ? LIMIT 1");
-    $stmtUser->execute([$userid]);
-    $targetUsername = strtolower(trim((string)$stmtUser->fetchColumn()));
-    if (dosman_is_reviewer_username($targetUsername)) {
-        echo json_encode(['success' => false, 'message' => 'Akun reviewer kebal dari suspend']);
+    // Pastikan target bukan site admin, manager, atau akun reviewer resmi
+    if (dosman_is_protected_user($pdo, $prefix, $userid)) {
+        echo json_encode(['success' => false, 'message' => 'Tidak dapat suspend akun admin, manager, atau reviewer']);
         exit;
     }
 

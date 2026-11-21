@@ -130,10 +130,14 @@ try {
     }
 
     $pdo->commit();
+    @unlink('/dev/shm/dosman_app_users_cache.json');
 
     echo json_encode(['success' => true, 'message' => 'Perangkat berhasil dibuka blokirnya.']);
 
 } catch (Throwable $e) {
+    if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Server error']);
 }

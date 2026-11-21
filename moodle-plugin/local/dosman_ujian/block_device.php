@@ -84,12 +84,9 @@ try {
     }
     $userid = (int)$userid;
 
-    // Akun reviewer kebal dari blokir perangkat
-    $stmtUser = $pdo->prepare("SELECT username FROM {$prefix}user WHERE id = ? LIMIT 1");
-    $stmtUser->execute([$userid]);
-    $targetUsername = (string)($stmtUser->fetchColumn() ?: '');
-    if (dosman_is_reviewer_username($targetUsername)) {
-        echo json_encode(['success' => false, 'message' => 'Akun reviewer kebal dari blokir perangkat']);
+    // Akun admin / manager / reviewer kebal dari blokir perangkat
+    if (dosman_is_protected_user($pdo, $prefix, $userid)) {
+        echo json_encode(['success' => false, 'message' => 'Akun admin/manager/reviewer kebal dari blokir perangkat']);
         exit;
     }
 
@@ -98,7 +95,8 @@ try {
         exit;
     }
 
-    if (dosman_get_active_quiz_id($pdo, $prefix, $userid) <= 0) {
+    $activeQuizId = dosman_get_active_quiz_id($pdo, $prefix, $userid);
+    if ($activeQuizId <= 0) {
         echo json_encode(['success' => false, 'ignored' => true, 'message' => 'Siswa tidak sedang mengerjakan ujian aktif, blokir perangkat diabaikan']);
         exit;
     }
@@ -143,9 +141,10 @@ try {
     $pdo->prepare(
         "INSERT INTO {$prefix}local_dosman_ujian_logs
              (userid, courseid, quizid, eventtype, eventdata, suspicious, timecreated)
-         VALUES (?, 1, 0, 'device_blocked_tier1', ?, 1, ?)"
+         VALUES (?, 1, ?, 'device_blocked_tier1', ?, 1, ?)"
     )->execute([
         $userid,
+        $activeQuizId,
         json_encode(
             ['device_id' => $storageDeviceId, 'reason' => $reason, 'escalates_at' => $now + 30],
             JSON_UNESCAPED_UNICODE
@@ -154,10 +153,14 @@ try {
     ]);
 
     $pdo->commit();
+    @unlink('/dev/shm/dosman_app_users_cache.json');
 
     echo json_encode(['success' => true, 'message' => 'Perangkat diblokir. Akun masih aktif.']);
 
 } catch (Throwable $e) {
+    if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Server error']);
 }

@@ -108,8 +108,9 @@ try {
     $stmtCur->execute([$userid]);
     $curRow = $stmtCur->fetch(PDO::FETCH_OBJ);
 
-    // Sinkronkan current_quizid ke kuis yang benar-benar punya attempt 'inprogress'
-    $effectiveQuizId = ($quizId > 0) ? $quizId : dosman_get_active_quiz_id($pdo, $prefix, $userid);
+    // Sinkronkan current_quizid satu pintu dengan attempt Moodle 'inprogress' yang masih aktif
+    // (jangan percaya parameter quizid usang dari client / APK lama).
+    $effectiveQuizId = dosman_get_active_quiz_id($pdo, $prefix, $userid, $now);
 
     if (!$curRow) {
         // Belum ada record → insert baru dengan lock_status = 1
