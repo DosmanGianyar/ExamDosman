@@ -455,13 +455,17 @@ class _CourseListScreenState extends State<CourseListScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              const Text(
-                'EXAM DOSMAN  •  SMA Negeri 1 Gianyar',
-                style: TextStyle(
-                  color: Color(0xFFCBD5E1),
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
+              const Flexible(
+                child: Text(
+                  'EXAM DOSMAN  •  SMA Negeri 1 Gianyar',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Color(0xFFCBD5E1),
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                  ),
                 ),
               ),
             ],
@@ -834,14 +838,18 @@ class _CourseListScreenState extends State<CourseListScreen> {
             children: [
               const Icon(Icons.layers_rounded, size: 15, color: Color(0xFF475569)),
               const SizedBox(width: 6),
-              Text(
-                _searchQuery.isEmpty
-                    ? '${_courses.length} Mata Pelajaran Tersedia'
-                    : '${filtered.length} dari ${_courses.length} Mata Pelajaran',
-                style: const TextStyle(
-                  fontSize:   12,
-                  color:      Color(0xFF475569),
-                  fontWeight: FontWeight.w700,
+              Expanded(
+                child: Text(
+                  _searchQuery.isEmpty
+                      ? '${_courses.length} Mata Pelajaran Tersedia'
+                      : '${filtered.length} dari ${_courses.length} Mata Pelajaran',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize:   12,
+                    color:      Color(0xFF475569),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],

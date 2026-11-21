@@ -104,7 +104,7 @@ class _BlockedScreenState extends State<BlockedScreen> {
         backgroundColor: const Color(0xFF0F172A),
         body: SafeArea(
           child: Center(
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
