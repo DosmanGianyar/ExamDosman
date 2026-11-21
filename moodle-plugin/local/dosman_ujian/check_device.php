@@ -23,6 +23,8 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
+require_once __DIR__ . '/device_id_helper.inc.php';
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 
 // Terima device_id dari GET atau POST (JSON body)
@@ -35,9 +37,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Validasi format device_id: alphanumeric, titik, dash, underscore; maks 128 karakter (mendukung Android Build.ID)
-if ($deviceId === '' || !preg_match('/^[A-Za-z0-9._-]{1,128}$/', $deviceId)) {
+if (!dosman_is_valid_device_id_format($deviceId)) {
     // Format tidak valid → treat sebagai tidak ditemukan (fail-open)
-    echo json_encode(['blocked' => false, 'reason' => '']);
+    echo json_encode(['blocked' => false, 'reason' => '', 'blocked_at' => 0]);
+    exit;
+}
+
+// Device ID tidak unik (shared Android Build.ID sebelum login): jangan pernah blokir lintas siswa
+if (!dosman_is_unique_device_id($deviceId) && !dosman_is_user_scoped_device_id($deviceId)) {
+    echo json_encode(['blocked' => false, 'reason' => '', 'blocked_at' => 0]);
     exit;
 }
 

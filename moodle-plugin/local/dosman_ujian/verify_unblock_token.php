@@ -14,6 +14,8 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
+require_once __DIR__ . '/device_id_helper.inc.php';
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -26,8 +28,17 @@ $deviceId = trim((string)($body['device_id'] ?? ''));
 $code     = trim((string)($body['code']      ?? ''));
 
 // Validasi device_id (mendukung Android Build.ID dengan titik)
-if (!preg_match('/^[A-Za-z0-9._-]{1,128}$/', $deviceId)) {
+if (!dosman_is_valid_device_id_format($deviceId)) {
     echo json_encode(['success' => false, 'message' => 'Parameter tidak valid']);
+    exit;
+}
+
+// Legacy shared Android Build.ID tidak boleh melakukan unblock anonim lintas akun
+if (!dosman_is_unique_device_id($deviceId) && !dosman_is_user_scoped_device_id($deviceId)) {
+    echo json_encode([
+        'success' => false,
+        'message' => 'Perangkat ini menggunakan ID lama. Minta pengawas membuka blokir langsung dari akun Anda di dashboard.',
+    ]);
     exit;
 }
 

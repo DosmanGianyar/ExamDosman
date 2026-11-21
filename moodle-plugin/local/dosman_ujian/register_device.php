@@ -26,6 +26,8 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
+require_once __DIR__ . '/device_id_helper.inc.php';
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -48,7 +50,7 @@ if ($token === '') {
 }
 
 // Validasi format device_id: alphanumeric, titik, dash, underscore; maks 128 karakter (mendukung Android Build.ID)
-if ($deviceId === '' || !preg_match('/^[A-Za-z0-9._-]{1,128}$/', $deviceId)) {
+if (!dosman_is_valid_device_id_format($deviceId)) {
     http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'Format device_id tidak valid']);
     exit;
@@ -99,6 +101,7 @@ try {
     }
 
     $now = time();
+    $storageDeviceId = dosman_normalize_storage_device_id($deviceId, $userid);
 
     // Cek apakah device_id sudah ada di tabel
     $stmtCheck = $pdo->prepare(
@@ -106,7 +109,7 @@ try {
           WHERE device_id = ?
           LIMIT 1"
     );
-    $stmtCheck->execute([$deviceId]);
+    $stmtCheck->execute([$storageDeviceId]);
     $existingStatus = $stmtCheck->fetchColumn();
 
     if ($existingStatus === false) {
@@ -115,7 +118,7 @@ try {
             "INSERT INTO {$prefix}local_dosman_ujian_devices
                 (device_id, userid, platform, model, status, registered_at, last_seen)
              VALUES (?, ?, ?, ?, 'active', ?, ?)"
-        )->execute([$deviceId, $userid, $platform, $model, $now, $now]);
+        )->execute([$storageDeviceId, $userid, $platform, $model, $now, $now]);
     } else {
         // Sudah ada → UPDATE userid, model, last_seen
         // Jangan ubah status jika sedang diblokir
@@ -125,7 +128,7 @@ try {
                     model     = ?,
                     last_seen = ?
               WHERE device_id = ?"
-        )->execute([$userid, $model, $now, $deviceId]);
+        )->execute([$userid, $model, $now, $storageDeviceId]);
     }
 
     // Setelah upsert: pastikan akun reviewer tidak pernah terkena blokir perangkat
@@ -137,7 +140,7 @@ try {
             "UPDATE {$prefix}local_dosman_ujian_devices
                 SET status = 'active', block_reason = NULL, blocked_at = NULL
               WHERE device_id = ?"
-        )->execute([$deviceId]);
+        )->execute([$storageDeviceId]);
         echo json_encode(['success' => true, 'device_blocked' => false, 'update_required' => false]);
         exit;
     }
@@ -184,7 +187,7 @@ try {
           WHERE device_id = ?
           LIMIT 1"
     );
-    $stmtFinal->execute([$deviceId]);
+    $stmtFinal->execute([$storageDeviceId]);
     $finalRow = $stmtFinal->fetch(PDO::FETCH_ASSOC);
 
     if ($finalRow !== false && (string)$finalRow['status'] === 'blocked') {

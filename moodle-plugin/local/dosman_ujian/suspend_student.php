@@ -103,7 +103,7 @@ try {
     $stmtUser = $pdo->prepare("SELECT username FROM {$prefix}user WHERE id = ? LIMIT 1");
     $stmtUser->execute([$userid]);
     $targetUsername = strtolower(trim((string)$stmtUser->fetchColumn()));
-    if (in_array($targetUsername, ['appstore.review', 'playstore.review'], true)) {
+    if (in_array($targetUsername, ['appstore.review', 'playstore.review', 'admin.reviewer'], true)) {
         echo json_encode(['success' => false, 'message' => 'Akun reviewer kebal dari suspend']);
         exit;
     }
@@ -132,20 +132,31 @@ try {
         }
 
         if ($currentQuizId <= 0 && !$hasInProgressAttempt) {
-            // Catat di log tanpa memblokir / men-suspend akun siswa
-            $pdo->prepare(
-                "INSERT INTO {$prefix}local_dosman_ujian_logs
-                     (userid, courseid, quizid, eventtype, eventdata, suspicious, timecreated)
-                 VALUES (?, 1, 0, 'violation_ignored_pre_quiz', ?, 0, ?)"
-            )->execute([
-                $userid,
-                json_encode(['reason' => $reason], JSON_UNESCAPED_UNICODE),
-                time(),
-            ]);
+            // Deduplikasi log pre-quiz dalam jendela 10 detik
+            $stmtDupPre = $pdo->prepare(
+                "SELECT COUNT(*) FROM {$prefix}local_dosman_ujian_logs
+                  WHERE userid = ? AND eventtype = 'violation_ignored_pre_quiz' AND timecreated >= ?"
+            );
+            $stmtDupPre->execute([$userid, time() - 10]);
+            $dupCount = (int)$stmtDupPre->fetchColumn();
+
+            if ($dupCount === 0) {
+                // Catat di log tanpa memblokir / men-suspend akun siswa
+                $pdo->prepare(
+                    "INSERT INTO {$prefix}local_dosman_ujian_logs
+                         (userid, courseid, quizid, eventtype, eventdata, suspicious, timecreated)
+                     VALUES (?, 1, 0, 'violation_ignored_pre_quiz', ?, 0, ?)"
+                )->execute([
+                    $userid,
+                    json_encode(['reason' => $reason], JSON_UNESCAPED_UNICODE),
+                    time(),
+                ]);
+            }
 
             echo json_encode([
                 'success' => false,
                 'ignored' => true,
+                'deduplicated' => ($dupCount > 0),
                 'message' => 'Siswa belum membuka ujian pada course, auto-suspend diabaikan',
             ]);
             exit;
@@ -155,10 +166,10 @@ try {
     // Ambil service id sebelum transaksi (baca-only, aman di luar)
     $svcStmt = $pdo->prepare(
         "SELECT id FROM {$prefix}external_services
-          WHERE shortname = 'dosman_ujian_mobile' LIMIT 1"
+          WHERE shortname IN ('dosman_ujian_mobile', 'moodle_mobile_app')"
     );
     $svcStmt->execute();
-    $serviceId = $svcStmt->fetchColumn();
+    $serviceIds = array_map('intval', $svcStmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
 
     // Ambil data blocked_students sebelum transaksi (baca-only)
     $stmt = $pdo->prepare(
@@ -170,6 +181,30 @@ try {
     $blocked  = ($existing !== false) ? (json_decode($existing, true) ?: []) : [];
     unset($blocked[(string)$userid]);
 
+    // Deduplikasi burst auto-suspend dalam jendela 10 detik (mencegah log duplikat dari race client)
+    if ($isApiKeyValid) {
+        $stmtAlready = $pdo->prepare(
+            "SELECT u.suspended,
+                    (SELECT COUNT(*) FROM {$prefix}local_dosman_ujian_logs l
+                      WHERE l.userid = u.id
+                        AND l.eventtype = 'account_suspended'
+                        AND l.timecreated >= ?) AS recent_log
+               FROM {$prefix}user u
+              WHERE u.id = ?
+              LIMIT 1"
+        );
+        $stmtAlready->execute([time() - 10, $userid]);
+        $alreadyRow = $stmtAlready->fetch(PDO::FETCH_ASSOC);
+        if ($alreadyRow !== false && (int)$alreadyRow['suspended'] === 1 && (int)$alreadyRow['recent_log'] > 0) {
+            echo json_encode([
+                'success' => true,
+                'deduplicated' => true,
+                'message' => 'Akun sudah di-suspend',
+            ]);
+            exit;
+        }
+    }
+
     $pdo->beginTransaction();
 
     // 1. Suspend akun Moodle → tidak bisa login sama sekali
@@ -180,11 +215,13 @@ try {
     )->execute([$userid]);
 
     // 2. Hapus semua token webservice siswa → sesi app langsung tidak valid
-    if ($serviceId !== false) {
+    if (!empty($serviceIds)) {
+        $placeholders = implode(',', array_fill(0, count($serviceIds), '?'));
+        $delParams = array_merge([$userid], $serviceIds);
         $pdo->prepare(
             "DELETE FROM {$prefix}external_tokens
-              WHERE externalserviceid = ? AND userid = ?"
-        )->execute([$serviceId, $userid]);
+              WHERE userid = ? AND externalserviceid IN ({$placeholders})"
+        )->execute($delParams);
     }
 
     // 3. Hapus sesi Moodle web (browser) milik siswa

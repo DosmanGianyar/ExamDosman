@@ -16,6 +16,8 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
+require_once __DIR__ . '/device_id_helper.inc.php';
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -35,7 +37,7 @@ if ($token === '' || $deviceId === '') {
 }
 
 // Validasi format device_id (alphanumeric, titik, dash, underscore; mendukung Android Build.ID)
-if (!preg_match('/^[A-Za-z0-9._-]{1,128}$/', $deviceId)) {
+if (!dosman_is_valid_device_id_format($deviceId)) {
     http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'Format device_id tidak valid']);
     exit;
@@ -81,6 +83,7 @@ try {
         exit;
     }
     $userid = (int)$userid;
+    $storageDeviceId = dosman_normalize_storage_device_id($deviceId, $userid);
 
     $now = time();
 
@@ -97,7 +100,7 @@ try {
              block_reason = VALUES(block_reason),
              blocked_at   = VALUES(blocked_at),
              last_seen    = VALUES(last_seen)"
-    )->execute([$deviceId, $userid, $reason, $now, $now, $now]);
+    )->execute([$storageDeviceId, $userid, $reason, $now, $now, $now]);
 
     // Step 2: Set appstatus lock_status=2
     $pdo->prepare(
@@ -124,7 +127,7 @@ try {
     )->execute([
         $userid,
         json_encode(
-            ['device_id' => $deviceId, 'reason' => $reason, 'escalates_at' => $now + 30],
+            ['device_id' => $storageDeviceId, 'reason' => $reason, 'escalates_at' => $now + 30],
             JSON_UNESCAPED_UNICODE
         ),
         $now,
