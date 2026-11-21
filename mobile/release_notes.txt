@@ -1,5 +1,6 @@
-EXAM DOSMAN v2.8.0 - What's New (Semi-Offline Exam Mode for iOS):
+EXAM DOSMAN v2.8.1 - What's New (Hotfix & Semi-Offline Exam Mode):
 
+- Fixed HTML question/option parser bug where nested <div> blocks (such as Economics transaction lists or Chemistry MS Word WordSection1 options) could truncate questions or nest option cards vertically.
 - Semi-Offline Exam Mode on iOS: questions, images (including WebP), and math formulas (local KaTeX) are downloaded once at exam start so students can continue smoothly even if Wi-Fi drops, and only need connectivity when submitting final answers.
 - Guided Access Protection: exiting Guided Access during an active exam without entering the exit password will trigger exam lock protection.
 - Exit password is now also required when logging out from the student course dashboard.

@@ -99,6 +99,7 @@ class OfflineQuizPackage {
   final int userId;
   final String quizName;
   final int endTimeEpochSec; // 0 jika tanpa batas waktu
+  final int parserVersion;
   final List<OfflineQuestion> questions;
 
   OfflineQuizPackage({
@@ -109,6 +110,7 @@ class OfflineQuizPackage {
     required this.quizName,
     required this.endTimeEpochSec,
     required this.questions,
+    this.parserVersion = 1,
   });
 
   Map<String, dynamic> toJson() => {
@@ -118,6 +120,7 @@ class OfflineQuizPackage {
         'userId': userId,
         'quizName': quizName,
         'endTimeEpochSec': endTimeEpochSec,
+        'parserVersion': parserVersion,
         'questions': questions.map((q) => q.toJson()).toList(),
       };
 
@@ -128,6 +131,7 @@ class OfflineQuizPackage {
         userId: (j['userId'] as num?)?.toInt() ?? 0,
         quizName: j['quizName'] as String? ?? 'Ujian',
         endTimeEpochSec: (j['endTimeEpochSec'] as num?)?.toInt() ?? 0,
+        parserVersion: (j['parserVersion'] as num?)?.toInt() ?? 1,
         questions: (j['questions'] as List<dynamic>? ?? [])
             .whereType<Map<String, dynamic>>()
             .map(OfflineQuestion.fromJson)
@@ -137,6 +141,8 @@ class OfflineQuizPackage {
 
 class OfflineQuizService {
   OfflineQuizService._();
+
+  static const int kCurrentParserVersion = 2;
 
   static const _storage = FlutterSecureStorage();
 
@@ -284,13 +290,21 @@ class OfflineQuizService {
       }
     }
 
-    // Jika paket lokal untuk attempt inprogress tersebut sudah ada, langsung pakai!
+    // Jika paket lokal untuk attempt inprogress tersebut sudah ada & parser masih terkini, langsung pakai!
+    Map<int, ({String? v, bool f})>? preservedAnswers;
     if (activeAttempt != null) {
       final attId = (activeAttempt['id'] as num?)?.toInt() ?? 0;
       final existing = await loadSavedPackage(userId: userId, quizId: quizId);
       if (existing != null && existing.attemptId == attId && existing.questions.isNotEmpty) {
-        onProgress?.call('Melanjutkan sesi ujian...', 1.0);
-        return existing;
+        if (existing.parserVersion >= kCurrentParserVersion) {
+          onProgress?.call('Melanjutkan sesi ujian...', 1.0);
+          return existing;
+        }
+        // Paket berasal dari parser versi lama: simpan jawaban & flag lalu re-download & re-parse.
+        preservedAnswers = {
+          for (final q in existing.questions)
+            q.slot: (v: q.selectedValue, f: q.isFlagged),
+        };
       }
     }
 
@@ -357,6 +371,32 @@ class OfflineQuizService {
       parsed.add(q);
     }
 
+    if (preservedAnswers != null) {
+      for (final q in parsed) {
+        final prev = preservedAnswers[q.slot];
+        if (prev != null) {
+          q.selectedValue ??= prev.v;
+          if (prev.f) q.isFlagged = true;
+        }
+      }
+    }
+
+    // Pulihkan juga dari SecureStorage bila ada jawaban terbaru yang tersimpan
+    try {
+      final ansRaw = await _storage.read(key: _answersKey(userId, quizId));
+      if (ansRaw != null && ansRaw.isNotEmpty) {
+        final ansMap = json.decode(ansRaw) as Map<String, dynamic>;
+        for (final q in parsed) {
+          final saved = ansMap['${q.slot}'];
+          if (saved is Map<String, dynamic>) {
+            final v = saved['v'] as String?;
+            if (v != null && v.isNotEmpty) q.selectedValue = v;
+            if (saved['f'] == true) q.isFlagged = true;
+          }
+        }
+      }
+    } catch (_) {}
+
     final pkg = OfflineQuizPackage(
       quizId: quizId,
       courseId: courseId,
@@ -365,6 +405,7 @@ class OfflineQuizService {
       quizName: quizName,
       endTimeEpochSec: endTime,
       questions: parsed,
+      parserVersion: kCurrentParserVersion,
     );
 
     await savePackage(pkg);
@@ -394,12 +435,158 @@ class OfflineQuizService {
 
   // ─── Parser HTML Soal Pilihan Ganda Moodle ────────────────────────────────
 
+  static final RegExp _htmlTagScanRegex = RegExp(
+    r'''<!--[\s\S]*?-->|<(/?)([a-zA-Z0-9]+)((?:[^>"'/]|"[^"]*"|'[^']*'|/(?!>))*)(/?)>''',
+  );
+
+  static const Set<String> _pairedHtmlTags = <String>{
+    'div', 'p', 'span', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th',
+    'ul', 'ol', 'li', 'b', 'strong', 'i', 'em', 'u', 's', 'sub', 'sup',
+    'font', 'blockquote', 'section', 'article', 'center', 'pre', 'code',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'small', 'big', 'label',
+    'fieldset',
+  };
+
+  static const Set<String> _voidHtmlTags = <String>{
+    'br', 'img', 'hr', 'input', 'wbr', 'col', 'source', 'meta', 'link',
+    'area', 'base', 'embed', 'param', 'track',
+  };
+
+  /// Ekstrak innerHTML dari elemen yang cocok dengan [openTagPattern] dengan menghitung
+  /// kedalaman tag buka/tutup secara seimbang agar nested <div> tidak memotong isi.
+  static String? extractBalancedElementInnerHtml(
+    String html,
+    RegExp openTagPattern,
+  ) {
+    final firstMatch = openTagPattern.firstMatch(html);
+    if (firstMatch == null) return null;
+
+    final matchedTag = firstMatch.group(0) ?? '';
+    final tagNameMatch = RegExp(r'^<\s*([a-zA-Z0-9]+)').firstMatch(matchedTag);
+    if (tagNameMatch == null) return null;
+    final targetTag = tagNameMatch.group(1)!.toLowerCase();
+
+    final contentStart = firstMatch.end;
+    if (matchedTag.trimRight().endsWith('/>')) {
+      return '';
+    }
+
+    var depth = 1;
+    for (final m in _htmlTagScanRegex.allMatches(html, contentStart)) {
+      final rawTag = m.group(2);
+      if (rawTag == null) continue; // Komentar HTML
+      final tagName = rawTag.toLowerCase();
+      if (tagName != targetTag) continue;
+
+      final isClose = m.group(1) == '/';
+      final isSelfClosing = m.group(4) == '/';
+      if (isClose) {
+        depth--;
+        if (depth == 0) {
+          return html.substring(contentStart, m.start);
+        }
+      } else if (!isSelfClosing) {
+        depth++;
+      }
+    }
+    return html.substring(contentStart);
+  }
+
+  /// Bersihkan komentar MS Word / HTML serta seimbangkan tag buka/tutup agar fragmen
+  /// soal maupun opsi jawaban tidak merusak struktur kartu di WebView.
+  static String sanitizeFragmentHtml(String html) {
+    final cleaned = html
+        .replaceAll(
+          RegExp(r'<script\b[^>]*>[\s\S]*?</script>', caseSensitive: false),
+          '',
+        )
+        .replaceAll(
+          RegExp(r'<style\b[^>]*>[\s\S]*?</style>', caseSensitive: false),
+          '',
+        )
+        .replaceAll(RegExp(r'<!--[\s\S]*?-->'), '');
+
+    final buf = StringBuffer();
+    final stack = <String>[];
+    var lastIdx = 0;
+
+    for (final m in _htmlTagScanRegex.allMatches(cleaned)) {
+      if (m.start > lastIdx) {
+        buf.write(cleaned.substring(lastIdx, m.start));
+      }
+      lastIdx = m.end;
+
+      final isClose = m.group(1) == '/';
+      final rawTag = m.group(2);
+      if (rawTag == null) continue;
+      final tag = rawTag.toLowerCase();
+      final isSelfClosing = m.group(4) == '/';
+
+      if (_voidHtmlTags.contains(tag) || (!isClose && isSelfClosing)) {
+        buf.write(m.group(0));
+        continue;
+      }
+
+      if (!_pairedHtmlTags.contains(tag)) {
+        buf.write(m.group(0));
+        continue;
+      }
+
+      if (!isClose) {
+        stack.add(tag);
+        buf.write(m.group(0));
+      } else {
+        final idx = stack.lastIndexOf(tag);
+        if (idx == -1) {
+          // Buang tag penutup liar tanpa pasangan pembuka
+          continue;
+        }
+        while (stack.length - 1 > idx) {
+          final unclosed = stack.removeLast();
+          buf.write('</$unclosed>');
+        }
+        stack.removeLast();
+        buf.write('</$tag>');
+      }
+    }
+
+    if (lastIdx < cleaned.length) {
+      buf.write(cleaned.substring(lastIdx));
+    }
+    while (stack.isNotEmpty) {
+      final unclosed = stack.removeLast();
+      buf.write('</$unclosed>');
+    }
+    return buf.toString();
+  }
+
+  static Future<OfflineQuestion> parseMoodleQuestionWithoutNetwork(
+    Map<String, dynamic> raw,
+    int fallbackNumber,
+  ) =>
+      parseMoodleQuestion(raw, fallbackNumber, inlineImages: false);
+
   static Future<OfflineQuestion> _parseMoodleQuestion(
     Map<String, dynamic> raw,
     int fallbackNumber,
     String token,
     Map<String, String> imageCache,
-  ) async {
+  ) =>
+      parseMoodleQuestion(
+        raw,
+        fallbackNumber,
+        token: token,
+        imageCache: imageCache,
+        inlineImages: true,
+      );
+
+  static Future<OfflineQuestion> parseMoodleQuestion(
+    Map<String, dynamic> raw,
+    int fallbackNumber, {
+    String token = '',
+    Map<String, String>? imageCache,
+    bool inlineImages = true,
+  }) async {
     final slot = (raw['slot'] as num?)?.toInt() ?? fallbackNumber;
     final number = int.tryParse('${raw['number'] ?? ''}') ?? fallbackNumber;
     final type = (raw['type'] as String? ?? 'multichoice').toLowerCase();
@@ -427,36 +614,53 @@ class OfflineQuizService {
       }
     }
 
-    // Ekstrak bagian teks soal (<div class="qtext">...</div>)
-    String qtextHtml = '';
-    final qtextMatch = RegExp(
-      r'''<div[^>]*class=["'][^"']*\bqtext\b[^"']*["'][^>]*>([\s\S]*?)</div>\s*(?=<div[^>]*class=["'][^"']*\bablock\b)''',
-      caseSensitive: false,
-    ).firstMatch(html);
-    if (qtextMatch != null) {
-      qtextHtml = qtextMatch.group(1) ?? '';
-    } else {
-      // Fallback: ambil dari <div class="qtext"> sampai </div> terdekat sebelum radio
-      final simpleQtext = RegExp(
-        r'''<div[^>]*class=["'][^"']*\bqtext\b[^"']*["'][^>]*>([\s\S]*?)</div>''',
+    // Ekstrak bagian teks soal (<div class="qtext">...</div>) dengan balanced tag extractor
+    String qtextHtml = extractBalancedElementInnerHtml(
+          html,
+          RegExp(
+            r'''<div\b[^>]*class=["'][^"']*\bqtext\b[^"']*["'][^>]*>''',
+            caseSensitive: false,
+          ),
+        ) ??
+        '';
+    if (qtextHtml.isEmpty) {
+      final blockMatch = RegExp(
+        r'''<(?:fieldset|div)\b[^>]*class=["'][^"']*\b(?:ablock|answer)\b''',
         caseSensitive: false,
       ).firstMatch(html);
-      qtextHtml = simpleQtext?.group(1) ?? html;
+      qtextHtml = blockMatch != null ? html.substring(0, blockMatch.start) : html;
     }
 
-    qtextHtml = await _inlineImages(qtextHtml, token, imageCache);
+    qtextHtml = sanitizeFragmentHtml(qtextHtml).trim();
+    if (inlineImages) {
+      qtextHtml = await _inlineImages(
+        qtextHtml,
+        token,
+        imageCache ?? <String, String>{},
+      );
+    }
 
     // Ekstrak semua opsi radio (<input type="radio" ...>)
     String answerFieldName = '';
     String? preselected;
     final options = <OfflineOption>[];
 
-    // Cari blok <div class="answer">...</div>
-    final ansBlockMatch = RegExp(
-      r'''<div[^>]*class=["'][^"']*\banswer\b[^"']*["'][^>]*>([\s\S]*)$''',
-      caseSensitive: false,
-    ).firstMatch(html);
-    final ansArea = ansBlockMatch?.group(1) ?? html;
+    // Cari blok <div class="answer">...</div> secara balanced
+    String ansArea = extractBalancedElementInnerHtml(
+          html,
+          RegExp(
+            r'''<div\b[^>]*class=["'][^"']*\banswer\b[^"']*["'][^>]*>''',
+            caseSensitive: false,
+          ),
+        ) ??
+        '';
+    if (ansArea.isEmpty) {
+      final ansBlockMatch = RegExp(
+        r'''<div[^>]*class=["'][^"']*\banswer\b[^"']*["'][^>]*>([\s\S]*)$''',
+        caseSensitive: false,
+      ).firstMatch(html);
+      ansArea = ansBlockMatch?.group(1) ?? html;
+    }
 
     // Pecah per opsi berdasarkan kemunculan <input ... type="radio" ...>
     final radioRegex = RegExp(
@@ -493,23 +697,19 @@ class OfflineQuizService {
         chunk = chunk.substring(0, clearIdx);
       }
 
-      // Ambil isi di dalam <div class="flex-fill..."> atau <label ...> atau bersihkan wrapper
-      String optHtml = chunk;
-      final flexMatch = RegExp(
-        r'''<div[^>]*class=["'][^"']*flex-fill[^"']*["'][^>]*>([\s\S]*?)</div>''',
-        caseSensitive: false,
-      ).firstMatch(chunk);
-      if (flexMatch != null) {
-        optHtml = flexMatch.group(1) ?? chunk;
-      } else {
-        final labelMatch = RegExp(
-          r'''<label[^>]*>([\s\S]*?)</label>''',
-          caseSensitive: false,
-        ).firstMatch(chunk);
-        if (labelMatch != null) {
-          optHtml = labelMatch.group(1) ?? chunk;
-        }
-      }
+      // Ambil isi di dalam <div class="flex-fill..."> atau <label ...> dengan balanced tag extractor
+      String optHtml = extractBalancedElementInnerHtml(
+            chunk,
+            RegExp(
+              r'''<div\b[^>]*class=["'][^"']*\bflex-fill\b[^"']*["'][^>]*>''',
+              caseSensitive: false,
+            ),
+          ) ??
+          extractBalancedElementInnerHtml(
+            chunk,
+            RegExp(r'''<label\b[^>]*>''', caseSensitive: false),
+          ) ??
+          chunk;
 
       // Ekstrak huruf opsi jika ada <span class="answernumber">a. </span>
       String letter = String.fromCharCode(65 + options.length); // A, B, C...
@@ -527,7 +727,14 @@ class OfflineQuizService {
         optHtml = optHtml.replaceAll(numSpan.group(0)!, '');
       }
 
-      optHtml = await _inlineImages(optHtml.trim(), token, imageCache);
+      optHtml = sanitizeFragmentHtml(optHtml).trim();
+      if (inlineImages) {
+        optHtml = await _inlineImages(
+          optHtml,
+          token,
+          imageCache ?? <String, String>{},
+        );
+      }
 
       options.add(OfflineOption(
         value: valAttr,

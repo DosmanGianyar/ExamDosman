@@ -252,15 +252,17 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     if (ctrl == null || pkg == null || !_webReady) return;
     final q = pkg.questions[_currentIndex];
 
+    final qHtml = OfflineQuizService.sanitizeFragmentHtml(q.questionHtml);
     final optionsHtml = StringBuffer();
     for (final opt in q.options) {
       final isSelected = q.selectedValue == opt.value;
       final cls = isSelected ? 'opt-card selected' : 'opt-card';
       final escapedVal = _escapeHtml(opt.value);
+      final safeOptHtml = OfflineQuizService.sanitizeFragmentHtml(opt.html);
       optionsHtml.write('''
         <div class="$cls" data-val="$escapedVal" onclick="selectOpt(this)">
           <div class="opt-letter">${_escapeHtml(opt.labelLetter)}</div>
-          <div class="opt-body">${opt.html}</div>
+          <div class="opt-body">$safeOptHtml</div>
           <div class="opt-check">&#10003;</div>
         </div>
       ''');
@@ -409,13 +411,15 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
   }
   .opt-body p:first-child, .q-card p:first-child { margin-top: 0; }
   .opt-body p:last-child, .q-card p:last-child { margin-bottom: 0; }
+  .q-card .WordSection1, .opt-body .WordSection1 { display: block; width: 100%; }
+  .q-card .MsoListParagraph, .opt-body .MsoListParagraph { text-indent: 0 !important; margin-left: 0 !important; }
   .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
 </style>
 </head>
 <body>
   <div class="q-card">
     <div class="q-badge">PERTANYAAN NOMOR ${q.number}</div>
-    ${q.questionHtml}
+    $qHtml
   </div>
   <div class="options-label">Pilihan Jawaban</div>
   <div class="options-wrap">$optionsHtml</div>
