@@ -39,8 +39,8 @@ if ($token === '' || $deviceId === '') {
     exit;
 }
 
-// Validasi format device_id: hanya alphanumeric, dash, underscore; maks 128 karakter
-if (!preg_match('/^[A-Za-z0-9_-]{1,128}$/', $deviceId)) {
+// Validasi format device_id: alphanumeric, titik, dash, underscore; maks 128 karakter (mendukung Android Build.ID)
+if (!preg_match('/^[A-Za-z0-9._-]{1,128}$/', $deviceId)) {
     http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'Format device_id tidak valid']);
     exit;

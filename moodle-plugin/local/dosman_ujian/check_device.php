@@ -4,7 +4,7 @@
  * Tidak memerlukan token — dipanggil sebelum proses login.
  *
  * Method: GET atau POST
- * Param:  device_id (string, alphanumeric + dash/underscore, maks 128 karakter)
+ * Param:  device_id (string, alphanumeric + titik/dash/underscore, maks 128 karakter)
  *
  * Response:
  *   { "blocked": false, "reason": "" }          → device tidak diblokir / tidak ditemukan
@@ -34,8 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $deviceId = trim((string)($_GET['device_id'] ?? ''));
 }
 
-// Validasi format device_id: hanya alphanumeric, dash, underscore; maks 128 karakter
-if ($deviceId === '' || !preg_match('/^[A-Za-z0-9_-]{1,128}$/', $deviceId)) {
+// Validasi format device_id: alphanumeric, titik, dash, underscore; maks 128 karakter (mendukung Android Build.ID)
+if ($deviceId === '' || !preg_match('/^[A-Za-z0-9._-]{1,128}$/', $deviceId)) {
     // Format tidak valid → treat sebagai tidak ditemukan (fail-open)
     echo json_encode(['blocked' => false, 'reason' => '']);
     exit;

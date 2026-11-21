@@ -25,8 +25,8 @@ $body     = json_decode(file_get_contents('php://input'), true) ?: [];
 $deviceId = trim((string)($body['device_id'] ?? ''));
 $code     = trim((string)($body['code']      ?? ''));
 
-// Validasi device_id
-if (!preg_match('/^[A-Za-z0-9_-]{1,128}$/', $deviceId)) {
+// Validasi device_id (mendukung Android Build.ID dengan titik)
+if (!preg_match('/^[A-Za-z0-9._-]{1,128}$/', $deviceId)) {
     echo json_encode(['success' => false, 'message' => 'Parameter tidak valid']);
     exit;
 }
