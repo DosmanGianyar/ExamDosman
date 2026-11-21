@@ -61,6 +61,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
   // ─── Submit & Auto-Retry ─────────────────────────────────────────────────
   bool _isSubmitting = false;
   bool _waitingSignalToSubmit = false;
+  bool _submitAuthBlocked = false;
   String _submitError = '';
   int _submitRetryAttempt = 0;
   Timer? _submitRetryTimer;
@@ -484,7 +485,8 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
         final dir = await const MethodChannel(AppConfig.lockdownChannel)
             .invokeMethod<String>('getKatexBaseDir');
         if (dir != null && dir.isNotEmpty) {
-          _katexBaseUri = WebUri('file://$dir');
+          final normalized = dir.endsWith('/') ? dir : '$dir/';
+          _katexBaseUri = WebUri.uri(Uri.file(normalized));
           return _katexBaseUri!;
         }
       } catch (_) {}
@@ -653,6 +655,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     setState(() {
       _isSubmitting = false;
       _waitingSignalToSubmit = false;
+      _submitAuthBlocked = false;
       _submitError = '';
       _submitRetryAttempt = 0;
     });
@@ -734,13 +737,64 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     }
   }
 
-  Future<void> _submitQuiz({bool timeUp = false, bool hasRefreshedSeq = false}) async {
+  Future<bool> _trySilentReLogin() async {
+    final uname = (await AuthService.getUsername()).trim();
+    final pwd = await AuthService.getPassword();
+    if (uname.isEmpty || pwd == null || pwd.isEmpty) return false;
+    try {
+      await AuthService.login(uname, pwd);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _handleAuthBlockedOnSubmit({
+    required bool timeUp,
+    required bool hasRefreshedSeq,
+    required bool hasRetriedAuth,
+  }) async {
+    if (!hasRetriedAuth) {
+      if (mounted) {
+        setState(() {
+          _submitError = 'Memperbarui sesi login untuk mengirim jawaban...';
+        });
+      }
+      final relogged = await _trySilentReLogin();
+      if (!mounted) return;
+      if (relogged) {
+        setState(() => _isSubmitting = false);
+        await _submitQuiz(
+          timeUp: timeUp,
+          hasRefreshedSeq: hasRefreshedSeq,
+          hasRetriedAuth: true,
+        );
+        return;
+      }
+    }
+    _submitRetryTimer?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _isSubmitting = false;
+      _waitingSignalToSubmit = true;
+      _submitAuthBlocked = true;
+      _submitError =
+          'Akun/sesi sedang ditangguhkan oleh pengawas. Jawaban Anda tetap tersimpan aman di HP ini. Minta pengawas mengaktifkan kembali akun Anda, lalu tekan "Kirim Ulang Sekarang".';
+    });
+  }
+
+  Future<void> _submitQuiz({
+    bool timeUp = false,
+    bool hasRefreshedSeq = false,
+    bool hasRetriedAuth = false,
+  }) async {
     final pkg = _package;
     if (pkg == null || _isSubmitting) return;
 
     _submitRetryTimer?.cancel();
     setState(() {
       _isSubmitting = true;
+      _submitAuthBlocked = false;
       _submitError = '';
     });
 
@@ -804,7 +858,11 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
             return;
           }
           setState(() => _isSubmitting = false);
-          await _submitQuiz(timeUp: timeUp, hasRefreshedSeq: true);
+          await _submitQuiz(
+            timeUp: timeUp,
+            hasRefreshedSeq: true,
+            hasRetriedAuth: hasRetriedAuth,
+          );
           return;
         } catch (refreshErr) {
           if (!mounted) return;
@@ -815,26 +873,22 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
             return;
           }
           if (refreshAction == SubmitErrorAction.authBlocked) {
-            _submitRetryTimer?.cancel();
-            setState(() {
-              _isSubmitting = false;
-              _waitingSignalToSubmit = true;
-              _submitError =
-                  'Sesi/akun ditangguhkan atau token berakhir. Jawaban Anda tetap tersimpan aman di HP ini. Hubungi pengawas lalu tekan Kirim Ulang.';
-            });
+            await _handleAuthBlockedOnSubmit(
+              timeUp: timeUp,
+              hasRefreshedSeq: true,
+              hasRetriedAuth: hasRetriedAuth,
+            );
             return;
           }
         }
       }
 
       if (action == SubmitErrorAction.authBlocked) {
-        _submitRetryTimer?.cancel();
-        setState(() {
-          _isSubmitting = false;
-          _waitingSignalToSubmit = true;
-          _submitError =
-              'Sesi/akun ditangguhkan atau token berakhir. Jawaban Anda tetap tersimpan aman di HP ini. Hubungi pengawas lalu tekan Kirim Ulang.';
-        });
+        await _handleAuthBlockedOnSubmit(
+          timeUp: timeUp,
+          hasRefreshedSeq: hasRefreshedSeq,
+          hasRetriedAuth: hasRetriedAuth,
+        );
         return;
       }
 
@@ -870,9 +924,9 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
       if (!mounted) return;
       if (!alive) {
         _pingTimer?.cancel();
-        await AuthService.saveSuspendedByAdmin(true);
-        await AuthService.logout();
         await KioskController.instance.unlock();
+        await AuthService.logout();
+        await AuthService.saveSuspendedByAdmin(true);
         if (!mounted) return;
         Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
         return;
@@ -1327,6 +1381,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
   }
 
   Widget _buildWaitingSubmitView() {
+    final isAuthBlocked = _submitAuthBlocked;
     return Container(
       color: const Color(0xFF0F172A),
       padding: const EdgeInsets.all(28),
@@ -1334,18 +1389,27 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.wifi_find_rounded, color: Color(0xFFFBBF24), size: 56),
+            Icon(
+              isAuthBlocked ? Icons.lock_clock_rounded : Icons.wifi_find_rounded,
+              color: isAuthBlocked ? const Color(0xFFF87171) : const Color(0xFFFBBF24),
+              size: 56,
+            ),
             const SizedBox(height: 18),
-            const Text(
-              'Menunggu Sinyal untuk Mengirim Jawaban',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+            Text(
+              isAuthBlocked
+                  ? 'Sesi Ditangguhkan — Menunggu Pengawas'
+                  : 'Menunggu Sinyal untuk Mengirim Jawaban',
+              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
-            const Text(
-              'Jangan tutup aplikasi! Seluruh jawaban Anda sudah tersimpan aman di HP ini. '
-              'Aplikasi otomatis mencoba mengirim ulang secara berkala begitu sinyal Wi-Fi terhubung.',
-              style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.55),
+            Text(
+              isAuthBlocked
+                  ? 'Jangan tutup aplikasi! Seluruh jawaban Anda sudah tersimpan aman di HP ini. '
+                      'Setelah pengawas mengaktifkan kembali akun Anda, tekan tombol di bawah untuk mengirim jawaban.'
+                  : 'Jangan tutup aplikasi! Seluruh jawaban Anda sudah tersimpan aman di HP ini. '
+                      'Aplikasi otomatis mencoba mengirim ulang secara berkala begitu sinyal Wi-Fi terhubung.',
+              style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.55),
               textAlign: TextAlign.center,
             ),
             if (_submitError.isNotEmpty) ...[

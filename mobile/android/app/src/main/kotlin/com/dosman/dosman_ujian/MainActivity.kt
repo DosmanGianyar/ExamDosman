@@ -138,7 +138,7 @@ class MainActivity : FlutterActivity() {
      */
     private val pinLoop: Runnable = object : Runnable {
         override fun run() {
-            if (!kioskActive || !pinLoopOn) return
+            if (!kioskActive || !pinLoopOn || isReviewerAccount) return
 
             // 1. Cek status Lock Task
             if (!isLockTaskActive()) {
@@ -233,7 +233,7 @@ class MainActivity : FlutterActivity() {
                 val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
                 val callback = object : AudioDeviceCallback() {
                     override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
-                        if (!kioskActive || !inExamMode) return
+                        if (!kioskActive || !inExamMode || isReviewerAccount) return
                         val hasBt = addedDevices?.any { dev ->
                             dev.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
                             dev.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
@@ -701,6 +701,7 @@ class MainActivity : FlutterActivity() {
         super.onResume()
         if (!kioskActive) return
         try { hideSystemBars() } catch (_: Exception) {}
+        if (isReviewerAccount) return
         if (wasPinnedSuccessfully) forceMaxVolume()
 
         if (inExamMode && isSplitScreenOrFloating()) {
@@ -725,7 +726,7 @@ class MainActivity : FlutterActivity() {
     @Suppress("OVERRIDE_DEPRECATION")
     override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean) {
         super.onMultiWindowModeChanged(isInMultiWindowMode)
-        if (inExamMode && isInMultiWindowMode && kioskActive) {
+        if (inExamMode && isInMultiWindowMode && kioskActive && !isReviewerAccount) {
             forceMaxVolume()
             playUnpinAlert()
             triggerNativeStudentSuspension(currentUserId, "Siswa menggunakan split screen / floating window saat ujian")
@@ -828,6 +829,10 @@ class MainActivity : FlutterActivity() {
                     try {
                         hideSystemBars()
                         kioskActive = true
+                        if (isReviewerAccount) {
+                            result.success(true)
+                            return@setMethodCallHandler
+                        }
                         enableDnd()
                         registerBluetoothAudioListener()
                         requestPin()  // tampilkan "App pinned" sekali di sini

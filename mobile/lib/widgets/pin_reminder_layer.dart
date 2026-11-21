@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../config/app_config.dart';
 import '../services/auth_service.dart';
 import '../services/kiosk_controller.dart';
 import 'exit_password_dialog.dart';
@@ -30,6 +31,7 @@ class _PinReminderLayerState extends State<PinReminderLayer>
   Timer? _pollTimer;
   Timer? _maskTimer;
   bool _pinned = true;
+  bool _inStartupGrace = false;
   bool _showBottomMask = false;
   bool _wasActive = false;
   bool _screenPinningEnabled = true;
@@ -67,12 +69,12 @@ class _PinReminderLayerState extends State<PinReminderLayer>
   }
 
   void _onKioskChanged() {
-    if (_kiosk.isReviewer) {
-      if (mounted && !_pinned) setState(() => _pinned = true);
-      return;
-    }
-
-    if (_kiosk.active && !_wasActive && defaultTargetPlatform == TargetPlatform.android) {
+    if (_kiosk.isReviewer || !_kiosk.active) {
+      _maskTimer?.cancel();
+      if (mounted && _showBottomMask) {
+        setState(() => _showBottomMask = false);
+      }
+    } else if (!_wasActive && defaultTargetPlatform == TargetPlatform.android) {
       _triggerBottomMask();
     }
     _wasActive = _kiosk.active;
@@ -95,9 +97,14 @@ class _PinReminderLayerState extends State<PinReminderLayer>
     final isMobile = defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
     if (kIsWeb || !isMobile || _kiosk.isReviewer || !_kiosk.active) {
-      if (mounted && (!_pinned || _pinRetryCount != 0 || _exitError.isNotEmpty)) {
+      if (mounted &&
+          (!_pinned ||
+              _inStartupGrace ||
+              _pinRetryCount != 0 ||
+              _exitError.isNotEmpty)) {
         setState(() {
           _pinned = true;
+          _inStartupGrace = false;
           _pinRetryCount = 0;
           _exitError = '';
         });
@@ -126,11 +133,14 @@ class _PinReminderLayerState extends State<PinReminderLayer>
       pinningEnabled = await _kiosk.isScreenPinningEnabled();
     }
     if (!mounted) return;
+    final inGrace = _kiosk.isInPinStartupGrace;
     if (ok != _pinned ||
+        inGrace != _inStartupGrace ||
         pinningEnabled != _screenPinningEnabled ||
         (ok && (_pinRetryCount != 0 || _exitError.isNotEmpty))) {
       setState(() {
         _pinned = ok;
+        _inStartupGrace = inGrace;
         _screenPinningEnabled = pinningEnabled;
         if (ok) {
           _pinRetryCount = 0;
@@ -181,7 +191,7 @@ class _PinReminderLayerState extends State<PinReminderLayer>
       await _pollPinned();
       if (!_pinned && mounted) {
         try {
-          await const MethodChannel('com.dosman.ujian/lockdown')
+          await const MethodChannel(AppConfig.lockdownChannel)
               .invokeMethod('openAppSettings');
         } catch (_) {}
       }
@@ -268,7 +278,7 @@ class _PinReminderLayerState extends State<PinReminderLayer>
 
     final showBanner = _kiosk.active &&
         !_pinned &&
-        !_kiosk.isInPinStartupGrace &&
+        !_inStartupGrace &&
         !_showingExitDialog;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     final isIOS = defaultTargetPlatform == TargetPlatform.iOS;

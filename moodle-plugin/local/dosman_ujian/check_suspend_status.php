@@ -17,8 +17,10 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 header('Access-Control-Allow-Origin: *');
 
+require_once __DIR__ . '/device_id_helper.inc.php';
+
 $username = strtolower(trim((string)($_GET['username'] ?? '')));
-if ($username === '' || in_array($username, ['appstore.review', 'playstore.review'], true)) {
+if ($username === '' || dosman_is_reviewer_username($username)) {
     echo json_encode(['success' => true, 'suspended' => false]);
     exit;
 }

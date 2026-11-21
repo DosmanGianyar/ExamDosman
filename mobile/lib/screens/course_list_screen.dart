@@ -48,8 +48,9 @@ class _CourseListScreenState extends State<CourseListScreen> {
       (_) async {
         final alive = await ExamService.pingAppLogin();
         if (!alive && mounted) {
-          await AuthService.saveSuspendedByAdmin(true);
+          await KioskController.instance.unlock();
           await AuthService.logout();
+          await AuthService.saveSuspendedByAdmin(true);
           if (!mounted) return;
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -331,6 +332,7 @@ class _CourseListScreenState extends State<CourseListScreen> {
 
       final relevantQuizzes = <({int quizId, int courseId})>[];
       final statsByCourse = <int, ({int finished, int inProgress})>{};
+      final checkedCourseIds = <int>{};
 
       for (final q in rawQuizzes) {
         final visible = q['visible'] == 1 || q['visible'] == true;
@@ -357,6 +359,7 @@ class _CourseListScreenState extends State<CourseListScreen> {
             final item = relevantQuizzes[nextIdx++];
             try {
               final attempts = await ApiService.getUserQuizAttempts(item.quizId, userId);
+              checkedCourseIds.add(item.courseId);
               int fin = 0;
               int inp = 0;
               for (final a in attempts) {
@@ -381,7 +384,13 @@ class _CourseListScreenState extends State<CourseListScreen> {
       if (mounted) {
         setState(() {
           for (final c in courses) {
-            _courseStats[c.id] = statsByCourse[c.id] ?? (finished: 0, inProgress: 0);
+            if (checkedCourseIds.contains(c.id)) {
+              _courseStats[c.id] = statsByCourse[c.id] ?? (finished: 0, inProgress: 0);
+            } else {
+              // Jangan tampilkan badge palsu "0x Dikerjakan" untuk mapel lama (>24 jam)
+              // atau saat pengecekan attempt gagal.
+              _courseStats.remove(c.id);
+            }
           }
         });
       }

@@ -135,7 +135,7 @@ try {
     $stmtUser = $pdo->prepare("SELECT username FROM {$prefix}user WHERE id = ? LIMIT 1");
     $stmtUser->execute([$userid]);
     $uname = strtolower(trim((string)$stmtUser->fetchColumn()));
-    if (in_array($uname, ['appstore.review', 'playstore.review', 'admin.reviewer'], true)) {
+    if (dosman_is_reviewer_username($uname)) {
         $pdo->prepare(
             "UPDATE {$prefix}local_dosman_ujian_devices
                 SET status = 'active', block_reason = NULL, blocked_at = NULL

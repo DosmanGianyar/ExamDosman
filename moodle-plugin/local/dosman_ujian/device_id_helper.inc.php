@@ -46,3 +46,14 @@ function dosman_normalize_storage_device_id(string $deviceId, int $userid): stri
     }
     return substr('u' . $userid . '__' . $deviceId, 0, 128);
 }
+
+/**
+ * Daftar resmi akun reviewer App Store / Play Store yang dikecualikan dari sanksi anti-cheat.
+ */
+function dosman_is_reviewer_username(string $username): bool {
+    return in_array(
+        strtolower(trim($username)),
+        ['appstore.review', 'playstore.review', 'admin.reviewer', 'apple.review'],
+        true
+    );
+}

@@ -83,6 +83,16 @@ try {
         exit;
     }
     $userid = (int)$userid;
+
+    // Akun reviewer kebal dari blokir perangkat
+    $stmtUser = $pdo->prepare("SELECT username FROM {$prefix}user WHERE id = ? LIMIT 1");
+    $stmtUser->execute([$userid]);
+    $targetUsername = (string)($stmtUser->fetchColumn() ?: '');
+    if (dosman_is_reviewer_username($targetUsername)) {
+        echo json_encode(['success' => false, 'message' => 'Akun reviewer kebal dari blokir perangkat']);
+        exit;
+    }
+
     $storageDeviceId = dosman_normalize_storage_device_id($deviceId, $userid);
 
     $now = time();

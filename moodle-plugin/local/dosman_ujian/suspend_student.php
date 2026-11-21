@@ -16,6 +16,8 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
+require_once __DIR__ . '/device_id_helper.inc.php';
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -103,7 +105,7 @@ try {
     $stmtUser = $pdo->prepare("SELECT username FROM {$prefix}user WHERE id = ? LIMIT 1");
     $stmtUser->execute([$userid]);
     $targetUsername = strtolower(trim((string)$stmtUser->fetchColumn()));
-    if (in_array($targetUsername, ['appstore.review', 'playstore.review', 'admin.reviewer'], true)) {
+    if (dosman_is_reviewer_username($targetUsername)) {
         echo json_encode(['success' => false, 'message' => 'Akun reviewer kebal dari suspend']);
         exit;
     }
@@ -181,21 +183,23 @@ try {
     $blocked  = ($existing !== false) ? (json_decode($existing, true) ?: []) : [];
     unset($blocked[(string)$userid]);
 
-    // Deduplikasi burst auto-suspend dalam jendela 10 detik (mencegah log duplikat dari race client)
-    if ($isApiKeyValid) {
-        $stmtAlready = $pdo->prepare(
-            "SELECT u.suspended,
-                    (SELECT COUNT(*) FROM {$prefix}local_dosman_ujian_logs l
-                      WHERE l.userid = u.id
-                        AND l.eventtype = 'account_suspended'
-                        AND l.timecreated >= ?) AS recent_log
-               FROM {$prefix}user u
-              WHERE u.id = ?
-              LIMIT 1"
+    $pdo->beginTransaction();
+
+    // Kunci baris user terlebih dahulu agar burst auto-suspend paralel ter-serialisasi (cegah log duplikat)
+    $stmtLock = $pdo->prepare("SELECT suspended FROM {$prefix}user WHERE id = ? FOR UPDATE");
+    $stmtLock->execute([$userid]);
+    $lockedSuspended = (int)($stmtLock->fetchColumn() ?: 0);
+
+    if ($isApiKeyValid && $lockedSuspended === 1) {
+        $stmtRecent = $pdo->prepare(
+            "SELECT COUNT(*) FROM {$prefix}local_dosman_ujian_logs
+              WHERE userid = ?
+                AND eventtype = 'account_suspended'
+                AND timecreated >= ?"
         );
-        $stmtAlready->execute([time() - 10, $userid]);
-        $alreadyRow = $stmtAlready->fetch(PDO::FETCH_ASSOC);
-        if ($alreadyRow !== false && (int)$alreadyRow['suspended'] === 1 && (int)$alreadyRow['recent_log'] > 0) {
+        $stmtRecent->execute([$userid, time() - 10]);
+        if ((int)$stmtRecent->fetchColumn() > 0) {
+            $pdo->rollBack();
             echo json_encode([
                 'success' => true,
                 'deduplicated' => true,
@@ -204,8 +208,6 @@ try {
             exit;
         }
     }
-
-    $pdo->beginTransaction();
 
     // 1. Suspend akun Moodle → tidak bisa login sama sekali
     $pdo->prepare(
@@ -281,6 +283,9 @@ try {
     echo json_encode(['success' => true, 'message' => 'Akun berhasil di-suspend dan di-logout']);
 
 } catch (Throwable $e) {
+    if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Server error']);
 }

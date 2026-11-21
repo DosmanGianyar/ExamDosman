@@ -1,7 +1,11 @@
 import 'package:dosman_ujian/config/app_config.dart';
 import 'package:dosman_ujian/services/api_service.dart';
+import 'package:dosman_ujian/services/device_service.dart';
 import 'package:dosman_ujian/services/kiosk_controller.dart';
 import 'package:dosman_ujian/services/offline_quiz_service.dart';
+import 'package:dosman_ujian/widgets/pin_reminder_layer.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -124,6 +128,96 @@ void main() {
       );
       expect(triggered, isFalse);
       expect(kiosk.isHandlingFatalViolation, isFalse);
+    });
+  });
+
+  group('DeviceService.isValidUniqueId', () {
+    test('accepts standard UUID and aid_<16hex>, rejects legacy Android Build.ID', () {
+      expect(DeviceService.isValidUniqueId('550e8400-e29b-41d4-a716-446655440000'), isTrue);
+      expect(DeviceService.isValidUniqueId('aid_0123456789abcdef'), isTrue);
+
+      expect(DeviceService.isValidUniqueId('UP1A.231005.007'), isFalse);
+      expect(DeviceService.isValidUniqueId('AP3A.240905.015.A2'), isFalse);
+      expect(DeviceService.isValidUniqueId(''), isFalse);
+      expect(DeviceService.isValidUniqueId('u123__UP1A.231005.007'), isFalse);
+    });
+  });
+
+  group('OfflineQuizService image attribute parsing', () {
+    test('extracts and replaces only img src attribute without corrupting data-src or alt', () {
+      const url = 'https://lms.sman1-gianyar.sch.id:9443/webservice/pluginfile.php/10/q/img.png';
+      const html = '<p><img alt="$url" data-src="$url" src="$url" width="100"></p>';
+
+      final urls = OfflineQuizService.extractExternalImageUrlsForTesting(html);
+      expect(urls, equals([url]));
+
+      const dataUri = 'data:image/png;base64,AAAA';
+      final replaced = OfflineQuizService.replaceCachedImagesForTesting(
+        html,
+        {url: dataUri},
+      );
+      expect(replaced, contains('data-src="$url"'));
+      expect(replaced, contains('alt="$url"'));
+      expect(replaced, contains('src="$dataUri"'));
+    });
+  });
+
+  group('PinReminderLayer startup grace transition', () {
+    const secureStorageChannel = MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
+
+    setUp(() {
+      KioskController.instance.resetForTesting();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(lockdownChannel, (call) async {
+        if (call.method == 'isGuidedAccessActive' ||
+            call.method == 'isLockTaskActive' ||
+            call.method == 'isScreenPinningEnabled') {
+          return false;
+        }
+        return true;
+      });
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(secureStorageChannel, (_) async => null);
+    });
+
+    tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(lockdownChannel, null);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(secureStorageChannel, null);
+      KioskController.instance.resetForTesting();
+    });
+
+    testWidgets('shows iOS unpinned overlay after 3s startup grace expires even if pinned stays false', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      try {
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: PinReminderLayer(
+              child: Scaffold(body: Text('Konten Ujian')),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        await KioskController.instance.lock(userId: 10);
+        await tester.pump();
+        await tester.pump();
+
+        expect(find.text('Mode Ujian Belum Terkunci'), findsNothing);
+
+        KioskController.instance.expirePinStartupGraceForTesting();
+        await tester.pump(const Duration(milliseconds: 900));
+        await tester.pump();
+
+        expect(find.text('Mode Ujian Belum Terkunci'), findsOneWidget);
+
+        await KioskController.instance.unlock();
+        await tester.pump();
+        expect(find.text('Mode Ujian Belum Terkunci'), findsNothing);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
     });
   });
 }

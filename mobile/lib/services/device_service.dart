@@ -13,6 +13,18 @@ class DeviceService {
   static const _kDeviceId = 'dosman_device_binding_id';
   static const _channel = MethodChannel(AppConfig.lockdownChannel);
 
+  /// Validasi apakah [value] merupakan device ID unik (UUID v4/vendor atau `aid_<16hex>`),
+  /// bukan Android `Build.ID` peninggalan versi APK lama.
+  static bool isValidUniqueId(String value) {
+    final v = value.trim();
+    if (RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    ).hasMatch(v)) {
+      return true;
+    }
+    return RegExp(r'^aid_[0-9a-f]{16}$').hasMatch(v);
+  }
+
   /// Returns stable unique device ID:
   /// - Android: `aid_<Settings.Secure.ANDROID_ID>` (unique per app-signing key & device)
   /// - iOS: `identifierForVendor` UUID cached in Keychain
@@ -34,7 +46,7 @@ class DeviceService {
     } else if (Platform.isIOS) {
       try {
         final cached = await _storage.read(key: _kDeviceId);
-        if (cached != null && cached.isNotEmpty) return cached;
+        if (cached != null && isValidUniqueId(cached)) return cached;
         final info = await DeviceInfoPlugin().iosInfo;
         final vid = (info.identifierForVendor ?? '').trim();
         if (vid.isNotEmpty) {
@@ -48,7 +60,7 @@ class DeviceService {
 
   static Future<String> _getOrCreateUuid() async {
     final cached = await _storage.read(key: _kDeviceId);
-    if (cached != null && cached.isNotEmpty) return cached;
+    if (cached != null && isValidUniqueId(cached)) return cached;
     final uuid = _generateUuid();
     await _storage.write(key: _kDeviceId, value: uuid);
     return uuid;

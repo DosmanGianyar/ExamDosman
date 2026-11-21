@@ -57,6 +57,9 @@ import AVFoundation
             case "setExamMode":
                 let active = (call.arguments as? [String: Any])?["active"] as? Bool ?? false
                 self.isExamMode = active
+                if active && UIAccessibility.isGuidedAccessEnabled {
+                    self.wasGuidedAccessEnabled = true
+                }
                 result(true)
 
             case "getAndroidId":
@@ -266,7 +269,7 @@ import AVFoundation
     }
 
     @objc private func audioRouteChanged() {
-        guard isLockdownActive && isExamMode else { return }
+        guard isLockdownActive && isExamMode && !isReviewerMode else { return }
         let outputs = AVAudioSession.sharedInstance().currentRoute.outputs
         let isBt = outputs.contains { port in
             port.portType == .bluetoothA2DP ||

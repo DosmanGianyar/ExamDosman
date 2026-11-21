@@ -6,6 +6,7 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -289,7 +290,17 @@ class OfflineQuizService {
 
     // 1. Cek apakah ada attempt inprogress yang bisa dilanjutkan
     Map<String, dynamic>? activeAttempt;
-    final attempts = await ApiService.getUserQuizAttempts(quizId, userId);
+    final List<Map<String, dynamic>> attempts;
+    try {
+      attempts = await ApiService.getUserQuizAttempts(quizId, userId);
+    } on NetworkException {
+      final offlineExisting = await loadSavedPackage(userId: userId, quizId: quizId);
+      if (offlineExisting != null && offlineExisting.questions.isNotEmpty) {
+        onProgress?.call('Melanjutkan sesi ujian tersimpan (mode offline)...', 1.0);
+        return offlineExisting;
+      }
+      rethrow;
+    }
     for (final a in attempts) {
       if ((a['state'] as String? ?? '').toLowerCase() == 'inprogress') {
         activeAttempt = a;
@@ -900,16 +911,34 @@ class OfflineQuizService {
 
   static const int kImageConcurrency = 4;
 
-  static final RegExp _imgSrcRegex = RegExp(
-    r'''<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>''',
+  static final RegExp _imgTagRegex = RegExp(
+    r'<img\b[^>]*>',
+    caseSensitive: false,
+  );
+  static final RegExp _imgSrcAttrRegex = RegExp(
+    r'''(\s)src=(["'])([^"']+)\2''',
     caseSensitive: false,
   );
 
-  /// Ekstrak seluruh URL gambar eksternal (non-data-URI) unik dari fragmen HTML.
+  @visibleForTesting
+  static List<String> extractExternalImageUrlsForTesting(String html) =>
+      _extractExternalImageUrls(html);
+
+  @visibleForTesting
+  static String replaceCachedImagesForTesting(
+    String html,
+    Map<String, String> cache,
+  ) =>
+      _replaceCachedImages(html, cache);
+
+  /// Ekstrak seluruh URL gambar eksternal (non-data-URI) dari atribut src tag `<img>`.
   static List<String> _extractExternalImageUrls(String html) {
     final urls = <String>[];
-    for (final m in _imgSrcRegex.allMatches(html)) {
-      final rawUrl = (m.group(1) ?? '').replaceAll('&amp;', '&').trim();
+    for (final tagMatch in _imgTagRegex.allMatches(html)) {
+      final tag = tagMatch.group(0) ?? '';
+      final srcMatch = _imgSrcAttrRegex.firstMatch(tag);
+      if (srcMatch == null) continue;
+      final rawUrl = (srcMatch.group(3) ?? '').replaceAll('&amp;', '&').trim();
       if (rawUrl.isNotEmpty && !rawUrl.startsWith('data:')) {
         urls.add(rawUrl);
       }
@@ -917,16 +946,22 @@ class OfflineQuizService {
     return urls;
   }
 
-  /// Gantikan atribut src gambar pada HTML dengan hasil data URI dari [cache].
+  /// Gantikan atribut `src` gambar pada tag `<img>` dengan hasil data URI dari [cache].
   static String _replaceCachedImages(String html, Map<String, String> cache) {
     if (cache.isEmpty) return html;
-    return html.replaceAllMapped(_imgSrcRegex, (m) {
-      final fullTag = m.group(0) ?? '';
-      final rawAttr = m.group(1) ?? '';
-      final normalized = rawAttr.replaceAll('&amp;', '&').trim();
-      final dataUri = cache[normalized];
-      if (dataUri == null || rawAttr.isEmpty) return fullTag;
-      return fullTag.replaceFirst(rawAttr, dataUri);
+    return html.replaceAllMapped(_imgTagRegex, (tagMatch) {
+      final fullTag = tagMatch.group(0) ?? '';
+      return fullTag.replaceFirstMapped(_imgSrcAttrRegex, (attrMatch) {
+        final rawAttr = attrMatch.group(3) ?? '';
+        final normalized = rawAttr.replaceAll('&amp;', '&').trim();
+        final dataUri = cache[normalized];
+        if (dataUri == null || rawAttr.isEmpty) {
+          return attrMatch.group(0) ?? '';
+        }
+        final ws = attrMatch.group(1) ?? ' ';
+        final quote = attrMatch.group(2) ?? '"';
+        return '${ws}src=$quote$dataUri$quote';
+      });
     });
   }
 
@@ -944,7 +979,9 @@ class OfflineQuizService {
         '/webservice/pluginfile.php/',
       );
     }
-    if (token.isNotEmpty && !fetchUrl.contains('token=')) {
+    if (token.isNotEmpty &&
+        fetchUrl.startsWith(AppConfig.moodleUrl) &&
+        !fetchUrl.contains('token=')) {
       final sep = fetchUrl.contains('?') ? '&' : '?';
       fetchUrl = '$fetchUrl${sep}token=${Uri.encodeComponent(token)}';
     }

@@ -166,6 +166,12 @@ class KioskController {
     _violationListeners.clear();
   }
 
+  /// Lewatkan masa startup grace 3 detik khusus untuk widget test deterministik.
+  @visibleForTesting
+  void expirePinStartupGraceForTesting() {
+    _lockedAt = DateTime.now().subtract(const Duration(seconds: 5));
+  }
+
   /// True jika screen pin / lock task Android atau Guided Access iOS aktif.
   Future<bool> isLockTaskPinned() async {
     if (_isReviewer) return true;
