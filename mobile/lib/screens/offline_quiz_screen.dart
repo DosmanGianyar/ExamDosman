@@ -57,6 +57,11 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
   Timer? _countdownTimer;
   int _remainingSec = 0;
   bool _autoSubmittedOnTimeout = false;
+  bool _backup5MinAttempted = false;
+  bool _backup1MinAttempted = false;
+  bool _isSilentSaving = false;
+  Future<void>? _activeSilentSaveFuture;
+  String _lastBackedUpDigest = '';
 
   // ─── Submit & Auto-Retry ─────────────────────────────────────────────────
   bool _isSubmitting = false;
@@ -213,20 +218,84 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
 
   // ─── Timer Ujian Lokal ───────────────────────────────────────────────────
 
+  int _currentServerEpochSec(OfflineQuizPackage pkg) {
+    final localNow = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final offset = ApiService.hasServerClockSync
+        ? ApiService.serverClockOffsetSec
+        : pkg.serverClockOffsetSec;
+    return localNow + offset;
+  }
+
+  void _triggerSilentBackup() {
+    final pkg = _package;
+    if (pkg == null ||
+        _isSubmitting ||
+        _waitingSignalToSubmit ||
+        _autoSubmittedOnTimeout ||
+        _isSilentSaving) {
+      return;
+    }
+    final digest = OfflineQuizService.computeAnswersDigest(pkg);
+    if (digest.isEmpty || digest == _lastBackedUpDigest) return;
+
+    _isSilentSaving = true;
+    _activeSilentSaveFuture = () async {
+      try {
+        final res = await OfflineQuizService.silentBackupAnswers(
+          pkg,
+          quizPassword: _quizPassword,
+        );
+        if (res.saved) {
+          _lastBackedUpDigest = digest;
+        }
+      } catch (_) {
+      } finally {
+        _isSilentSaving = false;
+        _activeSilentSaveFuture = null;
+      }
+    }();
+  }
+
   void _initCountdown() {
     _countdownTimer?.cancel();
-    final endEpoch = _package?.endTimeEpochSec ?? 0;
-    if (endEpoch <= 0) return;
+    final pkg = _package;
+    final endEpoch = pkg?.endTimeEpochSec ?? 0;
+    if (pkg == null || endEpoch <= 0) return;
+
+    _backup5MinAttempted = false;
+    _backup1MinAttempted = false;
+    _lastBackedUpDigest = '';
+    final cp = OfflineQuizService.computeBackupCheckpointsSec(pkg.attemptId);
 
     void tick() {
-      final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      final diff = endEpoch - nowSec;
+      final nowServer = _currentServerEpochSec(pkg);
+      final rawServerRemaining = endEpoch - nowServer;
+      final effectiveRemaining = OfflineQuizService.computeEffectiveRemainingSec(
+        endTimeEpochSec: endEpoch,
+        nowServerEpochSec: nowServer,
+      );
       if (!mounted) return;
-      setState(() => _remainingSec = diff > 0 ? diff : 0);
-      if (diff <= 0 && !_autoSubmittedOnTimeout) {
+      setState(() => _remainingSec = effectiveRemaining);
+      if (effectiveRemaining <= 0 && !_autoSubmittedOnTimeout) {
         _autoSubmittedOnTimeout = true;
         _countdownTimer?.cancel();
-        _submitQuiz(timeUp: true);
+        _submitQuiz(timeUp: rawServerRemaining <= 0);
+        return;
+      }
+      if (!_isSubmitting &&
+          !_waitingSignalToSubmit &&
+          effectiveRemaining > 10) {
+        if (!_backup5MinAttempted &&
+            rawServerRemaining <= cp.firstCheckpointSec &&
+            rawServerRemaining > cp.secondCheckpointSec) {
+          _backup5MinAttempted = true;
+          _triggerSilentBackup();
+        }
+        if (!_backup1MinAttempted &&
+            rawServerRemaining <= cp.secondCheckpointSec) {
+          _backup1MinAttempted = true;
+          _triggerSilentBackup();
+        }
       }
     }
 
@@ -796,6 +865,14 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
       _isSubmitting = true;
       _submitError = '';
     });
+
+    final inflightSave = _activeSilentSaveFuture;
+    if (inflightSave != null) {
+      try {
+        await inflightSave.timeout(const Duration(seconds: 4));
+      } catch (_) {}
+      if (!mounted) return;
+    }
 
     try {
       final payload = OfflineQuizService.buildSubmitPayload(pkg);

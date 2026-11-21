@@ -145,6 +145,7 @@ void main() {
     nativeCalls.clear();
     isPinnedState = true;
     ApiService.clearToken();
+    ApiService.resetServerClockForTesting();
     KioskController.instance.resetForTesting();
     installPlatformMocks();
     await AuthService.saveToken('INIT_TOKEN_123');
@@ -162,6 +163,7 @@ void main() {
       f.deleteSync(recursive: true);
     }
     KioskController.instance.resetForTesting();
+    ApiService.resetServerClockForTesting();
     clearPlatformMocks();
   });
 
@@ -825,6 +827,193 @@ void main() {
           expect(find.textContaining('0x Dikerjakan'), findsNothing);
           expect(tester.takeException(), isNull);
         }
+      }, () => _NonClosingHttpClient(mock));
+    });
+  });
+
+  group('Grup 8: Server Clock Offset, 15s Auto-Submit Buffer & Silent Backup Autosave', () {
+    test('syncs server clock offset from Date header, persists in package, and fires 15s before server deadline', () async {
+      final localEpoch = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final serverDateHdr = HttpDate.format(
+        DateTime.fromMillisecondsSinceEpoch((localEpoch + 180) * 1000, isUtc: true),
+      );
+
+      final mock = MockClient((req) async {
+        return http.Response(
+          json.encode({'attempts': []}),
+          200,
+          headers: {'date': serverDateHdr},
+        );
+      });
+
+      await http.runWithClient(() async {
+        await ApiService.getUserQuizAttempts(230, 2003);
+      }, () => _NonClosingHttpClient(mock));
+
+      expect(ApiService.hasServerClockSync, isTrue);
+      expect(ApiService.serverClockOffsetSec, inInclusiveRange(178, 182));
+
+      final pkg = OfflineQuizPackage(
+        quizId: 230,
+        courseId: 10,
+        attemptId: 29862,
+        userId: 2003,
+        quizName: 'SAS EKONOMI',
+        endTimeEpochSec: 1795250000,
+        serverClockOffsetSec: ApiService.serverClockOffsetSec,
+        questions: [],
+      );
+      await OfflineQuizService.savePackage(pkg);
+      final restored = await OfflineQuizService.loadSavedPackage(userId: 2003, quizId: 230);
+      expect(restored, isNotNull);
+      final offset = restored!.serverClockOffsetSec;
+      expect(offset, ApiService.serverClockOffsetSec);
+
+      // Meskipun jam HP tertinggal ~180 detik dari server:
+      // 16 detik sebelum deadline server -> sisa efektif 1 detik
+      final localAtTMinus16 = 1795250000 - 16 - offset;
+      final remAtTMinus16 = OfflineQuizService.computeEffectiveRemainingSec(
+        endTimeEpochSec: 1795250000,
+        nowServerEpochSec: localAtTMinus16 + offset,
+      );
+      expect(remAtTMinus16, 1);
+
+      // 15 detik sebelum deadline server -> sisa efektif 0 (memicu auto-submit lebih awal)
+      final localAtTMinus15 = 1795250000 - 15 - offset;
+      final remAtTMinus15 = OfflineQuizService.computeEffectiveRemainingSec(
+        endTimeEpochSec: 1795250000,
+        nowServerEpochSec: localAtTMinus15 + offset,
+      );
+      expect(remAtTMinus15, 0);
+    });
+
+    test('computeBackupCheckpointsSec spreads attempt traffic smoothly with deterministic jitter', () {
+      final set1 = <int>{};
+      final set2 = <int>{};
+      for (var attId = 29800; attId < 29900; attId++) {
+        final cp = OfflineQuizService.computeBackupCheckpointsSec(attId);
+        expect(cp.firstCheckpointSec, inInclusiveRange(300, 389));
+        expect(cp.secondCheckpointSec, inInclusiveRange(60, 104));
+        set1.add(cp.firstCheckpointSec);
+        set2.add(cp.secondCheckpointSec);
+      }
+      expect(set1.length, greaterThan(20));
+      expect(set2.length, greaterThan(15));
+    });
+
+    test('silentBackupAnswers sends finishattempt=0, syncs sequencecheck to 2, allows clean final submit, and survives 502 offline error', () async {
+      final backupPayloads = <Map<String, String>>[];
+      final finalPayloads = <Map<String, String>>[];
+
+      final mock = MockClient((req) async {
+        final bodyMap = req.method == 'POST'
+            ? Uri.splitQueryString(req.body)
+            : req.url.queryParameters;
+        final fn = bodyMap['wsfunction'] ?? '';
+
+        if (fn == 'mod_quiz_process_attempt') {
+          if (bodyMap['finishattempt'] == '0') {
+            if (bodyMap['attemptid'] == '9999') {
+              return http.Response('Bad Gateway', 502);
+            }
+            backupPayloads.add(bodyMap);
+            return http.Response(json.encode({'state': 'inprogress', 'warnings': []}), 200);
+          }
+          finalPayloads.add(bodyMap);
+          return http.Response(json.encode({'state': 'finished', 'warnings': []}), 200);
+        }
+        if (fn == 'mod_quiz_get_user_attempts') {
+          return http.Response(
+            json.encode({
+              'attempts': [
+                {'id': 8801, 'state': 'inprogress'},
+              ],
+            }),
+            200,
+          );
+        }
+        if (fn == 'mod_quiz_get_attempt_data') {
+          return http.Response(
+            json.encode({
+              'nextpage': -1,
+              'questions': [
+                {
+                  'slot': 1,
+                  'number': 1,
+                  'type': 'multichoice',
+                  'sequencecheck': 2,
+                  'html': sampleQuestionHtml(slot: 1, qNumber: 1, seqVal: '2'),
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        return http.Response('{}', 200);
+      });
+
+      final pkg = OfflineQuizPackage(
+        quizId: 230,
+        courseId: 10,
+        attemptId: 8801,
+        userId: 2003,
+        quizName: 'SAS EKONOMI',
+        endTimeEpochSec: 1795250000,
+        questions: [
+          OfflineQuestion(
+            slot: 1,
+            number: 1,
+            type: 'multichoice',
+            questionHtml: '<p>Soal 1</p>',
+            answerFieldName: 'q100:1_answer',
+            sequenceCheckName: 'q100:1_:sequencecheck',
+            sequenceCheckValue: '1',
+            options: const [
+              OfflineOption(value: '0', labelLetter: 'A', html: '<p>A</p>'),
+              OfflineOption(value: '1', labelLetter: 'B', html: '<p>B</p>'),
+            ],
+            selectedValue: '0',
+          ),
+        ],
+      );
+
+      await http.runWithClient(() async {
+        // 1. Silent backup saat ~5 menit tersisa
+        final backupRes = await OfflineQuizService.silentBackupAnswers(pkg);
+        expect(backupRes.saved, isTrue);
+        expect(backupRes.alreadyClosed, isFalse);
+        expect(backupPayloads.length, 1);
+        expect(backupPayloads.first['finishattempt'], '0');
+        expect(backupPayloads.first['timeup'], '0');
+        expect(pkg.questions.first.sequenceCheckValue, '2');
+
+        // 2. Siswa ubah jawaban menjadi '1' lalu submit final (harus mengirim sequencecheck=2)
+        pkg.questions.first.selectedValue = '1';
+        final finalState = await ApiService.processQuizAttempt(
+          pkg.attemptId,
+          OfflineQuizService.buildSubmitPayload(pkg),
+          finishAttempt: true,
+        );
+        expect(finalState, 'finished');
+        expect(finalPayloads.length, 1);
+        expect(finalPayloads.first['finishattempt'], '1');
+        expect(finalPayloads.first['data[0][value]'], '2');
+        expect(finalPayloads.first['data[1][value]'], '1');
+
+        // 3. Simulasi error jaringan/502 saat silent backup -> tidak throw & jawaban tetap aman
+        final flakyPkg = OfflineQuizPackage(
+          quizId: 230,
+          courseId: 10,
+          attemptId: 9999,
+          userId: 2003,
+          quizName: 'SAS EKONOMI',
+          endTimeEpochSec: 1795250000,
+          questions: [pkg.questions.first],
+        );
+        final flakyRes = await OfflineQuizService.silentBackupAnswers(flakyPkg);
+        expect(flakyRes.saved, isFalse);
+        expect(flakyRes.alreadyClosed, isFalse);
+        expect(flakyPkg.questions.first.selectedValue, '1');
       }, () => _NonClosingHttpClient(mock));
     });
   });

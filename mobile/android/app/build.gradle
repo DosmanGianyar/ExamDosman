@@ -148,7 +148,7 @@ gradle.projectsEvaluated {
                 dartFile.text = """\
 const String kAppVersion     = '${ver}';
 const int    kBuildNumber    = ${build};
-const String kAppVersionFull = 'Dosman Exam v\${kAppVersion}';
+const String kAppVersionFull = 'Dosman Exam v\$kAppVersion';
 """
                 println "app_version.dart → Dosman Exam v${ver} (${build})"
             }

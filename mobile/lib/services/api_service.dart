@@ -6,6 +6,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 
@@ -47,6 +48,38 @@ class ApiService {
   static void setToken(String token) => _token = token;
   static void clearToken() => _token = null;
   static String? get currentToken => _token;
+
+  // ─── Sinkronisasi Jam Server (Server Clock Offset) ─────────────────────────
+  static int _serverClockOffsetSec = 0;
+  static bool _hasServerClockSync = false;
+
+  static int get serverClockOffsetSec => _serverClockOffsetSec;
+  static bool get hasServerClockSync => _hasServerClockSync;
+  static int get serverNowEpochSec =>
+      (DateTime.now().millisecondsSinceEpoch ~/ 1000) + _serverClockOffsetSec;
+
+  /// Hitung selisih detik antara waktu server (header HTTP `Date` RFC 1123)
+  /// dan jam perangkat lokal agar countdown ujian kebal jam HP yang melambat/berubah.
+  static void updateServerClockFromHeader(
+    String? dateHeader, {
+    DateTime? nowOverride,
+  }) {
+    if (dateHeader == null || dateHeader.trim().isEmpty) return;
+    try {
+      final serverUtc = HttpDate.parse(dateHeader.trim()).toUtc();
+      final localNow = (nowOverride ?? DateTime.now()).toUtc();
+      _serverClockOffsetSec =
+          (serverUtc.millisecondsSinceEpoch ~/ 1000) -
+              (localNow.millisecondsSinceEpoch ~/ 1000);
+      _hasServerClockSync = true;
+    } catch (_) {}
+  }
+
+  @visibleForTesting
+  static void resetServerClockForTesting() {
+    _serverClockOffsetSec = 0;
+    _hasServerClockSync = false;
+  }
 
   // ─── Login → ambil token ───────────────────────────────────────────────────
 
@@ -141,6 +174,8 @@ class ApiService {
           })
           .timeout(const Duration(seconds: 20));
 
+      updateServerClockFromHeader(response.headers['date']);
+
       if (response.statusCode != 200) {
         throw ApiException('HTTP Error: ${response.statusCode}');
       }
@@ -206,6 +241,8 @@ class ApiService {
             body: formParams,
           )
           .timeout(timeout);
+
+      updateServerClockFromHeader(response.headers['date']);
 
       if (response.statusCode != 200) {
         throw ApiException('HTTP Error: ${response.statusCode}');

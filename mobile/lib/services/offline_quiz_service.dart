@@ -108,6 +108,7 @@ class OfflineQuizPackage {
   final String quizName;
   final int endTimeEpochSec; // 0 jika tanpa batas waktu
   final int parserVersion;
+  int serverClockOffsetSec;
   final List<OfflineQuestion> questions;
 
   OfflineQuizPackage({
@@ -119,6 +120,7 @@ class OfflineQuizPackage {
     required this.endTimeEpochSec,
     required this.questions,
     this.parserVersion = 1,
+    this.serverClockOffsetSec = 0,
   });
 
   Map<String, dynamic> toJson() => {
@@ -129,6 +131,7 @@ class OfflineQuizPackage {
         'quizName': quizName,
         'endTimeEpochSec': endTimeEpochSec,
         'parserVersion': parserVersion,
+        'serverClockOffsetSec': serverClockOffsetSec,
         'questions': questions.map((q) => q.toJson()).toList(),
       };
 
@@ -140,6 +143,7 @@ class OfflineQuizPackage {
         quizName: j['quizName'] as String? ?? 'Ujian',
         endTimeEpochSec: (j['endTimeEpochSec'] as num?)?.toInt() ?? 0,
         parserVersion: (j['parserVersion'] as num?)?.toInt() ?? 1,
+        serverClockOffsetSec: (j['serverClockOffsetSec'] as num?)?.toInt() ?? 0,
         questions: (j['questions'] as List<dynamic>? ?? [])
             .whereType<Map<String, dynamic>>()
             .map(OfflineQuestion.fromJson)
@@ -151,6 +155,9 @@ class OfflineQuizService {
   OfflineQuizService._();
 
   static const int kCurrentParserVersion = 2;
+  static const int kAutoSubmitBufferSec = 15;
+  static const int kBackupSave5MinSec = 300;
+  static const int kBackupSave1MinSec = 60;
 
   static const _storage = FlutterSecureStorage(
     aOptions: AndroidOptions(),
@@ -318,6 +325,11 @@ class OfflineQuizService {
       final existing = await loadSavedPackage(userId: userId, quizId: quizId);
       if (existing != null && existing.attemptId == attId && existing.questions.isNotEmpty) {
         if (existing.parserVersion >= kCurrentParserVersion) {
+          if (ApiService.hasServerClockSync &&
+              existing.serverClockOffsetSec != ApiService.serverClockOffsetSec) {
+            existing.serverClockOffsetSec = ApiService.serverClockOffsetSec;
+            await savePackage(existing);
+          }
           onProgress?.call('Melanjutkan sesi ujian...', 1.0);
           return existing;
         }
@@ -479,6 +491,7 @@ class OfflineQuizService {
       endTimeEpochSec: endTime,
       questions: parsed,
       parserVersion: kCurrentParserVersion,
+      serverClockOffsetSec: ApiService.serverClockOffsetSec,
     );
 
     await savePackage(pkg);
@@ -567,6 +580,100 @@ class OfflineQuizService {
       await savePackage(pkg);
     }
     return 'inprogress';
+  }
+
+  /// Hitung sisa waktu efektif mengikuti jam server dikurangi buffer [bufferSec]
+  /// agar auto-submit berjalan sebelum cron Moodle menutup attempt di batas waktu.
+  static int computeEffectiveRemainingSec({
+    required int endTimeEpochSec,
+    required int nowServerEpochSec,
+    int bufferSec = kAutoSubmitBufferSec,
+  }) {
+    if (endTimeEpochSec <= 0) return 0;
+    final diff = (endTimeEpochSec - bufferSec) - nowServerEpochSec;
+    return diff > 0 ? diff : 0;
+  }
+
+  /// Hitung dua ambang waktu silent autosave (~5 menit & ~1 menit sebelum berakhir)
+  /// dengan jitter deterministik berbasis [attemptId] agar request siswa tidak menumpuk bersamaan.
+  static ({int firstCheckpointSec, int secondCheckpointSec})
+      computeBackupCheckpointsSec(int attemptId) {
+    final absId = attemptId.abs();
+    final j1 = (absId * 37) % 90;
+    final j2 = (absId * 53) % 45;
+    return (
+      firstCheckpointSec: kBackupSave5MinSec + j1,
+      secondCheckpointSec: kBackupSave1MinSec + j2,
+    );
+  }
+
+  /// Ringkasan terurut jawaban terisi untuk mencegah autosave ulang bila tidak ada perubahan.
+  static String computeAnswersDigest(OfflineQuizPackage pkg) {
+    final items = pkg.questions
+        .where((q) => q.selectedValue != null && q.selectedValue!.isNotEmpty)
+        .toList()
+      ..sort((a, b) => a.slot.compareTo(b.slot));
+    return items.map((q) => '${q.slot}:${q.selectedValue}').join('|');
+  }
+
+  /// Simpan cadangan jawaban diam-diam (`finishattempt=0`) ke Moodle tanpa mengakhiri ujian.
+  /// Seluruh error jaringan/sesi ditelan halus agar tidak pernah mengganggu pengerjaan siswa.
+  static Future<({bool saved, bool alreadyClosed})> silentBackupAnswers(
+    OfflineQuizPackage pkg, {
+    String? quizPassword,
+  }) async {
+    if (computeAnswersDigest(pkg).isEmpty) {
+      return (saved: false, alreadyClosed: false);
+    }
+
+    try {
+      final state = await ApiService.processQuizAttempt(
+        pkg.attemptId,
+        buildSubmitPayload(pkg),
+        finishAttempt: false,
+        timeUp: false,
+        quizPassword: quizPassword,
+      );
+      if (state == 'finished' || state == 'overdue' || state == 'abandoned') {
+        return (saved: true, alreadyClosed: true);
+      }
+      try {
+        await refreshSequenceChecks(pkg, quizPassword: quizPassword);
+      } catch (_) {}
+      return (saved: true, alreadyClosed: false);
+    } catch (e) {
+      final action = classifySubmitError(e);
+      if (action == SubmitErrorAction.alreadyFinished) {
+        return (saved: true, alreadyClosed: true);
+      }
+      if (action == SubmitErrorAction.outOfSequence) {
+        try {
+          final st = await refreshSequenceChecks(pkg, quizPassword: quizPassword);
+          if (st == 'finished' || st == 'overdue' || st == 'abandoned') {
+            return (saved: true, alreadyClosed: true);
+          }
+          final retryState = await ApiService.processQuizAttempt(
+            pkg.attemptId,
+            buildSubmitPayload(pkg),
+            finishAttempt: false,
+            timeUp: false,
+            quizPassword: quizPassword,
+          );
+          if (retryState == 'finished' ||
+              retryState == 'overdue' ||
+              retryState == 'abandoned') {
+            return (saved: true, alreadyClosed: true);
+          }
+          try {
+            await refreshSequenceChecks(pkg, quizPassword: quizPassword);
+          } catch (_) {}
+          return (saved: true, alreadyClosed: false);
+        } catch (_) {
+          return (saved: false, alreadyClosed: false);
+        }
+      }
+      return (saved: false, alreadyClosed: false);
+    }
   }
 
   /// Bangun payload `data` untuk `mod_quiz_process_attempt` dari paket lokal.

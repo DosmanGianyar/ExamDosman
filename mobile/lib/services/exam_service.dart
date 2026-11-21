@@ -493,6 +493,9 @@ class ExamService {
       ).timeout(const Duration(seconds: 5));
       sw.stop();
       lastPingLatencyMs.value = sw.elapsedMilliseconds;
+      if (resp.statusCode == 200 || resp.statusCode == 401) {
+        ApiService.updateServerClockFromHeader(resp.headers['date']);
+      }
 
       if (resp.statusCode == 401) {
         try {
