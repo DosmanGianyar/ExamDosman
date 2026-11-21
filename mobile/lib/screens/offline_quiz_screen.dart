@@ -794,7 +794,6 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     _submitRetryTimer?.cancel();
     setState(() {
       _isSubmitting = true;
-      _submitAuthBlocked = false;
       _submitError = '';
     });
 
@@ -903,6 +902,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
       setState(() {
         _isSubmitting = false;
         _waitingSignalToSubmit = true;
+        _submitAuthBlocked = false;
         _submitError = '$e (mencoba ulang dalam $delaySec dtk...)';
       });
       _submitRetryTimer?.cancel();
@@ -919,7 +919,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
   void _startHeartbeat() {
     _pingTimer?.cancel();
     _pingTimer = Timer.periodic(const Duration(seconds: 45), (_) async {
-      if (!mounted || _blockSent) return;
+      if (!mounted || _blockSent || _waitingSignalToSubmit) return;
       final alive = await ExamService.pingAppLogin(quizId: widget.quiz.id);
       if (!mounted) return;
       if (!alive) {

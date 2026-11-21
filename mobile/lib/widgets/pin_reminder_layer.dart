@@ -132,7 +132,7 @@ class _PinReminderLayerState extends State<PinReminderLayer>
     if (isAndroid && !ok) {
       pinningEnabled = await _kiosk.isScreenPinningEnabled();
     }
-    if (!mounted) return;
+    if (!mounted || !_kiosk.active || _kiosk.isReviewer) return;
     final inGrace = _kiosk.isInPinStartupGrace;
     if (ok != _pinned ||
         inGrace != _inStartupGrace ||
