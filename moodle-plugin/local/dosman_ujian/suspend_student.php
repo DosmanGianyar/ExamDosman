@@ -110,57 +110,64 @@ try {
         exit;
     }
 
-    // Jika auto-suspend berasal dari aplikasi siswa ($isApiKeyValid = true),
-    // pastikan siswa benar-benar sudah membuka ujian (quiz) pada course.
-    // Jika hanya baru login / di beranda / di daftar course, jangan suspend akun.
-    // (Suspend manual oleh pengawas dari Dashboard menggunakan token tetap berlaku penuh.)
+    // Auto-suspend dari aplikasi ($isApiKeyValid) memakai aturan SATU PINTU:
+    // 1) Abaikan aturan legacy false-positive (overlay / screen_cast / mirroring)
+    // 2) Wajib memiliki attempt Moodle yang benar-benar berstatus 'inprogress'
+    // (Suspend manual oleh pengawas memakai token dashboard tetap berlaku penuh.)
+    $activeQuizId = 0;
     if ($isApiKeyValid) {
-        $stmtQuiz = $pdo->prepare(
-            "SELECT current_quizid FROM {$prefix}local_dosman_ujian_appstatus
-              WHERE userid = ? LIMIT 1"
-        );
-        $stmtQuiz->execute([$userid]);
-        $currentQuizId = (int)($stmtQuiz->fetchColumn() ?: 0);
+        $ignoreEventType = null;
+        $ignoreResponse  = null;
 
-        $hasInProgressAttempt = false;
-        if ($currentQuizId <= 0) {
-            $stmtAttempt = $pdo->prepare(
-                "SELECT id FROM {$prefix}quiz_attempts
-                  WHERE userid = ? AND state = 'inprogress'
-                  LIMIT 1"
-            );
-            $stmtAttempt->execute([$userid]);
-            $hasInProgressAttempt = ($stmtAttempt->fetchColumn() !== false);
+        if (dosman_is_legacy_ignored_violation_reason($reason)) {
+            $ignoreEventType = 'violation_ignored_legacy_rule';
+            $ignoreResponse  = [
+                'success' => false,
+                'ignored' => true,
+                'legacy_rule' => true,
+                'message' => 'Aturan legacy (overlay/screen_cast) dinonaktifkan, auto-suspend diabaikan',
+            ];
+        } else {
+            $activeQuizId = dosman_get_active_quiz_id($pdo, $prefix, $userid);
+            if ($activeQuizId <= 0) {
+                // Bersihkan current_quizid yang tersisa di appstatus agar dashboard akurat
+                $pdo->prepare(
+                    "UPDATE {$prefix}local_dosman_ujian_appstatus
+                        SET current_quizid = 0
+                      WHERE userid = ? AND current_quizid > 0"
+                )->execute([$userid]);
+                $ignoreEventType = 'violation_ignored_pre_quiz';
+                $ignoreResponse  = [
+                    'success' => false,
+                    'ignored' => true,
+                    'message' => 'Siswa tidak sedang mengerjakan ujian aktif, auto-suspend diabaikan',
+                ];
+            }
         }
 
-        if ($currentQuizId <= 0 && !$hasInProgressAttempt) {
-            // Deduplikasi log pre-quiz dalam jendela 10 detik
-            $stmtDupPre = $pdo->prepare(
+        if ($ignoreEventType !== null) {
+            $stmtDup = $pdo->prepare(
                 "SELECT COUNT(*) FROM {$prefix}local_dosman_ujian_logs
-                  WHERE userid = ? AND eventtype = 'violation_ignored_pre_quiz' AND timecreated >= ?"
+                  WHERE userid = ? AND eventtype = ? AND timecreated >= ?"
             );
-            $stmtDupPre->execute([$userid, time() - 10]);
-            $dupCount = (int)$stmtDupPre->fetchColumn();
+            $stmtDup->execute([$userid, $ignoreEventType, time() - 10]);
+            $dupCount = (int)$stmtDup->fetchColumn();
 
             if ($dupCount === 0) {
-                // Catat di log tanpa memblokir / men-suspend akun siswa
                 $pdo->prepare(
                     "INSERT INTO {$prefix}local_dosman_ujian_logs
                          (userid, courseid, quizid, eventtype, eventdata, suspicious, timecreated)
-                     VALUES (?, 1, 0, 'violation_ignored_pre_quiz', ?, 0, ?)"
+                     VALUES (?, 1, 0, ?, ?, 0, ?)"
                 )->execute([
                     $userid,
+                    $ignoreEventType,
                     json_encode(['reason' => $reason], JSON_UNESCAPED_UNICODE),
                     time(),
                 ]);
             }
 
-            echo json_encode([
-                'success' => false,
-                'ignored' => true,
-                'deduplicated' => ($dupCount > 0),
-                'message' => 'Siswa belum membuka ujian pada course, auto-suspend diabaikan',
-            ]);
+            $ignoreResponse['deduplicated'] = ($dupCount > 0);
+            echo json_encode($ignoreResponse);
             exit;
         }
     }
@@ -268,9 +275,10 @@ try {
     $pdo->prepare(
         "INSERT INTO {$prefix}local_dosman_ujian_logs
              (userid, courseid, quizid, eventtype, eventdata, suspicious, timecreated)
-         VALUES (?, 1, 0, 'account_suspended', ?, 1, UNIX_TIMESTAMP())"
+         VALUES (?, 1, ?, 'account_suspended', ?, 1, UNIX_TIMESTAMP())"
     )->execute([
         $userid,
+        $activeQuizId,
         json_encode([
             'reason' => $reason,
             'source' => $isApiKeyValid ? 'app' : 'dashboard',

@@ -57,3 +57,38 @@ function dosman_is_reviewer_username(string $username): bool {
         true
     );
 }
+
+/**
+ * Cek apakah alasan pelanggaran termasuk aturan legacy yang sudah dinonaktifkan
+ * karena terbukti memicu false-positive massal pada APK versi lama
+ * (overlay toast/aksesibilitas OEM dan screen_cast virtual display bawaan HP).
+ */
+function dosman_is_legacy_ignored_violation_reason(string $reason): bool {
+    $r = strtolower(trim($reason));
+    if ($r === '') {
+        return false;
+    }
+    return str_contains($r, 'overlay')
+        || str_contains($r, 'screen_cast')
+        || str_contains($r, 'screen cast')
+        || str_contains($r, 'mirroring');
+}
+
+/**
+ * Satu-satunya sumber kebenaran apakah siswa sedang aktif mengerjakan ujian:
+ * wajib memiliki attempt Moodle dengan state = 'inprogress'.
+ * Mengembalikan quizid aktif (> 0) atau 0 jika siswa tidak sedang mengerjakan ujian.
+ */
+function dosman_get_active_quiz_id(PDO $pdo, string $prefix, int $userid): int {
+    if ($userid <= 0) {
+        return 0;
+    }
+    $stmt = $pdo->prepare(
+        "SELECT quiz FROM {$prefix}quiz_attempts
+          WHERE userid = ? AND state = 'inprogress'
+          ORDER BY timestart DESC
+          LIMIT 1"
+    );
+    $stmt->execute([$userid]);
+    return (int)($stmt->fetchColumn() ?: 0);
+}

@@ -21,6 +21,8 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
+require_once __DIR__ . '/device_id_helper.inc.php';
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -98,13 +100,16 @@ try {
         }
     }
 
-    // Ambil lock_status dan lastping saat ini (jika ada)
+    // Ambil lock_status, lastping, platform, dan current_quizid saat ini (jika ada)
     $stmtCur = $pdo->prepare(
-        "SELECT lock_status, lastping, platform FROM {$prefix}local_dosman_ujian_appstatus
+        "SELECT lock_status, lastping, platform, current_quizid FROM {$prefix}local_dosman_ujian_appstatus
           WHERE userid = ? LIMIT 1"
     );
     $stmtCur->execute([$userid]);
     $curRow = $stmtCur->fetch(PDO::FETCH_OBJ);
+
+    // Sinkronkan current_quizid ke kuis yang benar-benar punya attempt 'inprogress'
+    $effectiveQuizId = ($quizId > 0) ? $quizId : dosman_get_active_quiz_id($pdo, $prefix, $userid);
 
     if (!$curRow) {
         // Belum ada record → insert baru dengan lock_status = 1
@@ -112,31 +117,32 @@ try {
             "INSERT INTO {$prefix}local_dosman_ujian_appstatus
                 (userid, lastping, ipaddress, lock_status, current_quizid, platform)
              VALUES (?, ?, ?, 1, ?, ?)"
-        )->execute([$userid, $now, $ip, max(0, $quizId), $platform]);
+        )->execute([$userid, $now, $ip, max(0, $effectiveQuizId), $platform]);
         $finalStatus = 1;
     } else {
         $currentStatus = (int)$curRow->lock_status;
         $elapsedPing   = $now - (int)$curRow->lastping;
         $platChanged   = ($curRow->platform !== $platform);
+        $quizChanged   = ((int)$curRow->current_quizid !== $effectiveQuizId);
 
         if (in_array($currentStatus, [2, 3], true)) {
-            // Diblokir atau dijeda — hanya update lastping jika sudah >= 15 detik
-            if ($elapsedPing >= 15 || $platChanged || $quizId > 0) {
-                $sqlUpd = $quizId > 0
-                    ? "UPDATE {$prefix}local_dosman_ujian_appstatus SET lastping = ?, ipaddress = ?, platform = ?, current_quizid = ? WHERE userid = ?"
-                    : "UPDATE {$prefix}local_dosman_ujian_appstatus SET lastping = ?, ipaddress = ?, platform = ? WHERE userid = ?";
-                $paramsUpd = $quizId > 0 ? [$now, $ip, $platform, $quizId, $userid] : [$now, $ip, $platform, $userid];
-                $pdo->prepare($sqlUpd)->execute($paramsUpd);
+            // Diblokir atau dijeda — update bila interval >= 15s atau platform/quiz berubah
+            if ($elapsedPing >= 15 || $platChanged || $quizChanged) {
+                $pdo->prepare(
+                    "UPDATE {$prefix}local_dosman_ujian_appstatus
+                        SET lastping = ?, ipaddress = ?, platform = ?, current_quizid = ?
+                      WHERE userid = ?"
+                )->execute([$now, $ip, $platform, $effectiveQuizId, $userid]);
             }
             $finalStatus = $currentStatus;
         } else {
-            // Normal → set lock_status = 1 (aktif), update lastping jika sudah >= 15 detik atau lock_status != 1
-            if ($currentStatus !== 1 || $elapsedPing >= 15 || $platChanged || $quizId > 0) {
-                $sqlUpd = $quizId > 0
-                    ? "UPDATE {$prefix}local_dosman_ujian_appstatus SET lastping = ?, ipaddress = ?, lock_status = 1, platform = ?, current_quizid = ? WHERE userid = ?"
-                    : "UPDATE {$prefix}local_dosman_ujian_appstatus SET lastping = ?, ipaddress = ?, lock_status = 1, platform = ? WHERE userid = ?";
-                $paramsUpd = $quizId > 0 ? [$now, $ip, $platform, $quizId, $userid] : [$now, $ip, $platform, $userid];
-                $pdo->prepare($sqlUpd)->execute($paramsUpd);
+            // Normal → set lock_status = 1 (aktif), selalu sinkronkan current_quizid
+            if ($currentStatus !== 1 || $elapsedPing >= 15 || $platChanged || $quizChanged) {
+                $pdo->prepare(
+                    "UPDATE {$prefix}local_dosman_ujian_appstatus
+                        SET lastping = ?, ipaddress = ?, lock_status = 1, platform = ?, current_quizid = ?
+                      WHERE userid = ?"
+                )->execute([$now, $ip, $platform, $effectiveQuizId, $userid]);
             }
             $finalStatus = 1;
         }

@@ -109,82 +109,15 @@ class heartbeat extends external_api {
             ];
         }
 
-        // Update heartbeat
+        // Perbarui last_heartbeat milik pemanggil saja; auto-suspend lintas siswa akibat
+        // sinyal putus dinonaktifkan (selaras dengan stale_app_ping_suspend, cron task, dan get_sessions)
+        // agar siswa semi-offline tidak mengalami blokir massal.
         $DB->update_record('local_dosman_ujian_sessions', (object)[
             'id'             => $session->id,
             'last_heartbeat' => $now,
             'useragent'      => $ua,
             'timemodified'   => $now,
         ]);
-
-        // Cek sesi Android lain yang timeout (heartbeat > 45 detik yang lalu).
-        // SEB (lock_status=0) dikecualikan karena tidak punya heartbeat periodik —
-        // last_heartbeat mereka hanya diupdate saat load halaman, bukan tiap 10 detik.
-        // Grace period 120 detik agar sesi baru sempat mulai kirim heartbeat.
-        $timeoutThreshold = $now - self::HEARTBEAT_TIMEOUT;
-        $graceThreshold   = $now - 120;
-        $timedOutSessions = $DB->get_records_sql(
-            "SELECT s.*
-               FROM {local_dosman_ujian_sessions} s
-               JOIN {local_dosman_ujian_appstatus} a ON a.userid = s.userid AND a.lock_status = 1
-              WHERE s.status    = :status
-                AND s.last_heartbeat < :threshold
-                AND s.timecreated    < :grace",
-            [
-                'status'    => 'active',
-                'threshold' => $timeoutThreshold,
-                'grace'     => $graceThreshold,
-            ]
-        );
-
-        // Ambil service record sekali di luar loop (bukan N+1 query).
-        $mobileService = $timedOutSessions
-            ? $DB->get_record('external_services', ['shortname' => 'dosman_ujian_mobile'])
-            : false;
-
-        foreach ($timedOutSessions as $timedOut) {
-            $DB->update_record('local_dosman_ujian_sessions', (object)[
-                'id'             => $timedOut->id,
-                'status'         => 'blocked',
-                'blocked_reason' => 'Keluar dari ujian tanpa izin (timeout heartbeat, akun disuspend)',
-                'blocked_at'     => $now,
-                'timemodified'   => $now,
-            ]);
-
-            // Sinkronkan appstatus agar dashboard menandai terblokir.
-            if ($DB->record_exists('local_dosman_ujian_appstatus', ['userid' => $timedOut->userid])) {
-                $DB->execute(
-                    'UPDATE {local_dosman_ujian_appstatus}
-                        SET lock_status = 2, current_quizid = 0, lastping = :lastping
-                      WHERE userid = :userid',
-                    [
-                        'lastping' => $now,
-                        'userid'   => $timedOut->userid,
-                    ]
-                );
-            }
-
-            // Suspend akun Moodle, hapus token API, putus semua sesi.
-            $DB->set_field('user', 'suspended', 1, ['id' => $timedOut->userid]);
-            $DB->set_field('user', 'timemodified', $now, ['id' => $timedOut->userid]);
-            if ($mobileService) {
-                $DB->delete_records('external_tokens', [
-                    'externalserviceid' => $mobileService->id,
-                    'userid'            => $timedOut->userid,
-                ]);
-            }
-            \core\session\manager::kill_user_sessions($timedOut->userid);
-
-            $DB->insert_record('local_dosman_ujian_logs', (object)[
-                'userid'      => $timedOut->userid,
-                'courseid'    => $timedOut->courseid,
-                'quizid'      => $timedOut->quizid,
-                'eventtype'   => 'app_force_closed',
-                'eventdata'   => json_encode(['reason' => 'heartbeat_timeout_auto_suspend']),
-                'suspicious'  => 1,
-                'timecreated' => $now,
-            ]);
-        }
 
         return [
             'success'      => true,

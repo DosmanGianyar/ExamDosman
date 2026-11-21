@@ -15,6 +15,8 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
+require_once __DIR__ . '/device_id_helper.inc.php';
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -81,16 +83,47 @@ try {
     )->execute([$userid, $now, $lockStatus]);
 
     if ($lockStatus === 2) {
+        $stmtSiteAdmins = $pdo->prepare("SELECT value FROM {$prefix}config WHERE name = 'siteadmins' LIMIT 1");
+        $stmtSiteAdmins->execute();
+        $siteAdminList = array_map('trim', explode(',', (string)($stmtSiteAdmins->fetchColumn() ?: '')));
+
+        $roleCheck = $pdo->prepare(
+            "SELECT COUNT(*) FROM {$prefix}role_assignments ra
+              JOIN {$prefix}role r ON r.id = ra.roleid
+             WHERE ra.userid = ? AND r.shortname = 'manager'"
+        );
+        $roleCheck->execute([$userid]);
+        $isManager = ((int)$roleCheck->fetchColumn() > 0);
+
         $stmtUser = $pdo->prepare("SELECT username FROM {$prefix}user WHERE id = ? LIMIT 1");
         $stmtUser->execute([$userid]);
         $targetUsername = strtolower(trim((string)$stmtUser->fetchColumn()));
-        $isReviewer = in_array($targetUsername, ['appstore.review', 'playstore.review'], true);
 
-        if (!$isReviewer) {
-            // Auto-suspend akun Moodle saat diblokir (kecuali akun reviewer)
+        $isProtected = in_array((string)$userid, $siteAdminList, true)
+            || $isManager
+            || dosman_is_reviewer_username($targetUsername);
+
+        if (!$isProtected) {
+            // Auto-suspend akun Moodle saat diblokir (kecuali admin/manager/reviewer)
             $pdo->prepare(
                 "UPDATE {$prefix}user SET suspended = 1, timemodified = ? WHERE id = ?"
             )->execute([$now, $userid]);
+
+            // Hapus token webservice mobile agar sesi app langsung tidak valid
+            $svcStmt = $pdo->prepare(
+                "SELECT id FROM {$prefix}external_services
+                  WHERE shortname IN ('dosman_ujian_mobile', 'moodle_mobile_app')"
+            );
+            $svcStmt->execute();
+            $serviceIds = array_map('intval', $svcStmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+            if (!empty($serviceIds)) {
+                $placeholders = implode(',', array_fill(0, count($serviceIds), '?'));
+                $delParams = array_merge([$userid], $serviceIds);
+                $pdo->prepare(
+                    "DELETE FROM {$prefix}external_tokens
+                      WHERE userid = ? AND externalserviceid IN ({$placeholders})"
+                )->execute($delParams);
+            }
 
             // Hapus sesi Moodle web → siswa logout dari browser
             $pdo->prepare(
@@ -99,9 +132,15 @@ try {
         }
 
     } elseif ($lockStatus === 1) {
-        // Pulihkan akun jika tersuspend
+        // Pulihkan akun jika tersuspend & buka blokir perangkat
         $pdo->prepare(
             "UPDATE {$prefix}user SET suspended = 0 WHERE id = ?"
+        )->execute([$userid]);
+
+        $pdo->prepare(
+            "UPDATE {$prefix}local_dosman_ujian_devices
+                SET status = 'active', block_reason = NULL, blocked_at = NULL
+              WHERE userid = ? AND status = 'blocked'"
         )->execute([$userid]);
 
         // Hapus dari blocked_students jika ada

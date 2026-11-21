@@ -93,6 +93,16 @@ try {
         exit;
     }
 
+    if (dosman_is_legacy_ignored_violation_reason($reason)) {
+        echo json_encode(['success' => false, 'ignored' => true, 'message' => 'Aturan legacy dinonaktifkan, blokir perangkat diabaikan']);
+        exit;
+    }
+
+    if (dosman_get_active_quiz_id($pdo, $prefix, $userid) <= 0) {
+        echo json_encode(['success' => false, 'ignored' => true, 'message' => 'Siswa tidak sedang mengerjakan ujian aktif, blokir perangkat diabaikan']);
+        exit;
+    }
+
     $storageDeviceId = dosman_normalize_storage_device_id($deviceId, $userid);
 
     $now = time();

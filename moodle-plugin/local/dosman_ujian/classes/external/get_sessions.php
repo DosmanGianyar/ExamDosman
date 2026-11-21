@@ -45,47 +45,10 @@ class get_sessions extends external_api {
         }
 
         $now = time();
-        $timeoutThreshold = $now - 15;
 
-        // Auto-suspend: siswa yang tidak heartbeat > 15 detik dianggap keluar aplikasi.
-        // Setelah kena aturan ini, akun Moodle disuspend dan sesi web/app diputus.
-        $staleSessions = $DB->get_records_select(
-            'local_dosman_ujian_sessions',
-            'quizid = :quizid AND courseid = :courseid AND status = :status AND last_heartbeat < :threshold',
-            [
-                'quizid' => $params['quizid'],
-                'courseid' => $params['courseid'],
-                'status' => 'active',
-                'threshold' => $timeoutThreshold,
-            ]
-        );
-
-        foreach ($staleSessions as $stale) {
-            $DB->update_record('local_dosman_ujian_sessions', (object)[
-                'id' => $stale->id,
-                'status' => 'blocked',
-                'blocked_reason' => 'Keluar dari aplikasi (otomatis)',
-                'blocked_at' => $now,
-                'timemodified' => $now,
-            ]);
-            $DB->execute(
-                'UPDATE {local_dosman_ujian_appstatus} SET lock_status = 2 WHERE userid = ?',
-                [$stale->userid]
-            );
-            $DB->set_field('user', 'suspended', 1, ['id' => $stale->userid]);
-            $DB->set_field('user', 'timemodified', $now, ['id' => $stale->userid]);
-            \core\session\manager::kill_user_sessions($stale->userid);
-
-            $DB->insert_record('local_dosman_ujian_logs', (object)[
-                'userid' => $stale->userid,
-                'courseid' => $stale->courseid,
-                'quizid' => $stale->quizid,
-                'eventtype' => 'app_force_closed',
-                'eventdata' => json_encode(['reason' => 'heartbeat_timeout_15s_auto_suspend']),
-                'suspicious' => 1,
-                'timecreated' => $now,
-            ]);
-        }
+        // get_sessions bersifat READ-ONLY (monitor status). Auto-suspend via timeout
+        // heartbeat dinonaktifkan agar siswa dengan sinyal lambat / mode semi-offline
+        // tidak terkena suspend palsu; semua auto-suspend masuk satu pintu lewat suspend_student.php.
 
         // Ambil semua sesi untuk quiz ini beserta info user
         $sql = 'SELECT s.id, s.userid, s.quizid, s.courseid, s.status,
