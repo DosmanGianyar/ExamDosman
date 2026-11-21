@@ -33,3 +33,7 @@
 -keepattributes Signature
 -keepattributes InnerClasses
 -keepattributes EnclosingMethod
+
+# App native security & lockdown classes
+-keep class com.dosman.dosman_ujian.** { *; }
+-dontwarn android.os.SystemProperties

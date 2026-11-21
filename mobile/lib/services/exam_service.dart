@@ -28,7 +28,10 @@ class ExamService {
   ExamService._();
 
   static const _kPendingSuspendKey = 'dosman_pending_suspend_userid';
-  static const _storage = FlutterSecureStorage();
+  static const _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(),
+    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock_this_device),
+  );
 
   /// Simpan userId yang gagal disuspend karena offline untuk di-flush saat app dibuka kembali.
   static Future<void> savePendingSuspend(int userId) async {

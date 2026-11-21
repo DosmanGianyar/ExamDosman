@@ -14,21 +14,26 @@ import AVFoundation
     private var wasGuidedAccessEnabled = false
     private var isReviewerMode = false
     private var isScreenLocked = false
+    private var bluetoothViolationReported = false
     private var privacyOverlay: UIView?
 
     override func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
-        let controller = window?.rootViewController as! FlutterViewController
-        let channel = FlutterMethodChannel(name: lockdownChannel, binaryMessenger: controller.binaryMessenger)
-        flutterChannel = channel
-
-        setupMethodChannel(channel: channel)
+        if let controller = window?.rootViewController as? FlutterViewController {
+            let channel = FlutterMethodChannel(name: lockdownChannel, binaryMessenger: controller.binaryMessenger)
+            flutterChannel = channel
+            setupMethodChannel(channel: channel)
+        }
         setupNotificationObservers()
 
         GeneratedPluginRegistrant.register(with: self)
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     // MARK: - MethodChannel Setup
@@ -50,6 +55,7 @@ import AVFoundation
                 self.isLockdownActive = false
                 self.isExamMode = false
                 self.wasGuidedAccessEnabled = false
+                self.bluetoothViolationReported = false
                 UIApplication.shared.isIdleTimerDisabled = false
                 self.hidePrivacyOverlay()
                 result(true)
@@ -57,8 +63,13 @@ import AVFoundation
             case "setExamMode":
                 let active = (call.arguments as? [String: Any])?["active"] as? Bool ?? false
                 self.isExamMode = active
-                if active && UIAccessibility.isGuidedAccessEnabled {
-                    self.wasGuidedAccessEnabled = true
+                if active {
+                    if UIAccessibility.isGuidedAccessEnabled {
+                        self.wasGuidedAccessEnabled = true
+                    }
+                } else {
+                    self.wasGuidedAccessEnabled = false
+                    self.bluetoothViolationReported = false
                 }
                 result(true)
 
@@ -77,6 +88,7 @@ import AVFoundation
                 self.isLockdownActive = false
                 self.isExamMode = false
                 self.wasGuidedAccessEnabled = false
+                self.bluetoothViolationReported = false
                 result(true)
 
             case "checkVirtualEnvironment", "checkClonedApp", "isSplitScreenActive":
@@ -99,13 +111,13 @@ import AVFoundation
                 self.isLockdownActive = false
                 self.isExamMode = false
                 self.wasGuidedAccessEnabled = false
+                self.bluetoothViolationReported = false
                 UIApplication.shared.isIdleTimerDisabled = false
                 self.hidePrivacyOverlay()
                 result(true)
 
             case "checkScreenCast":
-                let isCasting = UIScreen.screens.count > 1 || UIScreen.main.isCaptured
-                result(isCasting)
+                result(self.isScreenCapturedOrExternal())
 
             case "checkBluetoothAudio":
                 let outputs = AVAudioSession.sharedInstance().currentRoute.outputs
@@ -260,60 +272,85 @@ import AVFoundation
         )
     }
 
+    private func isScreenCapturedOrExternal() -> Bool {
+        let currentScreen = self.window?.windowScene?.screen ?? UIScreen.main
+        return currentScreen.isCaptured || UIScreen.screens.count > 1
+    }
+
     @objc private func screenDidLock() {
-        isScreenLocked = true
+        DispatchQueue.main.async { [weak self] in
+            self?.isScreenLocked = true
+        }
     }
 
     @objc private func screenDidUnlock() {
-        isScreenLocked = false
+        DispatchQueue.main.async { [weak self] in
+            self?.isScreenLocked = false
+        }
     }
 
     @objc private func audioRouteChanged() {
-        guard isLockdownActive && isExamMode && !isReviewerMode else { return }
-        let outputs = AVAudioSession.sharedInstance().currentRoute.outputs
-        let isBt = outputs.contains { port in
-            port.portType == .bluetoothA2DP ||
-            port.portType == .bluetoothHFP ||
-            port.portType == .bluetoothLE
-        }
-        if isBt {
-            flutterChannel?.invokeMethod("onBluetoothAudioConnected", arguments: nil)
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let outputs = AVAudioSession.sharedInstance().currentRoute.outputs
+            let isBt = outputs.contains { port in
+                port.portType == .bluetoothA2DP ||
+                port.portType == .bluetoothHFP ||
+                port.portType == .bluetoothLE
+            }
+            if !isBt {
+                self.bluetoothViolationReported = false
+                return
+            }
+            if self.isLockdownActive && self.isExamMode && !self.isReviewerMode && !self.bluetoothViolationReported {
+                self.bluetoothViolationReported = true
+                self.flutterChannel?.invokeMethod("onBluetoothAudioConnected", arguments: nil)
+            }
         }
     }
 
     @objc private func didTakeScreenshot() {
         // iOS tidak mengizinkan aplikasi memblokir screenshot; yang bisa dilakukan
         // adalah mendeteksi lalu melaporkannya sebagai pelanggaran ke server.
-        guard isLockdownActive, !isReviewerMode else { return }
-        flutterChannel?.invokeMethod("onScreenshotDetected", arguments: nil)
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            guard self.isLockdownActive, !self.isReviewerMode else { return }
+            self.flutterChannel?.invokeMethod("onScreenshotDetected", arguments: nil)
+        }
     }
 
     @objc private func screenCaptureChanged() {
-        guard isLockdownActive else { return }
-        if UIScreen.main.isCaptured || UIScreen.screens.count > 1 {
-            if !isReviewerMode {
-                showPrivacyOverlay()
-            }
-            flutterChannel?.invokeMethod("onScreenCastDetected", arguments: nil)
-        } else {
-            if UIApplication.shared.applicationState == .active {
-                hidePrivacyOverlay()
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            guard self.isLockdownActive else { return }
+            if self.isScreenCapturedOrExternal() {
+                if !self.isReviewerMode {
+                    self.showPrivacyOverlay()
+                }
+                self.flutterChannel?.invokeMethod("onScreenCastDetected", arguments: nil)
+            } else {
+                if UIApplication.shared.applicationState == .active {
+                    self.hidePrivacyOverlay()
+                }
             }
         }
     }
 
     @objc private func guidedAccessChanged() {
-        let enabled = UIAccessibility.isGuidedAccessEnabled
-        if enabled {
-            if isLockdownActive {
-                wasGuidedAccessEnabled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let enabled = UIAccessibility.isGuidedAccessEnabled
+            if enabled {
+                if self.isLockdownActive {
+                    self.wasGuidedAccessEnabled = true
+                }
+                return
             }
-            return
-        }
-        // Jika Akses Terpadu dimatikan oleh siswa saat ujian aktif
-        if isLockdownActive && isExamMode && wasGuidedAccessEnabled && !isReviewerMode {
-            wasGuidedAccessEnabled = false
-            flutterChannel?.invokeMethod("onLockTaskLost", arguments: nil)
+            // Jika Akses Terpadu dimatikan oleh siswa saat ujian aktif
+            if self.isLockdownActive && self.isExamMode && self.wasGuidedAccessEnabled && !self.isReviewerMode {
+                self.wasGuidedAccessEnabled = false
+                self.flutterChannel?.invokeMethod("onLockTaskLost", arguments: nil)
+            }
         }
     }
 
@@ -332,7 +369,7 @@ import AVFoundation
         if isLockdownActive {
             UIApplication.shared.isIdleTimerDisabled = true
         }
-        if !(isLockdownActive && !isReviewerMode && (UIScreen.main.isCaptured || UIScreen.screens.count > 1)) {
+        if !(isLockdownActive && !isReviewerMode && isScreenCapturedOrExternal()) {
             hidePrivacyOverlay()
         }
     }

@@ -152,7 +152,10 @@ class OfflineQuizService {
 
   static const int kCurrentParserVersion = 2;
 
-  static const _storage = FlutterSecureStorage();
+  static const _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(),
+    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock_this_device),
+  );
 
   static String _answersKey(int userId, int quizId) =>
       'dosman_offline_ans_${userId}_$quizId';
