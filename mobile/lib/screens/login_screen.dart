@@ -24,7 +24,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen>
-  with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  with SingleTickerProviderStateMixin {
   final _formKey   = GlobalKey<FormState>();
   final _userCtrl  = TextEditingController();
   final _passCtrl  = TextEditingController();
@@ -45,7 +45,6 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _animCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -74,32 +73,12 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _animCtrl.dispose();
     _userCtrl.dispose();
     _passCtrl.dispose();
     _userFocus.dispose();
     _passFocus.dispose();
     super.dispose();
-  }
-
-  // Deteksi lifecycle keluar aplikasi
-  DateTime? _backgroundTime;
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) async {
-    if (state == AppLifecycleState.paused) {
-      // App masuk background
-      _backgroundTime = DateTime.now();
-    } else if (state == AppLifecycleState.resumed && _backgroundTime != null) {
-      // App kembali dari background
-      final diff = DateTime.now().difference(_backgroundTime!);
-      if (diff.inSeconds > 15) {
-        // Kirim request ke backend untuk catat logout
-        final username = await AuthService.getUsername();
-        await ApiService.logoutActivity(username);
-      }
-      _backgroundTime = null;
-    }
   }
 
   // ─── Login Logic ──────────────────────────────────────────────────────────

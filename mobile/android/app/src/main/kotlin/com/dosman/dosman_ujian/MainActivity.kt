@@ -23,6 +23,7 @@ import android.provider.Settings
 import android.view.Display
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityManager
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -36,6 +37,7 @@ class MainActivity : FlutterActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private var kioskActive           = false   // kiosk sedang berjalan
+    private var inExamMode            = false   // siswa berada di layar ujian aktif
     private var backLocked            = false   // Back button dikunci
     private var pinLoopOn             = false   // loop 1-detik berjalan
     private var wasPinnedSuccessfully = false   // true setelah lock task pertama kali aktif
@@ -58,10 +60,6 @@ class MainActivity : FlutterActivity() {
     // Referensi channel untuk mengirim event ke Flutter (split-screen, overlay, dll.)
     private var flutterChannel: MethodChannel? = null
 
-    // Deteksi overlay: jika focus hilang lebih dari 10 detik saat kiosk aktif → overlay asing
-    private var overlayCheckRunnable: Runnable? = null
-    private val overlayThresholdMs   = 10_000L
-
     private fun isPresentationDisplayActive(displayId: Int? = null): Boolean {
         return try {
             val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
@@ -76,10 +74,10 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    // Deteksi screen cast / mirroring: DisplayListener memantau display presentasi baru saat kiosk aktif
+    // Deteksi screen cast / mirroring: DisplayListener memantau display presentasi baru saat ujian aktif
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) {
-            if (!kioskActive) return
+            if (!kioskActive || !inExamMode) return
             if (!isPresentationDisplayActive(displayId)) return
             mainHandler.post {
                 flutterChannel?.invokeMethod("onScreenCastDetected", null)
@@ -132,11 +130,6 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
-     * Loop 1 detik: pantau apakah lock task masih aktif.
-     * Jika lock task hilang setelah berhasil pinned → bunyikan alarm, beritahu Flutter,
-     * lalu tutup app. Tidak ada percobaan re-pin.
-     */
-    /**
      * Loop 1 detik: pantau apakah lock task masih aktif, dan cegah kecurangan:
      * - Pinned screen dilepas
      * - Split-screen / floating window
@@ -150,57 +143,64 @@ class MainActivity : FlutterActivity() {
             // 1. Cek status Lock Task
             if (!isLockTaskActive()) {
                 if (wasPinnedSuccessfully) {
-                    // Siswa berhasil mencabut pin → bunyikan alarm keras dan suspend akun siswa!
-                    forceMaxVolume()
-                    playUnpinAlert()
+                    if (inExamMode) {
+                        // Siswa berhasil mencabut pin saat ujian → bunyikan alarm keras dan suspend akun siswa!
+                        forceMaxVolume()
+                        playUnpinAlert()
 
-                    // Kirim HTTP POST suspend akun siswa dari native thread sebagai pengaman utama
-                    triggerNativeStudentSuspension(currentUserId, "Siswa memaksa melepas pinned screen (alarm aktif)")
+                        // Kirim HTTP POST suspend akun siswa dari native thread sebagai pengaman utama
+                        triggerNativeStudentSuspension(currentUserId, "Siswa memaksa melepas pinned screen (alarm aktif)")
 
-                    // Beritahu Flutter agar UI beralih ke BlockedScreen dan memproses suspensi
-                    mainHandler.post {
-                        flutterChannel?.invokeMethod("onLockTaskLost", null)
+                        // Beritahu Flutter agar UI beralih ke BlockedScreen dan memproses suspensi
+                        mainHandler.post {
+                            flutterChannel?.invokeMethod("onLockTaskLost", null)
+                        }
+                        stopKiosk()
+                        return
+                    } else {
+                        // Baru di layar daftar mapel/kuis (!inExamMode): jangan bunyikan alarm atau suspend.
+                        wasPinnedSuccessfully = false
                     }
-                    stopKiosk()
-                    return
                 }
                 // Belum pernah berhasil pinned — masih dalam proses aktivasi awal, tunggu.
             } else {
                 if (!wasPinnedSuccessfully) wasPinnedSuccessfully = true
             }
 
-            // 2. Cek Split-screen & Floating Window (jika siswa membagi layar)
-            if (isSplitScreenOrFloating()) {
-                forceMaxVolume()
-                playUnpinAlert()
-                triggerNativeStudentSuspension(currentUserId, "Siswa menggunakan split screen / floating window saat ujian")
-                mainHandler.post {
-                    flutterChannel?.invokeMethod("onSplitScreenDetected", null)
+            if (inExamMode) {
+                // 2. Cek Split-screen & Floating Window (jika siswa membagi layar)
+                if (isSplitScreenOrFloating()) {
+                    forceMaxVolume()
+                    playUnpinAlert()
+                    triggerNativeStudentSuspension(currentUserId, "Siswa menggunakan split screen / floating window saat ujian")
+                    mainHandler.post {
+                        flutterChannel?.invokeMethod("onSplitScreenDetected", null)
+                    }
+                    stopKiosk()
+                    return
                 }
-                stopKiosk()
-                return
-            }
 
-            // 3. Cek Virtual Machine (Virtual Master, VMOS, VPhone, dll.)
-            if (isVirtualMachineOrEmulator(this@MainActivity)) {
-                forceMaxVolume()
-                triggerNativeStudentSuspension(currentUserId, "Siswa menjalankan aplikasi di Virtual Machine")
-                mainHandler.post {
-                    flutterChannel?.invokeMethod("onVirtualEnvironmentDetected", null)
+                // 3. Cek Virtual Machine (Virtual Master, VMOS, VPhone, dll.)
+                if (isVirtualMachineOrEmulator(this@MainActivity)) {
+                    forceMaxVolume()
+                    triggerNativeStudentSuspension(currentUserId, "Siswa menjalankan aplikasi di Virtual Machine")
+                    mainHandler.post {
+                        flutterChannel?.invokeMethod("onVirtualEnvironmentDetected", null)
+                    }
+                    stopKiosk()
+                    return
                 }
-                stopKiosk()
-                return
-            }
 
-            // 4. Cek Cloned App / Dual App (Parallel Space, Island, Work Profile, Xiaomi Dual App)
-            if (isClonedOrDualApp(this@MainActivity)) {
-                forceMaxVolume()
-                triggerNativeStudentSuspension(currentUserId, "Siswa menjalankan aplikasi di Dual App / Ruang Ganda")
-                mainHandler.post {
-                    flutterChannel?.invokeMethod("onClonedAppDetected", null)
+                // 4. Cek Cloned App / Dual App (Parallel Space, Island, Work Profile, Xiaomi Dual App)
+                if (isClonedOrDualApp(this@MainActivity)) {
+                    forceMaxVolume()
+                    triggerNativeStudentSuspension(currentUserId, "Siswa menjalankan aplikasi di Dual App / Ruang Ganda")
+                    mainHandler.post {
+                        flutterChannel?.invokeMethod("onClonedAppDetected", null)
+                    }
+                    stopKiosk()
+                    return
                 }
-                stopKiosk()
-                return
             }
 
             mainHandler.postDelayed(this, 1_000L)
@@ -218,6 +218,7 @@ class MainActivity : FlutterActivity() {
         mainHandler.removeCallbacks(startPinLoopDelayed)  // batalkan jika belum terpicu
         pinLoopOn             = false
         kioskActive           = false
+        inExamMode            = false
         wasPinnedSuccessfully = false
         unregisterBluetoothAudioListener()
         try {
@@ -232,7 +233,7 @@ class MainActivity : FlutterActivity() {
                 val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
                 val callback = object : AudioDeviceCallback() {
                     override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
-                        if (!kioskActive) return
+                        if (!kioskActive || !inExamMode) return
                         val hasBt = addedDevices?.any { dev ->
                             dev.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
                             dev.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
@@ -290,9 +291,6 @@ class MainActivity : FlutterActivity() {
             "libwhale", "libdobby", "frida-agent", "frida-gadget",
             "lsposed", "edxposed", "xposedbridge", "proot"
         )
-        val ownPkg = context.packageName.lowercase()
-        val foreignPkgRegex = Regex("""/data/(?:data|user/\d+)/([a-z0-9_.]+)/""")
-
         val procFiles = listOf(
             "/proc/self/maps",
             "/proc/self/mountinfo",
@@ -312,23 +310,6 @@ class MainActivity : FlutterActivity() {
                             if (line.contains(marker)) {
                                 detected = true
                                 break@outer
-                            }
-                        }
-                        if (path == "/proc/self/maps") {
-                            val match = foreignPkgRegex.find(line)
-                            if (match != null) {
-                                val pkg = match.groupValues[1]
-                                val allowedPrefixes = listOf(
-                                    "com.google.android.", "com.android.", "org.chromium.",
-                                    "com.miui.", "com.xiaomi.", "com.samsung.", "com.sec.",
-                                    "com.oppo.", "com.oplus.", "com.coloros.", "com.realme.",
-                                    "com.oneplus.", "com.vivo.", "com.iqoo.", "com.huawei.",
-                                    "com.hihonor.", "com.transsion.", "com.qualcomm.", "com.mediatek."
-                                )
-                                if (pkg != ownPkg && allowedPrefixes.none { pkg.startsWith(it) }) {
-                                    detected = true
-                                    break@outer
-                                }
                             }
                         }
                     }
@@ -509,6 +490,13 @@ class MainActivity : FlutterActivity() {
                 return true
             }
 
+            // Jangan anggap soft keyboard (IME) saat mengetik sebagai split-screen
+            val imeVisible = ViewCompat.getRootWindowInsets(window.decorView)
+                ?.isVisible(WindowInsetsCompat.Type.ime()) == true
+            if (imeVisible) {
+                return false
+            }
+
             // Periksa perbandingan luas jendela aplikasi terhadap luas layar fisik
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 val wm = windowManager
@@ -531,7 +519,9 @@ class MainActivity : FlutterActivity() {
                 if (currentWidth > 0 && currentHeight > 0 && realMetrics.widthPixels > 0 && realMetrics.heightPixels > 0) {
                     val currentArea = (currentWidth.toLong() * currentHeight.toLong()).toDouble()
                     val realArea = (realMetrics.widthPixels.toLong() * realMetrics.heightPixels.toLong()).toDouble()
-                    if (realArea > 0 && (currentArea / realArea) < 0.72) {
+                    val widthRatio = currentWidth.toDouble() / realMetrics.widthPixels.toDouble()
+                    val heightRatio = currentHeight.toDouble() / realMetrics.heightPixels.toDouble()
+                    if (realArea > 0 && (currentArea / realArea) < 0.72 && (widthRatio < 0.85 || heightRatio < 0.65)) {
                         return true
                     }
                 }
@@ -713,7 +703,7 @@ class MainActivity : FlutterActivity() {
         try { hideSystemBars() } catch (_: Exception) {}
         if (wasPinnedSuccessfully) forceMaxVolume()
 
-        if (isSplitScreenOrFloating()) {
+        if (inExamMode && isSplitScreenOrFloating()) {
             forceMaxVolume()
             playUnpinAlert()
             triggerNativeStudentSuspension(currentUserId, "Siswa menggunakan split screen / floating window saat ujian")
@@ -735,7 +725,7 @@ class MainActivity : FlutterActivity() {
     @Suppress("OVERRIDE_DEPRECATION")
     override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean) {
         super.onMultiWindowModeChanged(isInMultiWindowMode)
-        if (isInMultiWindowMode && kioskActive) {
+        if (inExamMode && isInMultiWindowMode && kioskActive) {
             forceMaxVolume()
             playUnpinAlert()
             triggerNativeStudentSuspension(currentUserId, "Siswa menggunakan split screen / floating window saat ujian")
@@ -769,6 +759,21 @@ class MainActivity : FlutterActivity() {
                 "setReviewerMode" -> {
                     isReviewerAccount = call.argument<Boolean>("isReviewer") ?: false
                     result.success(true)
+                }
+
+                "setExamMode" -> {
+                    inExamMode = call.argument<Boolean>("active") ?: false
+                    result.success(true)
+                }
+
+                "getAndroidId" -> {
+                    val aid = try {
+                        Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
+                            ?.trim()
+                            ?.lowercase()
+                            ?: ""
+                    } catch (_: Exception) { "" }
+                    result.success(aid)
                 }
 
                 "checkVirtualEnvironment" -> {
@@ -816,27 +821,6 @@ class MainActivity : FlutterActivity() {
                 "enterLockTask" -> {
                     val uid = call.argument<Int>("userId") ?: 0
                     if (uid > 0) currentUserId = uid
-
-                    if (!isReviewerAccount) {
-                        if (isVirtualMachineOrEmulator(this)) {
-                            triggerNativeStudentSuspension(currentUserId, "Siswa menjalankan aplikasi di Virtual Machine")
-                            mainHandler.post { flutterChannel?.invokeMethod("onVirtualEnvironmentDetected", null) }
-                            result.success(false)
-                            return@setMethodCallHandler
-                        }
-                        if (isClonedOrDualApp(this)) {
-                            triggerNativeStudentSuspension(currentUserId, "Siswa menjalankan aplikasi di Dual App / Ruang Ganda")
-                            mainHandler.post { flutterChannel?.invokeMethod("onClonedAppDetected", null) }
-                            result.success(false)
-                            return@setMethodCallHandler
-                        }
-                        if (isSplitScreenOrFloating()) {
-                            triggerNativeStudentSuspension(currentUserId, "Siswa menggunakan split screen / floating window saat ujian")
-                            mainHandler.post { flutterChannel?.invokeMethod("onSplitScreenDetected", null) }
-                            result.success(false)
-                            return@setMethodCallHandler
-                        }
-                    }
 
                     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
                         result.success(false); return@setMethodCallHandler
@@ -1002,8 +986,15 @@ class MainActivity : FlutterActivity() {
                     }
                 }
 
-                /** Tidak dipakai lagi — re-pin dihapus, app langsung tutup jika unpin. */
-                "requestScreenPin" -> result.success(false)
+                "requestScreenPin" -> {
+                    try {
+                        whitelistLockTask()
+                        startLockTask()
+                        result.success(true)
+                    } catch (_: Exception) {
+                        result.success(false)
+                    }
+                }
 
                 "checkVpn" -> {
                     // Cek apakah ada koneksi VPN aktif via NetworkCapabilities.

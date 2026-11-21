@@ -7,12 +7,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'kiosk_unpin_flow.dart';
-import 'screens/exam_screen.dart';
-import 'screens/locked_browser_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/course_list_screen.dart';
 import 'screens/splash_screen.dart';
+import 'services/exam_service.dart';
 import 'services/kiosk_controller.dart';
 import 'widgets/pin_reminder_layer.dart';
 
@@ -31,7 +29,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Kirim ulang suspend yang gagal saat offline pada sesi ujian sebelumnya.
-  ExamScreen.flushPendingSuspend().catchError((_) {});
+  ExamService.flushPendingSuspend().catchError((_) {});
 
   // Kunci orientasi ke portrait saja selama ujian
   await SystemChrome.setPreferredOrientations([
@@ -66,8 +64,7 @@ class _DosmanUjianAppState extends State<DosmanUjianApp> {
   void initState() {
     super.initState();
     KioskController.instance.initKioskBridge(
-      rootNavigatorKey:       _rootNavKey,
-      onUnpinPasswordRequest: handleKioskUnpinPasswordRequest,
+      rootNavigatorKey: _rootNavKey,
     );
   }
 
@@ -228,7 +225,6 @@ class _DosmanUjianAppState extends State<DosmanUjianApp> {
       routes: {
         '/login':   (context) => const LoginScreen(),
         '/courses': (context) => const CourseListScreen(),
-        '/home':    (context) => const LockedBrowserScreen(),
       },
       home: const SplashScreen(),
     );

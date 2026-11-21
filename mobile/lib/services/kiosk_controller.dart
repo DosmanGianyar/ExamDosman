@@ -1,6 +1,6 @@
 // ===========================
 // DOSMAN UJIAN - Kiosk Controller
-// Mengatur kunci aplikasi dari login sampai keluar
+// Mengatur kunci aplikasi dari login sampai keluar (Single Source of Truth)
 // ===========================
 
 import 'dart:convert';
@@ -31,50 +31,64 @@ class KioskController {
 
   static const _channel = MethodChannel(AppConfig.lockdownChannel);
 
-  GlobalKey<NavigatorState>? _rootNavigatorKey;
-  Future<void> Function()? _onUnpinPasswordRequest;
-  bool _unpinFlowBusy = false;
+  static const Set<String> _reviewerUsernames = {
+    'playstore.review',
+    'appstore.review',
+    'admin.reviewer',
+    'apple.review',
+  };
 
-  /// Navigator root (MaterialApp) — dipakai dialog lepas semat dari native.
+  GlobalKey<NavigatorState>? _rootNavigatorKey;
+
+  /// Navigator root (MaterialApp) — dipakai saat menavigasikan ke BlockedScreen.
   GlobalKey<NavigatorState>? get rootNavigatorKey => _rootNavigatorKey;
 
-  /// Wajib dipanggil sekali dari [DosmanUjianApp] agar native bisa memicu dialog password.
+  /// Wajib dipanggil sekali dari [DosmanUjianApp] agar native event terhubung ke Flutter.
   void initKioskBridge({
     required GlobalKey<NavigatorState> rootNavigatorKey,
-    required Future<void> Function() onUnpinPasswordRequest,
   }) {
     _rootNavigatorKey = rootNavigatorKey;
-    _onUnpinPasswordRequest = onUnpinPasswordRequest;
     _channel.setMethodCallHandler(_onPlatformCall);
   }
 
   Future<dynamic> _onPlatformCall(MethodCall call) async {
     switch (call.method) {
-      case 'requestUnpinPassword':
-        if (_unpinFlowBusy) return null;
-        _unpinFlowBusy = true;
-        try {
-          await _onUnpinPasswordRequest?.call();
-        } finally {
-          _unpinFlowBusy = false;
-        }
       case 'onLockTaskLost':
-        _handleGlobalLockTaskLost();
-        _notifyViolation('lock_task_lost');
+        await handleFatalViolation(
+          reason: 'Siswa memaksa melepas pinned screen (alarm aktif)',
+          uiMessage:
+              'Akun Anda ditangguhkan karena Anda melepas kuncian layar saat ujian berlangsung. Harap segera melapor ke pengawas ujian.',
+        );
       case 'onSplitScreenDetected':
-        _notifyViolation('split_screen');
+        await handleFatalViolation(
+          reason: 'Pelanggaran keamanan ujian: split_screen',
+          uiMessage:
+              'Akun Anda ditangguhkan karena terdeteksi split-screen / jendela mengambang saat ujian berlangsung.',
+        );
       case 'onVirtualEnvironmentDetected':
-        _notifyViolation('virtual_environment');
+        await handleFatalViolation(
+          reason: 'Pelanggaran keamanan ujian: virtual_environment',
+          uiMessage:
+              'Akun Anda ditangguhkan karena aplikasi terdeteksi berjalan di Virtual Machine / Emulator.',
+        );
       case 'onClonedAppDetected':
-        _notifyViolation('cloned_app');
-      case 'onOverlayDetected':
-        _notifyViolation('overlay');
-      case 'onScreenCastDetected':
-        _notifyViolation('screen_cast');
-      case 'onScreenshotDetected':
-        _notifyViolation('screenshot_attempt'); // iOS: deteksi screenshot (Android diblokir FLAG_SECURE)
+        await handleFatalViolation(
+          reason: 'Pelanggaran keamanan ujian: cloned_app',
+          uiMessage:
+              'Akun Anda ditangguhkan karena aplikasi terdeteksi berjalan di Ruang Ganda / Aplikasi Kloning.',
+        );
       case 'onBluetoothAudioConnected':
-        _notifyViolation('bluetooth_audio');
+        await handleFatalViolation(
+          reason: 'Pelanggaran keamanan ujian: bluetooth_audio',
+          uiMessage:
+              'Akun Anda ditangguhkan karena perangkat terhubung ke audio Bluetooth saat ujian berlangsung.',
+        );
+      case 'onScreenshotDetected':
+        _notifyViolation('screenshot_attempt');
+      case 'onOverlayDetected':
+      case 'onScreenCastDetected':
+        // Dinonaktifkan dari kebijakan 4 aturan resmi (banyak false-positive OEM/APK lama)
+        break;
     }
     return null;
   }
@@ -82,22 +96,15 @@ class KioskController {
   bool _isReviewer = false;
   bool get isReviewer => _isReviewer;
 
-  /// Helper untuk mendeteksi apakah username merupakan akun uji coba / reviewer.
+  /// Helper terpusat untuk mendeteksi apakah username merupakan akun uji coba / reviewer resmi.
   static bool isReviewerUsername(String? username) {
     if (username == null) return false;
-    final u = username.toLowerCase().trim();
-    return u == 'playstore.review' ||
-           u == 'appstore.review' ||
-           u == 'apple.review' ||
-           u == 'reviewer' ||
-           u == 'demo' ||
-           u.contains('reviewer') ||
-           u.contains('appstore');
+    return _reviewerUsernames.contains(username.toLowerCase().trim());
   }
 
   final List<void Function(String reason)> _violationListeners = [];
 
-  /// Daftarkan callback yang dipanggil saat native mendeteksi pelanggaran.
+  /// Daftarkan callback yang dipanggil saat native/kiosk memicu pelanggaran.
   void addViolationListener(void Function(String reason) cb) =>
       _violationListeners.add(cb);
 
@@ -111,32 +118,32 @@ class KioskController {
     }
   }
 
-  /// Jawaban native setelah dialog lepas semat selesai (pin ulang vs lepas kiosk).
-  Future<void> ackUnpinPassword({required bool ok}) async {
-    try {
-      await _channel.invokeMethod('unpinPasswordAck', {'ok': ok});
-    } catch (_) {}
-  }
-
-  bool _active     = false;
+  bool _active = false;
   bool _inExamMode = false;
-
-  bool get active     => _active;
-  bool get inExamMode => _inExamMode;
-
-  /// Waktu login (lock dipanggil). Dipakai untuk grace period 15 detik
-  /// agar siswa tidak tersuspend akibat notif/dialog sistem saat baru masuk.
+  bool _handlingFatalViolation = false;
   DateTime? _sessionStartedAt;
+  DateTime? _lockedAt;
 
-  /// True jika masih dalam 15 detik pertama sejak login.
+  bool get active => _active;
+  bool get inExamMode => _inExamMode;
+  bool get isHandlingFatalViolation => _handlingFatalViolation;
+
+  /// True jika masih dalam 15 detik pertama sejak kiosk diaktifkan.
   bool get isInGracePeriod {
     if (_sessionStartedAt == null) return false;
     return DateTime.now().difference(_sessionStartedAt!).inSeconds < 15;
   }
 
+  /// True selama 3 detik pertama sesudah lock() dipanggil agar dialog sistem "App pinned"
+  /// sempat muncul sebelum PinReminderLayer menampilkan banner pemblokir.
+  bool get isInPinStartupGrace {
+    if (_lockedAt == null) return false;
+    return DateTime.now().difference(_lockedAt!).inSeconds < 3;
+  }
+
   final List<void Function()> _listeners = [];
 
-  void addListener(void Function() cb)    => _listeners.add(cb);
+  void addListener(void Function() cb) => _listeners.add(cb);
   void removeListener(void Function() cb) => _listeners.remove(cb);
 
   void _notify() {
@@ -145,7 +152,21 @@ class KioskController {
     }
   }
 
-  /// True jika screen pin / lock task Android atau Guided Access / Automatic Assessment iOS aktif.
+  /// Reset seluruh state singleton khusus untuk unit test.
+  @visibleForTesting
+  void resetForTesting() {
+    _active = false;
+    _inExamMode = false;
+    _isReviewer = false;
+    _handlingFatalViolation = false;
+    _sessionStartedAt = null;
+    _lockedAt = null;
+    _rootNavigatorKey = null;
+    _listeners.clear();
+    _violationListeners.clear();
+  }
+
+  /// True jika screen pin / lock task Android atau Guided Access iOS aktif.
   Future<bool> isLockTaskPinned() async {
     if (_isReviewer) return true;
     try {
@@ -156,7 +177,7 @@ class KioskController {
     }
   }
 
-  /// Khusus iOS: Cek apakah fitur Akses Terpandu (Guided Access) atau Sesi Assessment aktif.
+  /// Khusus iOS: Cek apakah fitur Akses Terpandu (Guided Access) aktif.
   Future<bool> isGuidedAccessActive() async {
     if (_isReviewer) return true;
     try {
@@ -164,6 +185,26 @@ class KioskController {
       return res ?? true;
     } catch (_) {
       return true;
+    }
+  }
+
+  /// Cek apakah Screen Pinning diaktifkan di Pengaturan Android.
+  Future<bool> isScreenPinningEnabled() async {
+    try {
+      final res = await _channel.invokeMethod<bool>('isScreenPinningEnabled');
+      return res ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// Buka halaman Pengaturan Semat Layar (Screen Pinning) Android.
+  Future<bool> openScreenPinningSettings() async {
+    try {
+      final res = await _channel.invokeMethod<bool>('openScreenPinningSettings');
+      return res ?? false;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -178,44 +219,67 @@ class KioskController {
   }
 
   /// Panggil native agar siswa melihat dialog Sematkan / Pin lagi (hanya saat kiosk aktif).
-  Future<void> requestScreenPinAgain() async {
+  Future<bool> requestScreenPinAgain() async {
     try {
-      await _channel.invokeMethod('requestScreenPin');
-    } catch (_) {}
+      final res = await _channel.invokeMethod<bool>('requestScreenPin');
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
   }
 
-  Future<void> _handleGlobalLockTaskLost() async {
-    if (_isReviewer) return;
+  /// Pintu tunggal penanganan pelanggaran fatal selama ujian aktif.
+  /// Mencegah double/triple suspend akibat race kondisi native + Flutter listener.
+  Future<bool> handleFatalViolation({
+    required String reason,
+    String? uiMessage,
+    int? userId,
+  }) async {
+    if (_isReviewer || _handlingFatalViolation || !_inExamMode) return false;
     final username = (await AuthService.getUsername()).toLowerCase().trim();
     if (isReviewerUsername(username)) {
       _isReviewer = true;
-      return;
+      return false;
     }
+    _handlingFatalViolation = true;
+    _notifyViolation(reason);
 
-    final userId = await AuthService.getUserId();
-    if (userId > 0) {
+    final effectiveUid = (userId != null && userId > 0)
+        ? userId
+        : await AuthService.getUserId();
+
+    bool suspended = false;
+    if (effectiveUid > 0) {
       try {
-        await ExamService.suspendStudent(
-          userId: userId,
-          reason: 'Siswa memaksa melepas pinned screen (alarm aktif)',
+        suspended = await ExamService.suspendStudent(
+          userId: effectiveUid,
+          reason: reason,
         );
-      } catch (_) {}
+      } catch (_) {
+        suspended = false;
+      }
+      if (!suspended) {
+        await ExamService.savePendingSuspend(effectiveUid);
+      }
     }
     await AuthService.saveBlockedStatus(true);
     await AuthService.saveSuspendedByAdmin(true);
+    await unlock();
 
-    final ctx = _rootNavigatorKey?.currentContext;
-    if (ctx != null && ctx.mounted) {
-      Navigator.of(ctx).pushAndRemoveUntil(
+    final navState = _rootNavigatorKey?.currentState;
+    if (navState != null && navState.mounted) {
+      navState.pushAndRemoveUntil(
         MaterialPageRoute(
           builder: (_) => BlockedScreen(
-            userId: userId,
-            reason: 'Akun Anda ditangguhkan karena Anda memaksa melepas kuncian layar (pinned screen). Harap segera melapor ke pengawas ujian.',
+            userId: effectiveUid,
+            reason: uiMessage ??
+                'Akun Anda ditangguhkan karena pelanggaran keamanan saat ujian berlangsung. Harap segera melapor ke pengawas ujian.',
           ),
         ),
         (route) => false,
       );
     }
+    return true;
   }
 
   /// Daftarkan userId siswa ke native layer agar tersimpan saat terjadi pelanggaran mendadak.
@@ -263,53 +327,76 @@ class KioskController {
     }
   }
 
-  /// Aktifkan kunci penuh — dipanggil tepat setelah login berhasil.
+  /// Aktifkan kunci penuh (idempoten — aman dipanggil berulang tanpa mereset state ujian).
   Future<void> lock({int? userId}) async {
     try {
       final username = (await AuthService.getUsername()).toLowerCase().trim();
       final reviewer = isReviewerUsername(username);
       await setReviewerMode(reviewer);
     } catch (_) {}
-    try { await _channel.invokeMethod('enableLockdown'); }   catch (_) {}
+
+    if (_active) {
+      if (userId != null && userId > 0) {
+        await setUserId(userId);
+      }
+      try { await _channel.invokeMethod('keepScreenOn'); } catch (_) {}
+      return;
+    }
+
+    try { await _channel.invokeMethod('enableLockdown'); } catch (_) {}
     try {
       final effectiveId = (userId != null && userId > 0) ? userId : await AuthService.getUserId();
       await _channel.invokeMethod('enterLockTask', {'userId': effectiveId});
     } catch (_) {}
-    try { await _channel.invokeMethod('lockBackButton'); }   catch (_) {}
-    try { await _channel.invokeMethod('keepScreenOn'); }     catch (_) {}
-    _active           = true;
-    _inExamMode       = false;
-    _sessionStartedAt = DateTime.now(); // mulai hitung grace period 10 menit
+    try { await _channel.invokeMethod('lockBackButton'); } catch (_) {}
+    try { await _channel.invokeMethod('keepScreenOn'); } catch (_) {}
+
+    _active = true;
+    _inExamMode = false;
+    _handlingFatalViolation = false;
+    _sessionStartedAt = DateTime.now(); // mulai hitung grace period 15 detik
+    _lockedAt = _sessionStartedAt;
     _notify();
   }
 
-  /// Lepas semua kunci — dipanggil saat keluar aplikasi dengan password.
+  /// Pastikan kiosk aktif lalu tandai mode ujian aktif secara atomik.
+  Future<void> ensureLockedAndEnterExam({required int userId}) async {
+    await lock(userId: userId);
+    enterExam();
+  }
+
+  /// Lepas semua kunci — dipanggil saat keluar aplikasi atau saat suspend.
   Future<void> unlock() async {
-    try { await _channel.invokeMethod('exitLockTask'); }      catch (_) {}
-    try { await _channel.invokeMethod('disableLockdown'); }   catch (_) {}
-    try { await _channel.invokeMethod('unlockBackButton'); }  catch (_) {}
-    try { await _channel.invokeMethod('clearScreenOn'); }     catch (_) {}
-    _active           = false;
-    _inExamMode       = false;
+    try { await _channel.invokeMethod('setExamMode', {'active': false}); } catch (_) {}
+    try { await _channel.invokeMethod('exitLockTask'); } catch (_) {}
+    try { await _channel.invokeMethod('disableLockdown'); } catch (_) {}
+    try { await _channel.invokeMethod('unlockBackButton'); } catch (_) {}
+    try { await _channel.invokeMethod('clearScreenOn'); } catch (_) {}
+    _active = false;
+    _inExamMode = false;
+    _handlingFatalViolation = false;
     _sessionStartedAt = null;
+    _lockedAt = null;
     _notify();
   }
 
-  /// Tandai sedang di dalam ExamScreen — sembunyikan tombol Keluar overlay & pastikan layar tetap menyala.
+  /// Tandai sedang di dalam layar kuis aktif.
   void enterExam() {
     _inExamMode = true;
+    _handlingFatalViolation = false;
+    _channel.invokeMethod('setExamMode', {'active': true}).catchError((_) {});
     _channel.invokeMethod('keepScreenOn').catchError((_) {});
     _notify();
   }
 
-  /// Kembali dari ExamScreen — tampilkan kembali tombol Keluar overlay.
+  /// Kembali dari layar kuis aktif.
   void exitExam() {
     _inExamMode = false;
+    _channel.invokeMethod('setExamMode', {'active': false}).catchError((_) {});
     _notify();
   }
 
   /// Cek apakah koneksi VPN aktif saat ini.
-  /// Return true = VPN aktif. Null = platform tidak support / error.
   Future<bool?> checkVpn() async {
     try {
       final res = await _channel.invokeMethod<bool>('checkVpn');
@@ -320,8 +407,6 @@ class KioskController {
   }
 
   /// Cek apakah perangkat kemungkinan di-root.
-  /// [isRooted] true jika salah satu sinyal (su binary, test-keys, root app) positif.
-  /// Null = platform tidak support / error.
   Future<({bool isRooted, bool suBinaryFound, bool testKeys, bool rootAppFound})?> checkRootStatus() async {
     try {
       final res = await _channel.invokeMapMethod<String, dynamic>('checkRootStatus');
@@ -338,7 +423,6 @@ class KioskController {
   }
 
   /// Cek apakah ada display tambahan yang aktif (screen cast / Chromecast / mirroring).
-  /// Return true = casting aktif. Null = platform tidak support / error.
   Future<bool?> checkScreenCast() async {
     try {
       final res = await _channel.invokeMethod<bool>('checkScreenCast');
@@ -349,7 +433,6 @@ class KioskController {
   }
 
   /// Kembalikan daftar nama accessibility service pihak ketiga yang aktif.
-  /// List kosong = aman. Null = platform tidak support / error.
   Future<List<String>?> checkAccessibilityServices() async {
     try {
       final res = await _channel.invokeListMethod<String>('checkAccessibilityServices');
@@ -360,7 +443,6 @@ class KioskController {
   }
 
   /// Cek apakah USB Debugging atau Developer Mode aktif di perangkat.
-  /// Return null jika platform tidak support (iOS / error).
   Future<({bool usbDebugging, bool developerMode})?> checkDeviceSecurityFlags() async {
     try {
       final res = await _channel.invokeMapMethod<String, dynamic>('checkSecurityFlags');
@@ -375,8 +457,6 @@ class KioskController {
   }
 
   /// Cek apakah izin Do Not Disturb (Notification Policy Access) sudah diberikan.
-  /// Return false jika belum — UI harus meminta siswa memberikan izin sebelum ujian.
-  /// Non-Android selalu mengembalikan true (tidak relevan).
   Future<bool> isDndPermissionGranted() async {
     try {
       final res = await _channel.invokeMethod<bool>('isDndPermissionGranted');
@@ -387,7 +467,6 @@ class KioskController {
   }
 
   /// Buka halaman pengaturan DND agar siswa/admin bisa memberikan izin.
-  /// Return true jika berhasil membuka Settings, false jika semua intent gagal.
   Future<bool> openDndSettings() async {
     try {
       final res = await _channel.invokeMethod<bool>('openDndSettings');
@@ -400,8 +479,7 @@ class KioskController {
   /// Ambil password keluar dari endpoint Moodle (API key statis).
   ///
   /// Jika [success] false, jangan anggap password kosong — berarti gagal fetch
-  /// (jaringan, 401, 500, body bukan JSON). UI wajib menolak keluar tanpa
-  /// verifikasi atau menampilkan dialog setelah retry.
+  /// (jaringan, 401, 500, body bukan JSON).
   Future<ExitPasswordFetchResult> fetchExitPassword() async {
     try {
       final username = (await AuthService.getUsername()).toLowerCase().trim();

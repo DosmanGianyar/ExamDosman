@@ -40,30 +40,6 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._internal();
 
-  /// Kirim heartbeat ke backend (proxy.php)
-  static Future<void> heartbeatPing(String username) async {
-    final url = Uri.parse(
-      '${AppConfig.moodleUrl}/dashboard/proxy.php?_endpoint=heartbeat'
-      '&username=${Uri.encodeComponent(username)}'
-      '&token=${Uri.encodeComponent(_token ?? '')}',
-    );
-    try {
-      await http.get(url).timeout(const Duration(seconds: 10));
-    } catch (_) {}
-  }
-
-  /// Kirim aktivitas logout ke backend (proxy.php)
-  static Future<void> logoutActivity(String username) async {
-    final url = Uri.parse(
-      '${AppConfig.moodleUrl}/dashboard/proxy.php?_endpoint=logout_activity'
-      '&username=${Uri.encodeComponent(username)}'
-      '&token=${Uri.encodeComponent(_token ?? '')}',
-    );
-    try {
-      await http.get(url).timeout(const Duration(seconds: 10));
-    } catch (_) {}
-  }
-
   // Singleton token — diset setelah login
   static String? _token;
   static String get moodleUrl => AppConfig.moodleUrl;
@@ -471,6 +447,21 @@ class ApiService {
       // biarkan return []
     }
 
+    return [];
+  }
+
+  /// Ambil daftar quiz untuk banyak course sekaligus dalam 1 REST API call.
+  static Future<List<Map<String, dynamic>>> getQuizzesForCourses(
+    List<int> courseIds,
+  ) async {
+    if (courseIds.isEmpty) return [];
+    final data = await call('mod_quiz_get_quizzes_by_courses', {
+      'courseids': courseIds,
+    });
+    if (data is Map<String, dynamic>) {
+      final quizzes = data['quizzes'] as List<dynamic>? ?? [];
+      return quizzes.whereType<Map<String, dynamic>>().toList();
+    }
     return [];
   }
 

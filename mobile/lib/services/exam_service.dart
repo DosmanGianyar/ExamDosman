@@ -7,15 +7,42 @@ import 'dart:convert';
 import 'dart:developer' as dev;
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import 'api_service.dart';
 import 'auth_service.dart';
+import 'kiosk_controller.dart';
 import '../models/session.dart';
 import '../utils/app_version.dart';
 
 class ExamService {
   ExamService._();
+
+  static const _kPendingSuspendKey = 'dosman_pending_suspend_userid';
+  static const _storage = FlutterSecureStorage();
+
+  /// Simpan userId yang gagal disuspend karena offline untuk di-flush saat app dibuka kembali.
+  static Future<void> savePendingSuspend(int userId) async {
+    await _storage.write(key: _kPendingSuspendKey, value: userId.toString());
+  }
+
+  static Future<void> clearPendingSuspend() async {
+    await _storage.delete(key: _kPendingSuspendKey);
+  }
+
+  /// Kirim ulang suspend yang tertunda akibat jaringan putus saat pelanggaran terjadi.
+  static Future<void> flushPendingSuspend() async {
+    final val = await _storage.read(key: _kPendingSuspendKey);
+    if (val == null) return;
+    final uid = int.tryParse(val) ?? 0;
+    if (uid <= 0) {
+      await _storage.delete(key: _kPendingSuspendKey);
+      return;
+    }
+    final ok = await suspendStudent(userId: uid);
+    if (ok) await _storage.delete(key: _kPendingSuspendKey);
+  }
 
   /// Pengumuman broadcast aktif dari pengawas/dashboard.
   /// Berisi: { message: String, created_at: int, expires_at: int, sender: String }
@@ -23,24 +50,6 @@ class ExamService {
 
   /// Latency ping terakhir ke server Moodle (ms). null = putus / timeout.
   static final ValueNotifier<int?> lastPingLatencyMs = ValueNotifier(null);
-
-  // ─── Heartbeat: ping server setiap 5 detik ─────────────────────────────
-  static bool _heartbeatActive = false;
-  static Future<void> startHeartbeat() async {
-    if (_heartbeatActive) return;
-    _heartbeatActive = true;
-    while (_heartbeatActive) {
-      try {
-        final username = await AuthService.getUsername();
-        await ApiService.heartbeatPing(username);
-      } catch (_) {}
-      await Future.delayed(const Duration(seconds: 5));
-    }
-  }
-
-  static void stopHeartbeat() {
-    _heartbeatActive = false;
-  }
 
   /// Ambil konfigurasi client untuk dashboard/admin.
   ///
@@ -323,11 +332,7 @@ class ExamService {
   }) async {
     try {
       final username = (await AuthService.getUsername()).toLowerCase().trim();
-      if (username == 'playstore.review' ||
-          username == 'appstore.review' ||
-          username == 'apple.review' ||
-          username.contains('review') ||
-          username.contains('demo')) {
+      if (KioskController.isReviewerUsername(username)) {
         return false;
       }
 
@@ -472,31 +477,6 @@ class ExamService {
       return true;
     }
   }
-
-  /// Kirim browser heartbeat ke server (bukti app masih aktif di LockedBrowserScreen).
-  /// [active] = true saat aktif, false saat keluar dengan benar.
-  /// Fire-and-forget — tidak perlu await, error diabaikan.
-  static Future<void> sendBrowserHeartbeat({
-    required int userId,
-    bool active = true,
-  }) async {
-    try {
-      final uri = Uri.parse(
-        '${AppConfig.moodleUrl}/local/dosman_ujian/browser_heartbeat.php',
-      );
-      await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'apikey': AppConfig.exitPwdApiKey,
-          'userid': userId,
-          'active': active ? 1 : 0,
-        }),
-      ).timeout(const Duration(seconds: 5));
-    } catch (_) {} // tidak kritis, diabaikan
-  }
-
-
 
   /// Cek apakah device_id diblokir di server.
   static Future<({bool blocked, String reason, int blockedAt})> checkDevice(

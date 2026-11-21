@@ -10,6 +10,7 @@ import AVFoundation
     private let lockdownChannel = "com.dosman.ujian/lockdown"
     private var flutterChannel: FlutterMethodChannel?
     private var isLockdownActive = false
+    private var isExamMode = false
     private var wasGuidedAccessEnabled = false
     private var isReviewerMode = false
     private var isScreenLocked = false
@@ -47,10 +48,19 @@ import AVFoundation
 
             case "disableLockdown":
                 self.isLockdownActive = false
+                self.isExamMode = false
                 self.wasGuidedAccessEnabled = false
                 UIApplication.shared.isIdleTimerDisabled = false
                 self.hidePrivacyOverlay()
                 result(true)
+
+            case "setExamMode":
+                let active = (call.arguments as? [String: Any])?["active"] as? Bool ?? false
+                self.isExamMode = active
+                result(true)
+
+            case "getAndroidId":
+                result("")
 
             case "setReviewerMode":
                 let isReviewer = (call.arguments as? [String: Any])?["isReviewer"] as? Bool ?? false
@@ -62,6 +72,7 @@ import AVFoundation
 
             case "unpinPasswordAck":
                 self.isLockdownActive = false
+                self.isExamMode = false
                 self.wasGuidedAccessEnabled = false
                 result(true)
 
@@ -83,6 +94,7 @@ import AVFoundation
 
             case "exitLockTask":
                 self.isLockdownActive = false
+                self.isExamMode = false
                 self.wasGuidedAccessEnabled = false
                 UIApplication.shared.isIdleTimerDisabled = false
                 self.hidePrivacyOverlay()
@@ -170,14 +182,6 @@ import AVFoundation
                 }
                 result(false)
 
-            case "keepScreenOn":
-                UIApplication.shared.isIdleTimerDisabled = true
-                result(true)
-
-            case "clearScreenOn":
-                UIApplication.shared.isIdleTimerDisabled = false
-                result(true)
-
             case "getAppFilesDir":
                 if let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
                     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -262,7 +266,7 @@ import AVFoundation
     }
 
     @objc private func audioRouteChanged() {
-        guard isLockdownActive else { return }
+        guard isLockdownActive && isExamMode else { return }
         let outputs = AVAudioSession.sharedInstance().currentRoute.outputs
         let isBt = outputs.contains { port in
             port.portType == .bluetoothA2DP ||
@@ -303,8 +307,8 @@ import AVFoundation
             }
             return
         }
-        // Jika Akses Terpadu dimatikan oleh siswa saat ujian/lockdown aktif tanpa lewat password keluar
-        if isLockdownActive && wasGuidedAccessEnabled && !isReviewerMode {
+        // Jika Akses Terpadu dimatikan oleh siswa saat ujian aktif
+        if isLockdownActive && isExamMode && wasGuidedAccessEnabled && !isReviewerMode {
             wasGuidedAccessEnabled = false
             flutterChannel?.invokeMethod("onLockTaskLost", arguments: nil)
         }

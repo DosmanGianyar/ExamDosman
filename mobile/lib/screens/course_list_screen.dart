@@ -322,34 +322,70 @@ class _CourseListScreenState extends State<CourseListScreen> {
 
   Future<void> _loadCourseStats(int userId, List<Course> courses) async {
     if (userId <= 0 || courses.isEmpty) return;
-    await Future.wait(courses.map((c) async {
-      try {
-        final rawQuizzes = await ApiService.getQuizzes(c.id);
-        int fin = 0;
-        int inp = 0;
-        for (final q in rawQuizzes) {
-          if (q is! Map<String, dynamic>) continue;
-          final visible = q['visible'] == 1 || q['visible'] == true;
-          if (!visible) continue;
-          final qid = (q['id'] as num?)?.toInt() ?? 0;
-          if (qid <= 0) continue;
-          final attempts = await ApiService.getUserQuizAttempts(qid, userId);
-          for (final a in attempts) {
-            final st = (a['state'] as String? ?? '').toLowerCase();
-            if (st == 'finished' || st == 'overdue') {
-              fin++;
-            } else if (st == 'inprogress') {
-              inp++;
-            }
+    try {
+      final rawQuizzes = await ApiService.getQuizzesForCourses(
+        courses.map((c) => c.id).toList(),
+      );
+      final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      const daySec = 86400;
+
+      final relevantQuizzes = <({int quizId, int courseId})>[];
+      final statsByCourse = <int, ({int finished, int inProgress})>{};
+
+      for (final q in rawQuizzes) {
+        final visible = q['visible'] == 1 || q['visible'] == true;
+        if (!visible) continue;
+        final qid = (q['id'] as num?)?.toInt() ?? 0;
+        final cid = (q['course'] as num?)?.toInt() ?? 0;
+        if (qid <= 0 || cid <= 0) continue;
+
+        final timeOpen = (q['timeopen'] as num?)?.toInt() ?? 0;
+        final timeClose = (q['timeclose'] as num?)?.toInt() ?? 0;
+        final openOk = timeOpen == 0 || nowSec >= timeOpen;
+        final closeRecentOrOpen = timeClose == 0 || nowSec <= (timeClose + daySec);
+        if (openOk && closeRecentOrOpen) {
+          relevantQuizzes.add((quizId: qid, courseId: cid));
+        }
+      }
+
+      if (relevantQuizzes.isNotEmpty) {
+        var nextIdx = 0;
+        final workerCount = relevantQuizzes.length < 2 ? relevantQuizzes.length : 2;
+        Future<void> worker() async {
+          while (true) {
+            if (nextIdx >= relevantQuizzes.length) break;
+            final item = relevantQuizzes[nextIdx++];
+            try {
+              final attempts = await ApiService.getUserQuizAttempts(item.quizId, userId);
+              int fin = 0;
+              int inp = 0;
+              for (final a in attempts) {
+                final st = (a['state'] as String? ?? '').toLowerCase();
+                if (st == 'finished' || st == 'overdue') {
+                  fin++;
+                } else if (st == 'inprogress') {
+                  inp++;
+                }
+              }
+              final prev = statsByCourse[item.courseId] ?? (finished: 0, inProgress: 0);
+              statsByCourse[item.courseId] = (
+                finished: prev.finished + fin,
+                inProgress: prev.inProgress + inp,
+              );
+            } catch (_) {}
           }
         }
-        if (mounted) {
-          setState(() {
-            _courseStats[c.id] = (finished: fin, inProgress: inp);
-          });
-        }
-      } catch (_) {}
-    }));
+        await Future.wait(List.generate(workerCount, (_) => worker()));
+      }
+
+      if (mounted) {
+        setState(() {
+          for (final c in courses) {
+            _courseStats[c.id] = statsByCourse[c.id] ?? (finished: 0, inProgress: 0);
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   // ─── Navigate ke QuizList ─────────────────────────────────────────────────────

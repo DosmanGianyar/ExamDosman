@@ -21,7 +21,6 @@ import '../services/kiosk_controller.dart';
 import '../services/offline_quiz_service.dart';
 import '../widgets/exit_password_dialog.dart';
 import 'blocked_screen.dart';
-import 'exam_screen.dart';
 
 class OfflineQuizScreen extends StatefulWidget {
   final Quiz quiz;
@@ -63,6 +62,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
   bool _isSubmitting = false;
   bool _waitingSignalToSubmit = false;
   String _submitError = '';
+  int _submitRetryAttempt = 0;
   Timer? _submitRetryTimer;
 
   // ─── Keamanan & Heartbeat ────────────────────────────────────────────────
@@ -81,8 +81,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     _loadStudentInfo();
     WidgetsBinding.instance.addObserver(this);
     KioskController.instance.addViolationListener(_onNativeViolation);
-    KioskController.instance.lock(userId: widget.userId);
-    KioskController.instance.enterExam();
+    KioskController.instance.ensureLockedAndEnterExam(userId: widget.userId);
     _startDownload();
     _startHeartbeat();
   }
@@ -636,10 +635,110 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     }
   }
 
-  Future<void> _submitQuiz({bool timeUp = false}) async {
+  Future<void> _onSubmitSuccess(OfflineQuizPackage pkg) async {
+    final answeredCount = pkg.questions.where((q) => q.selectedValue != null).length;
+    final studentName = await AuthService.getFullname();
+    final sentTime = DateTime.now();
+    final timeLabel =
+        '${sentTime.hour.toString().padLeft(2, '0')}:${sentTime.minute.toString().padLeft(2, '0')}:${sentTime.second.toString().padLeft(2, '0')}';
+
+    _submitRetryTimer?.cancel();
+    await OfflineQuizService.clearSavedPackage(
+      userId: pkg.userId,
+      quizId: pkg.quizId,
+    );
+    _countdownTimer?.cancel();
+
+    if (!mounted) return;
+    setState(() {
+      _isSubmitting = false;
+      _waitingSignalToSubmit = false;
+      _submitError = '';
+      _submitRetryAttempt = 0;
+    });
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF064E3B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: Color(0xFF34D399), width: 1.5),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.verified_rounded, color: Color(0xFF34D399), size: 28),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'BUKTI UJIAN TERKIRIM',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Jawaban Anda telah diterima dan tersimpan resmi di server Moodle.',
+              style: TextStyle(color: Color(0xFFD1FAE5), fontSize: 13, height: 1.45),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Siswa: ${_studentName.isNotEmpty ? _studentName : studentName}',
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                  if (_studentClass.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text('Kelas: $_studentClass', style: const TextStyle(color: Color(0xFF93C5FD), fontSize: 12, fontWeight: FontWeight.w600)),
+                  ],
+                  const SizedBox(height: 4),
+                  Text('Ujian: ${pkg.quizName}', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                  const SizedBox(height: 4),
+                  Text('Terjawab: $answeredCount / ${pkg.questions.length} soal', style: const TextStyle(color: Color(0xFF6EE7B7), fontSize: 12, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  Text('Jam Kirim: $timeLabel WITA (ID #${pkg.attemptId})', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+              child: const Text('Selesai & Kembali', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (mounted) {
+      Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == '/courses');
+    }
+  }
+
+  Future<void> _submitQuiz({bool timeUp = false, bool hasRefreshedSeq = false}) async {
     final pkg = _package;
     if (pkg == null || _isSubmitting) return;
 
+    _submitRetryTimer?.cancel();
     setState(() {
       _isSubmitting = true;
       _submitError = '';
@@ -659,109 +758,101 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
         throw ApiException('Server belum mengonfirmasi status selesai ($attemptState).');
       }
 
-      final answeredCount = pkg.questions.where((q) => q.selectedValue != null).length;
-      final studentName = await AuthService.getFullname();
-      final sentTime = DateTime.now();
-      final timeLabel =
-          '${sentTime.hour.toString().padLeft(2, '0')}:${sentTime.minute.toString().padLeft(2, '0')}:${sentTime.second.toString().padLeft(2, '0')}';
-
-      _submitRetryTimer?.cancel();
-      await OfflineQuizService.clearSavedPackage(
-        userId: pkg.userId,
-        quizId: pkg.quizId,
-      );
-      _countdownTimer?.cancel();
-
-      if (!mounted) return;
-      setState(() {
-        _isSubmitting = false;
-        _waitingSignalToSubmit = false;
-      });
-
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF064E3B),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-            side: const BorderSide(color: Color(0xFF34D399), width: 1.5),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.verified_rounded, color: Color(0xFF34D399), size: 28),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'BUKTI UJIAN TERKIRIM',
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Jawaban Anda telah diterima dan tersimpan resmi di server Moodle.',
-                style: TextStyle(color: Color(0xFFD1FAE5), fontSize: 13, height: 1.45),
-              ),
-              const SizedBox(height: 14),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                        'Siswa: ${_studentName.isNotEmpty ? _studentName : studentName}',
-                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-                    if (_studentClass.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text('Kelas: $_studentClass', style: const TextStyle(color: Color(0xFF93C5FD), fontSize: 12, fontWeight: FontWeight.w600)),
-                    ],
-                    const SizedBox(height: 4),
-                    Text('Ujian: ${pkg.quizName}', style: const TextStyle(color: Colors.white, fontSize: 12)),
-                    const SizedBox(height: 4),
-                    Text('Terjawab: $answeredCount / ${pkg.questions.length} soal', style: const TextStyle(color: Color(0xFF6EE7B7), fontSize: 12, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 4),
-                    Text('Jam Kirim: $timeLabel WITA (ID #${pkg.attemptId})', style: const TextStyle(color: Colors.white70, fontSize: 11)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(ctx),
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
-                child: const Text('Selesai & Kembali', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-              ),
-            ),
-          ],
-        ),
-      );
-
-      if (mounted) {
-        Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == '/courses');
-      }
+      _submitRetryAttempt = 0;
+      await _onSubmitSuccess(pkg);
     } catch (e) {
       if (!mounted) return;
-      // Gagal kirim karena sinyal putus → tahan di layar tunggu dengan auto-retry 5 detik
+      final action = OfflineQuizService.classifySubmitError(e);
+
+      if (action == SubmitErrorAction.alreadyFinished) {
+        // Konfirmasi ke server bila memungkinkan, lalu tampilkan bukti terkirim
+        var confirmedClosed = true;
+        try {
+          final attempts = await ApiService.getUserQuizAttempts(pkg.quizId, pkg.userId);
+          for (final a in attempts) {
+            if ((a['id'] as num?)?.toInt() == pkg.attemptId) {
+              final st = (a['state'] as String? ?? '').toLowerCase();
+              confirmedClosed = (st == 'finished' || st == 'overdue' || st == 'abandoned');
+              break;
+            }
+          }
+        } catch (_) {
+          // Error sudah eksplisit menyatakan attempt sudah selesai di Moodle
+          confirmedClosed = true;
+        }
+        if (!mounted) return;
+        if (confirmedClosed) {
+          _submitRetryAttempt = 0;
+          await _onSubmitSuccess(pkg);
+          return;
+        }
+      }
+
+      if (action == SubmitErrorAction.outOfSequence && !hasRefreshedSeq) {
+        setState(() {
+          _submitError = 'Menyelaraskan urutan jawaban dengan server...';
+        });
+        try {
+          final st = await OfflineQuizService.refreshSequenceChecks(
+            pkg,
+            quizPassword: _quizPassword,
+          );
+          if (!mounted) return;
+          if (st == 'finished' || st == 'overdue' || st == 'abandoned') {
+            _submitRetryAttempt = 0;
+            await _onSubmitSuccess(pkg);
+            return;
+          }
+          setState(() => _isSubmitting = false);
+          await _submitQuiz(timeUp: timeUp, hasRefreshedSeq: true);
+          return;
+        } catch (refreshErr) {
+          if (!mounted) return;
+          final refreshAction = OfflineQuizService.classifySubmitError(refreshErr);
+          if (refreshAction == SubmitErrorAction.alreadyFinished) {
+            _submitRetryAttempt = 0;
+            await _onSubmitSuccess(pkg);
+            return;
+          }
+          if (refreshAction == SubmitErrorAction.authBlocked) {
+            _submitRetryTimer?.cancel();
+            setState(() {
+              _isSubmitting = false;
+              _waitingSignalToSubmit = true;
+              _submitError =
+                  'Sesi/akun ditangguhkan atau token berakhir. Jawaban Anda tetap tersimpan aman di HP ini. Hubungi pengawas lalu tekan Kirim Ulang.';
+            });
+            return;
+          }
+        }
+      }
+
+      if (action == SubmitErrorAction.authBlocked) {
+        _submitRetryTimer?.cancel();
+        setState(() {
+          _isSubmitting = false;
+          _waitingSignalToSubmit = true;
+          _submitError =
+              'Sesi/akun ditangguhkan atau token berakhir. Jawaban Anda tetap tersimpan aman di HP ini. Hubungi pengawas lalu tekan Kirim Ulang.';
+        });
+        return;
+      }
+
+      // Error jaringan / timeout / 502 → jadwal retry adaptif 5s → 8s → 12s → 15s
+      const backoffDelays = [5, 8, 12, 15];
+      final idx = _submitRetryAttempt < backoffDelays.length
+          ? _submitRetryAttempt
+          : backoffDelays.length - 1;
+      final delaySec = backoffDelays[idx];
+      _submitRetryAttempt++;
+
       setState(() {
         _isSubmitting = false;
         _waitingSignalToSubmit = true;
-        _submitError = e.toString();
+        _submitError = '$e (mencoba ulang dalam $delaySec dtk...)';
       });
       _submitRetryTimer?.cancel();
-      _submitRetryTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _submitRetryTimer = Timer(Duration(seconds: delaySec), () {
         if (mounted && _waitingSignalToSubmit && !_isSubmitting) {
           _submitQuiz(timeUp: timeUp);
         }
@@ -805,16 +896,26 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
   }
 
   void _onNativeViolation(String reason) {
-    final allowedFatal = reason == 'lock_task_lost' ||
-        reason.contains('unpin') ||
-        reason == 'split_screen' ||
-        reason == 'virtual_environment' ||
-        reason == 'cloned_app' ||
-        reason == 'bluetooth_audio';
-    if (!allowedFatal) return;
+    if (reason == 'screenshot_attempt') {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Peringatan: Percobaan screenshot terdeteksi dan dicatat.'),
+            backgroundColor: Color(0xFFD97706),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+      return;
+    }
+    // Pelanggaran fatal ditangani terpusat di KioskController.handleFatalViolation;
+    // layar ujian cukup menghentikan seluruh timer lokal.
     if (_blockSent || !mounted) return;
     _blockSent = true;
-    _triggerSuspend(reason);
+    _pingTimer?.cancel();
+    _countdownTimer?.cancel();
+    _blockTimer?.cancel();
+    _submitRetryTimer?.cancel();
   }
 
   @override
@@ -846,9 +947,17 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     _blockTimer = Timer(
       const Duration(seconds: AppConfig.backgroundBlockTimeout),
       () async {
-        if (KioskController.instance.isInGracePeriod) return;
+        if (KioskController.instance.isInGracePeriod || _blockSent) return;
         _blockSent = true;
-        await _triggerSuspend('background_timeout_auto_suspend');
+        _pingTimer?.cancel();
+        _countdownTimer?.cancel();
+        _submitRetryTimer?.cancel();
+        await KioskController.instance.handleFatalViolation(
+          reason: 'Pelanggaran keamanan ujian: background_timeout_auto_suspend',
+          uiMessage:
+              'Akun Anda ditangguhkan karena aplikasi ditinggalkan di latar belakang saat ujian berlangsung.',
+          userId: widget.userId,
+        );
       },
     );
   }
@@ -863,38 +972,16 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     if (wasOff) return;
     if (elapsed >= AppConfig.backgroundBlockTimeout && !KioskController.instance.isInGracePeriod) {
       _blockSent = true;
-      await _triggerSuspend('background_timeout_auto_suspend');
-    }
-  }
-
-  Future<void> _triggerSuspend(String reason) async {
-    _pingTimer?.cancel();
-    _countdownTimer?.cancel();
-    bool suspended = false;
-    try {
-      suspended = await ExamService.suspendStudent(
+      _pingTimer?.cancel();
+      _countdownTimer?.cancel();
+      _submitRetryTimer?.cancel();
+      await KioskController.instance.handleFatalViolation(
+        reason: 'Pelanggaran keamanan ujian: background_timeout_auto_suspend',
+        uiMessage:
+            'Akun Anda ditangguhkan karena aplikasi ditinggalkan di latar belakang saat ujian berlangsung.',
         userId: widget.userId,
-        reason: 'Pelanggaran keamanan ujian: $reason',
       );
-    } catch (_) {
-      suspended = false;
     }
-    if (!suspended && widget.userId > 0) {
-      await ExamScreen.savePendingSuspend(widget.userId);
-    }
-    await AuthService.saveBlockedStatus(true);
-    await AuthService.saveSuspendedByAdmin(true);
-    await KioskController.instance.unlock();
-    if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (_) => BlockedScreen(
-          userId: widget.userId,
-          reason: 'Akun Anda ditangguhkan karena pelanggaran keamanan saat ujian berlangsung.',
-        ),
-      ),
-      (route) => false,
-    );
   }
 
   Future<void> _handleExit() async {
@@ -1257,7 +1344,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
             const SizedBox(height: 12),
             const Text(
               'Jangan tutup aplikasi! Seluruh jawaban Anda sudah tersimpan aman di HP ini. '
-              'Aplikasi otomatis mencoba mengirim ulang setiap 5 detik begitu sinyal Wi-Fi terhubung.',
+              'Aplikasi otomatis mencoba mengirim ulang secara berkala begitu sinyal Wi-Fi terhubung.',
               style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.55),
               textAlign: TextAlign.center,
             ),
@@ -1265,16 +1352,21 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
               const SizedBox(height: 10),
               Text(
                 _submitError,
-                style: const TextStyle(color: Color(0xFF64748B), fontSize: 11),
+                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
                 textAlign: TextAlign.center,
-                maxLines: 2,
+                maxLines: 3,
               ),
             ],
             const SizedBox(height: 22),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _isSubmitting ? null : () => _submitQuiz(timeUp: _autoSubmittedOnTimeout),
+                onPressed: _isSubmitting
+                    ? null
+                    : () {
+                        _submitRetryAttempt = 0;
+                        _submitQuiz(timeUp: _autoSubmittedOnTimeout);
+                      },
                 icon: const Icon(Icons.send_rounded),
                 label: Text(_isSubmitting ? 'Mengirim...' : 'Kirim Ulang Sekarang'),
               ),

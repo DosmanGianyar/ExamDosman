@@ -13,6 +13,13 @@ import '../config/app_config.dart';
 import 'api_service.dart';
 import 'auth_service.dart';
 
+enum SubmitErrorAction {
+  alreadyFinished,
+  outOfSequence,
+  authBlocked,
+  retryableNetwork,
+}
+
 class OfflineOption {
   final String value;
   final String labelLetter; // A, B, C, D, E
@@ -44,7 +51,7 @@ class OfflineQuestion {
   final String questionHtml;
   final String answerFieldName;
   final String sequenceCheckName;
-  final String sequenceCheckValue;
+  String sequenceCheckValue;
   final List<OfflineOption> options;
   String? selectedValue;
   bool isFlagged;
@@ -359,17 +366,69 @@ class OfflineQuizService {
       throw ApiException('Tidak ada soal ditemukan pada kuis ini.');
     }
 
-    // 4. Parse tiap soal Pilihan Ganda + unduh gambar inline ke base64
-    final parsed = <OfflineQuestion>[];
+    // 4. Parse tiap soal Pilihan Ganda dulu (tanpa jaringan), lalu unduh gambar unik secara paralel (maks 4)
     final imageCache = <String, String>{};
+    final draftQuestions = <OfflineQuestion>[];
+    final imageUrls = <String>{};
     for (var i = 0; i < rawQuestions.length; i++) {
       onProgress?.call(
         'Menyiapkan soal ${i + 1} dari ${rawQuestions.length}...',
-        0.60 + (0.38 * (i + 1) / rawQuestions.length),
+        0.55 + (0.05 * (i + 1) / rawQuestions.length),
       );
-      final q = await _parseMoodleQuestion(rawQuestions[i], i + 1, token, imageCache);
-      parsed.add(q);
+      final q = await parseMoodleQuestion(
+        rawQuestions[i],
+        i + 1,
+        inlineImages: false,
+      );
+      draftQuestions.add(q);
+      imageUrls.addAll(_extractExternalImageUrls(q.questionHtml));
+      for (final opt in q.options) {
+        imageUrls.addAll(_extractExternalImageUrls(opt.html));
+      }
     }
+
+    if (imageUrls.isNotEmpty) {
+      await _prefetchImages(
+        imageUrls,
+        token,
+        imageCache,
+        onImageProgress: (done, total) {
+          onProgress?.call(
+            'Menyiapkan gambar $done dari $total...',
+            0.60 + (0.36 * done / total),
+          );
+        },
+      );
+    }
+
+    final parsed = draftQuestions.map((q) {
+      final inlinedQ = imageCache.isEmpty
+          ? q.questionHtml
+          : _replaceCachedImages(q.questionHtml, imageCache);
+      final inlinedOpts = imageCache.isEmpty
+          ? q.options
+          : q.options
+              .map(
+                (o) => OfflineOption(
+                  value: o.value,
+                  labelLetter: o.labelLetter,
+                  html: _replaceCachedImages(o.html, imageCache),
+                ),
+              )
+              .toList();
+      return OfflineQuestion(
+        slot: q.slot,
+        number: q.number,
+        type: q.type,
+        questionHtml: inlinedQ,
+        answerFieldName: q.answerFieldName,
+        sequenceCheckName: q.sequenceCheckName,
+        sequenceCheckValue: q.sequenceCheckValue,
+        options: inlinedOpts,
+        selectedValue: q.selectedValue,
+        isFlagged: q.isFlagged,
+      );
+    }).toList();
 
     if (preservedAnswers != null) {
       for (final q in parsed) {
@@ -411,6 +470,89 @@ class OfflineQuizService {
     await savePackage(pkg);
     onProgress?.call('Soal ujian siap!', 1.0);
     return pkg;
+  }
+
+  /// Klasifikasikan error saat mengirim jawaban batch agar UI tidak terjebak loop abadi.
+  static SubmitErrorAction classifySubmitError(Object error) {
+    if (error is TokenExpiredException) {
+      return SubmitErrorAction.authBlocked;
+    }
+    if (error is ApiException) {
+      final code = (error.errorCode ?? '').toLowerCase();
+      final msg = error.message.toLowerCase();
+      if (code == 'attemptalreadyclosed' ||
+          msg.contains('already been finished') ||
+          msg.contains('sudah selesai')) {
+        return SubmitErrorAction.alreadyFinished;
+      }
+      if (code.contains('outofsequence') ||
+          msg.contains('outside the normal sequence')) {
+        return SubmitErrorAction.outOfSequence;
+      }
+      if (code == 'invalidtoken' ||
+          code == 'accessdenied' ||
+          msg.contains('suspended') ||
+          msg.contains('refused web service')) {
+        return SubmitErrorAction.authBlocked;
+      }
+      return SubmitErrorAction.retryableNetwork;
+    }
+    return SubmitErrorAction.retryableNetwork;
+  }
+
+  /// Ambil ulang nilai `sequencecheck` terkini dari server untuk attempt [pkg.attemptId]
+  /// tanpa mengubah jawaban & tanda ragu yang sudah dipilih siswa secara lokal.
+  static Future<String> refreshSequenceChecks(
+    OfflineQuizPackage pkg, {
+    String? quizPassword,
+  }) async {
+    final attempts = await ApiService.getUserQuizAttempts(pkg.quizId, pkg.userId);
+    for (final a in attempts) {
+      final id = (a['id'] as num?)?.toInt() ?? 0;
+      if (id == pkg.attemptId) {
+        final st = (a['state'] as String? ?? '').toLowerCase();
+        if (st == 'finished' || st == 'overdue' || st == 'abandoned') {
+          return st;
+        }
+        break;
+      }
+    }
+
+    final freshSeqBySlot = <int, String>{};
+    int page = 0;
+    int safetyGuard = 0;
+    while (page >= 0 && safetyGuard < 150) {
+      safetyGuard++;
+      final pageData = await ApiService.getQuizAttemptData(
+        pkg.attemptId,
+        page,
+        quizPassword: quizPassword,
+      );
+      final qList = pageData['questions'] as List<dynamic>? ?? [];
+      for (final raw in qList) {
+        if (raw is! Map<String, dynamic>) continue;
+        final slot = (raw['slot'] as num?)?.toInt();
+        if (slot == null) continue;
+        final seq = _extractSequenceCheck(raw);
+        if (seq.value.isNotEmpty) {
+          freshSeqBySlot[slot] = seq.value;
+        }
+      }
+      final nextPage = (pageData['nextpage'] as num?)?.toInt() ?? -1;
+      if (nextPage <= page || nextPage < 0) break;
+      page = nextPage;
+    }
+
+    if (freshSeqBySlot.isNotEmpty) {
+      for (final q in pkg.questions) {
+        final fresh = freshSeqBySlot[q.slot];
+        if (fresh != null && fresh.isNotEmpty) {
+          q.sequenceCheckValue = fresh;
+        }
+      }
+      await savePackage(pkg);
+    }
+    return 'inprogress';
   }
 
   /// Bangun payload `data` untuk `mod_quiz_process_attempt` dari paket lokal.
@@ -566,36 +708,13 @@ class OfflineQuizService {
   ) =>
       parseMoodleQuestion(raw, fallbackNumber, inlineImages: false);
 
-  static Future<OfflineQuestion> _parseMoodleQuestion(
+  static ({String name, String value}) _extractSequenceCheck(
     Map<String, dynamic> raw,
-    int fallbackNumber,
-    String token,
-    Map<String, String> imageCache,
-  ) =>
-      parseMoodleQuestion(
-        raw,
-        fallbackNumber,
-        token: token,
-        imageCache: imageCache,
-        inlineImages: true,
-      );
-
-  static Future<OfflineQuestion> parseMoodleQuestion(
-    Map<String, dynamic> raw,
-    int fallbackNumber, {
-    String token = '',
-    Map<String, String>? imageCache,
-    bool inlineImages = true,
-  }) async {
-    final slot = (raw['slot'] as num?)?.toInt() ?? fallbackNumber;
-    final number = int.tryParse('${raw['number'] ?? ''}') ?? fallbackNumber;
-    final type = (raw['type'] as String? ?? 'multichoice').toLowerCase();
+  ) {
     final html = raw['html'] as String? ?? '';
     final seqCheckNum = (raw['sequencecheck'] as num?)?.toInt() ?? 1;
-
-    // Ekstrak input hidden sequencecheck: name="q123:1_:sequencecheck" value="1"
-    String seqName = '';
-    String seqVal = '$seqCheckNum';
+    var seqName = '';
+    var seqVal = '$seqCheckNum';
     final seqMatch = RegExp(
       r'''<input[^>]*name=["']([^"']*:sequencecheck)["'][^>]*value=["']([^"']*)["']''',
       caseSensitive: false,
@@ -613,6 +732,25 @@ class OfflineQuizService {
         seqName = seqMatchRev.group(2) ?? '';
       }
     }
+    return (name: seqName, value: seqVal);
+  }
+
+  static Future<OfflineQuestion> parseMoodleQuestion(
+    Map<String, dynamic> raw,
+    int fallbackNumber, {
+    String token = '',
+    Map<String, String>? imageCache,
+    bool inlineImages = true,
+  }) async {
+    final slot = (raw['slot'] as num?)?.toInt() ?? fallbackNumber;
+    final number = int.tryParse('${raw['number'] ?? ''}') ?? fallbackNumber;
+    final type = (raw['type'] as String? ?? 'multichoice').toLowerCase();
+    final html = raw['html'] as String? ?? '';
+
+    // Ekstrak input hidden sequencecheck: name="q123:1_:sequencecheck" value="1"
+    final seqInfo = _extractSequenceCheck(raw);
+    var seqName = seqInfo.name;
+    final seqVal = seqInfo.value;
 
     // Ekstrak bagian teks soal (<div class="qtext">...</div>) dengan balanced tag extractor
     String qtextHtml = extractBalancedElementInnerHtml(
@@ -760,44 +898,65 @@ class OfflineQuizService {
     );
   }
 
-  /// Unduh gambar <img src="..."> dari server Moodle dan ubah jadi base64 inline data URI.
-  static Future<String> _inlineImages(
-    String html,
-    String token,
-    Map<String, String> cache,
-  ) async {
-    final imgRegex = RegExp(r'''<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>''', caseSensitive: false);
-    final matches = imgRegex.allMatches(html).toList();
-    if (matches.isEmpty) return html;
+  static const int kImageConcurrency = 4;
 
-    var result = html;
-    for (final m in matches) {
-      final rawUrl = (m.group(1) ?? '').replaceAll('&amp;', '&');
-      if (rawUrl.isEmpty || rawUrl.startsWith('data:')) continue;
+  static final RegExp _imgSrcRegex = RegExp(
+    r'''<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>''',
+    caseSensitive: false,
+  );
 
-      if (cache.containsKey(rawUrl)) {
-        result = result.replaceAll(m.group(1)!, cache[rawUrl]!);
-        continue;
+  /// Ekstrak seluruh URL gambar eksternal (non-data-URI) unik dari fragmen HTML.
+  static List<String> _extractExternalImageUrls(String html) {
+    final urls = <String>[];
+    for (final m in _imgSrcRegex.allMatches(html)) {
+      final rawUrl = (m.group(1) ?? '').replaceAll('&amp;', '&').trim();
+      if (rawUrl.isNotEmpty && !rawUrl.startsWith('data:')) {
+        urls.add(rawUrl);
       }
+    }
+    return urls;
+  }
 
+  /// Gantikan atribut src gambar pada HTML dengan hasil data URI dari [cache].
+  static String _replaceCachedImages(String html, Map<String, String> cache) {
+    if (cache.isEmpty) return html;
+    return html.replaceAllMapped(_imgSrcRegex, (m) {
+      final fullTag = m.group(0) ?? '';
+      final rawAttr = m.group(1) ?? '';
+      final normalized = rawAttr.replaceAll('&amp;', '&').trim();
+      final dataUri = cache[normalized];
+      if (dataUri == null || rawAttr.isEmpty) return fullTag;
+      return fullTag.replaceFirst(rawAttr, dataUri);
+    });
+  }
+
+  /// Unduh satu gambar ke data URI base64 (timeout 10 detik + 1x retry jika gagal/5xx).
+  static Future<String?> _downloadImageWithRetry(String rawUrl, String token) async {
+    var fetchUrl = rawUrl;
+    if (fetchUrl.startsWith('/')) {
+      fetchUrl = '${AppConfig.moodleUrl}$fetchUrl';
+    }
+    // Pastikan URL pluginfile menggunakan endpoint webservice + token agar tidak butuh cookie
+    if (fetchUrl.contains('/pluginfile.php/') &&
+        !fetchUrl.contains('/webservice/pluginfile.php/')) {
+      fetchUrl = fetchUrl.replaceFirst(
+        '/pluginfile.php/',
+        '/webservice/pluginfile.php/',
+      );
+    }
+    if (token.isNotEmpty && !fetchUrl.contains('token=')) {
+      final sep = fetchUrl.contains('?') ? '&' : '?';
+      fetchUrl = '$fetchUrl${sep}token=${Uri.encodeComponent(token)}';
+    }
+
+    final uri = Uri.tryParse(fetchUrl);
+    if (uri == null) return null;
+
+    for (var attempt = 0; attempt < 2; attempt++) {
       try {
-        var fetchUrl = rawUrl;
-        if (fetchUrl.startsWith('/')) {
-          fetchUrl = '${AppConfig.moodleUrl}$fetchUrl';
-        }
-        // Pastikan URL pluginfile menggunakan endpoint webservice + token agar tidak butuh cookie
-        if (fetchUrl.contains('/pluginfile.php/') && !fetchUrl.contains('/webservice/pluginfile.php/')) {
-          fetchUrl = fetchUrl.replaceFirst('/pluginfile.php/', '/webservice/pluginfile.php/');
-        }
-        if (token.isNotEmpty && !fetchUrl.contains('token=')) {
-          final sep = fetchUrl.contains('?') ? '&' : '?';
-          fetchUrl = '$fetchUrl${sep}token=${Uri.encodeComponent(token)}';
-        }
-
-        final resp = await http.get(
-          Uri.parse(fetchUrl),
-          headers: {'User-Agent': AppConfig.examBrowserUserAgent},
-        ).timeout(const Duration(seconds: 12));
+        final resp = await http
+            .get(uri, headers: {'User-Agent': AppConfig.examBrowserUserAgent})
+            .timeout(const Duration(seconds: 10));
 
         if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
           final ct = _inferImageMimeType(
@@ -806,15 +965,65 @@ class OfflineQuizService {
             resp.headers['content-type'],
           );
           final b64 = base64Encode(resp.bodyBytes);
-          final dataUri = 'data:$ct;base64,$b64';
-          cache[rawUrl] = dataUri;
-          result = result.replaceAll(m.group(1)!, dataUri);
+          return 'data:$ct;base64,$b64';
+        }
+        if (resp.statusCode < 500) {
+          return null;
         }
       } catch (_) {
-        // Jika gagal download satu gambar, biarkan URL asli
+        // Timeout atau error jaringan → retry sekali setelah jeda singkat
+      }
+      if (attempt == 0) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
       }
     }
-    return result;
+    return null;
+  }
+
+  /// Unduh kumpulan URL gambar unik menggunakan pool paralel maksimum [kImageConcurrency].
+  static Future<void> _prefetchImages(
+    Iterable<String> urls,
+    String token,
+    Map<String, String> cache, {
+    void Function(int done, int total)? onImageProgress,
+  }) async {
+    final pending = urls
+        .where((u) => u.isNotEmpty && !u.startsWith('data:') && !cache.containsKey(u))
+        .toSet()
+        .toList();
+    final total = pending.length;
+    if (total == 0) return;
+
+    var nextIdx = 0;
+    var done = 0;
+    final workerCount = total < kImageConcurrency ? total : kImageConcurrency;
+
+    Future<void> worker() async {
+      while (true) {
+        if (nextIdx >= total) break;
+        final url = pending[nextIdx++];
+        final dataUri = await _downloadImageWithRetry(url, token);
+        if (dataUri != null) {
+          cache[url] = dataUri;
+        }
+        done++;
+        onImageProgress?.call(done, total);
+      }
+    }
+
+    await Future.wait(List.generate(workerCount, (_) => worker()));
+  }
+
+  /// Unduh gambar <img src="..."> dari server Moodle dan ubah jadi base64 inline data URI.
+  static Future<String> _inlineImages(
+    String html,
+    String token,
+    Map<String, String> cache,
+  ) async {
+    final urls = _extractExternalImageUrls(html);
+    if (urls.isEmpty) return html;
+    await _prefetchImages(urls, token, cache);
+    return _replaceCachedImages(html, cache);
   }
 
   static String _inferImageMimeType(

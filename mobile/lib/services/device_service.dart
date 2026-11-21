@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'dart:math';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../config/app_config.dart';
 
 class DeviceService {
   static const _storage = FlutterSecureStorage(
@@ -9,17 +11,24 @@ class DeviceService {
     iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock_this_device),
   );
   static const _kDeviceId = 'dosman_device_binding_id';
+  static const _channel = MethodChannel(AppConfig.lockdownChannel);
 
-  /// Returns stable device ID: ANDROID_ID on Android (survives reinstall),
-  /// fallback to UUID stored in secure storage.
+  /// Returns stable unique device ID:
+  /// - Android: `aid_<Settings.Secure.ANDROID_ID>` (unique per app-signing key & device)
+  /// - iOS: `identifierForVendor` UUID cached in Keychain
+  /// - Fallback: random UUID persisted in SecureStorage
   static Future<String> getDeviceId() async {
     if (Platform.isAndroid) {
       try {
-        final info = await DeviceInfoPlugin().androidInfo;
-        final aid = info.id.trim();
-        if (aid.isNotEmpty && aid != 'unknown' && aid != '0000000000000000') {
-          await _storage.write(key: _kDeviceId, value: aid);
-          return aid;
+        final raw = ((await _channel.invokeMethod<String>('getAndroidId')) ?? '')
+            .trim()
+            .toLowerCase();
+        if (RegExp(r'^[0-9a-f]{16}$').hasMatch(raw) &&
+            raw != '9774d56d682e549c' &&
+            raw != '0000000000000000') {
+          final id = 'aid_$raw';
+          await _storage.write(key: _kDeviceId, value: id);
+          return id;
         }
       } catch (_) {}
     } else if (Platform.isIOS) {

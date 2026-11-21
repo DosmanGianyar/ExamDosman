@@ -6,6 +6,8 @@ import '../services/auth_service.dart';
 import '../services/api_service.dart';
 import '../services/exam_service.dart';
 import '../services/kiosk_controller.dart';
+import '../services/offline_quiz_service.dart';
+import '../utils/app_version.dart';
 
 
 class SplashScreen extends StatefulWidget {
@@ -74,6 +76,18 @@ class _SplashScreenState extends State<SplashScreen>
       } on TokenExpiredException {
         // Token kedaluwarsa
         await AuthService.logout();
+        _navigate('/login');
+      } on NetworkException {
+        // Jika Wi-Fi sedang putus saat app dibuka ulang tetapi ada jawaban ujian lokal
+        // yang belum terkirim, arahkan ke /courses agar dialog pemulihan muncul.
+        final userId = await AuthService.getUserId();
+        if (userId > 0) {
+          final pending = await OfflineQuizService.findPendingPackages(userId);
+          if (pending.isNotEmpty) {
+            _navigate('/courses');
+            return;
+          }
+        }
         _navigate('/login');
       }
     } catch (_) {
@@ -245,7 +259,7 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'v1.0.0',
+                        'v$kAppVersion',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.white.withValues(alpha: 0.4),
