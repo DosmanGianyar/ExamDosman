@@ -88,14 +88,15 @@ class MainActivity : FlutterActivity() {
      */
     private val pinLoop: Runnable = object : Runnable {
         override fun run() {
+            val vmResult = ExamSecurityGuard.detectVirtualEnvironment(
+                this@MainActivity,
+                guardState.isReviewerAccount,
+            )
             val action = guardState.evaluatePinLoopTick(
                 pinLoopOn = pinLoopOn,
                 isLockTaskActive = ExamSecurityGuard.isLockTaskActive(this@MainActivity),
                 isSplitScreen = ExamSecurityGuard.isSplitScreenOrFloating(this@MainActivity),
-                isVirtualEnv = ExamSecurityGuard.isVirtualMachineOrEmulator(
-                    this@MainActivity,
-                    guardState.isReviewerAccount,
-                ),
+                isVirtualEnv = vmResult.isVirtual,
                 isClonedApp = ExamSecurityGuard.isClonedOrDualApp(
                     this@MainActivity,
                     guardState.isReviewerAccount,
@@ -131,12 +132,16 @@ class MainActivity : FlutterActivity() {
                 }
                 KioskGuardStateMachine.PinLoopAction.VIRTUAL_ENV_VIOLATION -> {
                     forceMaxVolume()
+                    val detail = "${ExamSecurityGuard.deviceLabel()} | ${vmResult.describe()}"
                     triggerNativeStudentSuspension(
                         currentUserId,
-                        "Siswa menjalankan aplikasi di Virtual Machine",
+                        "Siswa menjalankan aplikasi di Virtual Machine [$detail]",
                     )
                     mainHandler.post {
-                        flutterChannel?.invokeMethod("onVirtualEnvironmentDetected", null)
+                        flutterChannel?.invokeMethod(
+                            "onVirtualEnvironmentDetected",
+                            mapOf("detail" to detail),
+                        )
                     }
                     stopKiosk()
                     return
@@ -435,6 +440,19 @@ class MainActivity : FlutterActivity() {
                         ExamSecurityGuard.isVirtualMachineOrEmulator(
                             this,
                             guardState.isReviewerAccount,
+                        ),
+                    )
+                }
+
+                "getVirtualEnvironmentDetail" -> {
+                    val r = ExamSecurityGuard.detectVirtualEnvironment(
+                        this,
+                        guardState.isReviewerAccount,
+                    )
+                    result.success(
+                        mapOf(
+                            "isVirtual" to r.isVirtual,
+                            "detail" to "${ExamSecurityGuard.deviceLabel()} | ${r.describe()}",
                         ),
                     )
                 }

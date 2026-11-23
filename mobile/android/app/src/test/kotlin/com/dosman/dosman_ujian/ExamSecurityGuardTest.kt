@@ -138,11 +138,111 @@ class ExamSecurityGuardTest {
             )
         }
 
-        // Kembali ke profil Samsung normal namun turunkan sensor menjadi 1
+        // Kembali ke profil Samsung normal: HP fisik termurah dengan 1 sensor TIDAK boleh dianggap VM
         configureRealOemProfile("samsung", "samsung", "SM-A155F", "a15", "a15nsxx", "mt6789", "a15", "samsung/a15:14/UP1A:user/release-keys", "UP1A", "host")
         setSensorsCount(1)
-        assertTrue(
+        assertFalse(
             ExamSecurityGuard.isVirtualMachineOrEmulator(context, isReviewerAccount = false, bypassProcCacheForTesting = true),
+        )
+    }
+
+    @Test
+    fun `Vivo dan Itel fisik dengan sisa artefak qemu tunggal tidak dianggap VM`() {
+        val tmpQemu = java.io.File.createTempFile("qemud", ".sock").apply { deleteOnExit() }
+        val profiles = listOf(
+            arrayOf("vivo", "vivo", "V2333", "PD2333F_EX", "PD2333F_EX", "mt6769", "k69v1_64", "vivo/PD2333F_EX/PD2333F_EX:14/UP1A:user/release-keys", "UP1A.231005.007", "compiler02"),
+            arrayOf("vivo", "vivo", "V2204", "PD2204F_EX", "PD2204F_EX", "ums9230", "s9863a1h10", "vivo/PD2204F_EX/PD2204F_EX:12/SP1A:user/release-keys", "SP1A.210812.003", "compiler"),
+            arrayOf("ITEL", "Itel", "itel A665L", "itel-A665L", "A665L-OP", "mt6761", "aosp_arm_go", "Itel/A665L-OP/itel-A665L:13/TP1A:user/release-keys", "A665L-H6120ABC-T-OP", "jenkins"),
+            arrayOf("ITEL", "Itel", "itel S665L", "itel-S665L", "S665L-GL", "ums9230", "generic_arm64", "Itel/S665L-GL/itel-S665L:13/TP1A:user/release-keys", "S665L-F8131ABC", "builder"),
+        )
+        setSensorsCount(1)
+        for (p in profiles) {
+            configureRealOemProfile(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9])
+            // Satu sinyal lemah (sisa file qemu) + init.svc.qemud="stopped" → bukan VM
+            val r1 = ExamSecurityGuard.detectVirtualEnvironment(
+                context,
+                bypassProcCacheForTesting = true,
+                weakPathsOverride = listOf(tmpQemu.absolutePath),
+                propertyReader = { key -> if (key == "init.svc.qemud") "stopped" else "" },
+            )
+            assertFalse("${p[0]} ${p[2]} salah terdeteksi VM: ${r1.describe()}", r1.isVirtual)
+            assertTrue(r1.strongSignals.isEmpty())
+        }
+    }
+
+    @Test
+    fun `gabungan beberapa sinyal lemah atau satu sinyal kuat tetap terdeteksi VM`() {
+        val tmpQemu = java.io.File.createTempFile("qemu_pipe", ".dev").apply { deleteOnExit() }
+        setSensorsCount(0)
+        val weakCombo = ExamSecurityGuard.detectVirtualEnvironment(
+            context,
+            bypassProcCacheForTesting = true,
+            weakPathsOverride = listOf(tmpQemu.absolutePath),
+            propertyReader = { key -> if (key == "init.svc.qemud") "running" else "" },
+        )
+        assertTrue(weakCombo.describe(), weakCombo.isVirtual)
+        assertTrue(weakCombo.weakSignals.size >= 2)
+
+        setSensorsCount(3)
+        val strongQemu = ExamSecurityGuard.detectVirtualEnvironment(
+            context,
+            bypassProcCacheForTesting = true,
+            weakPathsOverride = emptyList(),
+            propertyReader = { key -> if (key == "ro.kernel.qemu") "1" else "" },
+        )
+        assertTrue(strongQemu.isVirtual)
+        assertTrue(strongQemu.strongSignals.contains("prop:ro.kernel.qemu"))
+
+        val reviewer = ExamSecurityGuard.detectVirtualEnvironment(
+            context,
+            isReviewerAccount = true,
+            bypassProcCacheForTesting = true,
+            propertyReader = { "1" },
+        )
+        assertFalse(reviewer.isVirtual)
+    }
+
+    @Test
+    fun `matchContainerLine kebal path OEM Vivo-Itel & hash Android 11+ tapi mendeteksi lib VM nyata`() {
+        val oemAndHashLines = listOf(
+            "7a123000-7a124000 r-xp 00000000 fc:00 1234 /vendor/lib64/libvivo_blackbox.so",
+            "7a125000-7a126000 r--p 00000000 fc:00 1235 /system/priv-app/VivoMultiApp/base.apk",
+            "7a127000-7a128000 r--p 00000000 fc:00 1236 /system/app/TranDualApp/TranDualApp.apk",
+            "7a129000-7a12a000 r-xp 00000000 fc:00 1237 /data/app/~~VmOsF1vM99==/com.dosman.dosman_ujian-X8zSTwOyI==/base.apk",
+        )
+        for (line in oemAndHashLines) {
+            assertEquals(
+                "OEM / hash path salah terdeteksi container: $line",
+                null,
+                ExamSecurityGuard.matchContainerLine(line),
+            )
+        }
+
+        val realVmAndHookLines = listOf(
+            "7b000000-7b001000 r-xp 00000000 fc:00 2001 /data/app/~~abc==/com.vmos.pro-xyz==/lib/arm64/libvmos.so",
+            "7b002000-7b003000 r-xp 00000000 fc:00 2002 /data/local/tmp/frida-agent-64.so",
+            "7b004000-7b005000 r--p 00000000 fc:00 2003 /data/app/~~abc==/com.x8zs.sandbox-xyz==/base.apk",
+            "7b006000-7b007000 r-xp 00000000 fc:00 2004 /data/data/top.niunaijun.blackboxa/lib/arm64/libblackbox.so",
+            "7b008000-7b009000 r-xp 00000000 fc:00 2005 /data/adb/lspd/framework/lsposed.dex",
+        )
+        for (line in realVmAndHookLines) {
+            val matched = ExamSecurityGuard.matchContainerLine(line)
+            assertTrue("VM/hook gagal terdeteksi: $line", matched != null)
+        }
+
+        // Virtual Master & container mountinfo detection vs Vivo OEM mount ignore
+        assertTrue(
+            "Virtual Master mountinfo gagal terdeteksi",
+            ExamSecurityGuard.matchMountLine(
+                "42 29 0:51 / /data/user/0/com.clone.android.dual.space/osimg/r rw,nosuid,nodev",
+            ) != null,
+        )
+        assertEquals(
+            "Mount Vivo OEM tidak boleh terdeteksi sebagai VM",
+            null,
+            ExamSecurityGuard.matchMountLine(
+                "43 29 253:1 /vivo-common/blackbox /data/vivo-common/blackbox rw,relatime",
+            ),
         )
     }
 

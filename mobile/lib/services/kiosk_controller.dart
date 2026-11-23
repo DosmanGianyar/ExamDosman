@@ -71,8 +71,10 @@ class KioskController {
               'Akun Anda ditangguhkan karena terdeteksi split-screen / jendela mengambang saat ujian berlangsung.',
         );
       case 'onVirtualEnvironmentDetected':
+        final args = call.arguments;
+        final detail = (args is Map && args['detail'] != null) ? ' [${args['detail']}]' : '';
         await handleFatalViolation(
-          reason: 'Pelanggaran keamanan ujian: virtual_environment',
+          reason: 'Pelanggaran keamanan ujian: virtual_environment$detail',
           uiMessage:
               'Akun Anda ditangguhkan karena aplikasi terdeteksi berjalan di Virtual Machine / Emulator.',
         );
@@ -335,6 +337,17 @@ class KioskController {
       return res ?? false;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// Detail sinyal deteksi VM (merek/model HP + kode sinyal) untuk ditampilkan
+  /// ke siswa/pengawas agar false-positive bisa dilaporkan & dianalisis.
+  Future<String> getVirtualEnvironmentDetail() async {
+    try {
+      final res = await _channel.invokeMethod<Map>('getVirtualEnvironmentDetail');
+      return (res?['detail'] as String?) ?? '';
+    } catch (_) {
+      return '';
     }
   }
 

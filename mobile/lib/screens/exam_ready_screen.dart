@@ -147,11 +147,14 @@ class _ExamReadyScreenState extends State<ExamReadyScreen>
     if (!isReviewer) {
       // 1. Virtual Machine (VMOS, VPhone, dll.)
       final isVm = await KioskController.instance.checkVirtualEnvironment();
-      if (isVm && mounted) {
+      if (isVm) {
+        final detail = await KioskController.instance.getVirtualEnvironmentDetail();
+        if (!mounted) return false;
         _showSecurityWarningDialog(
           title: 'Virtual Machine Terdeteksi',
           message: 'Aplikasi terdeteksi berjalan di dalam Virtual Machine / Emulator (VMOS, VPhone, dll).\n\n'
-              'Ujian WAJIB dikerjakan langsung di sistem HP fisik utama Anda.',
+              'Ujian WAJIB dikerjakan langsung di sistem HP fisik utama Anda.'
+              '${detail.isNotEmpty ? '\n\nKode: $detail' : ''}',
           icon: Icons.warning_amber_rounded,
         );
         return false;

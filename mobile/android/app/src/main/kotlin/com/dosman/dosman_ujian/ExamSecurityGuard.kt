@@ -135,41 +135,77 @@ object ExamSecurityGuard {
     private val androidAppInstallHashRegex = Regex(
         """(/app/)(?:~~[^/]+/)?(com\.dosman\.dosman_ujian)-[^/]+""",
     )
-
-    private val vmKeywords = listOf(
-        "virtualmaster", "virtual_master", "vandroid", "twoyi",
-        "vmos", "vphone", "vphonegaga", "f1vm", "x8zs", "goldfish", "ranchu",
-        "vbox", "noxplayer", "bignox", "genymotion", "sdk_gphone", "google_sdk", "emulator",
-        "simulator", "andyos", "ttvm", "aosp_arm", "aosp_x86", "generic_x86", "generic_arm",
+    private val anyAndroidAppInstallHashRegex = Regex(
+        """(/data/app/)(?:~~[^/\s]+/)?([a-z0-9._]+)-[^/\s]+""",
     )
 
-    private val vmPaths = listOf(
-        "/dev/socket/qemud",
-        "/dev/qemu_pipe",
-        "/dev/goldfish_pipe",
+    /**
+     * Kata kunci KUAT pada Build.* — hanya muncul di VM/emulator sungguhan,
+     * tidak pernah dipakai ROM HP fisik (Samsung, Xiaomi, Vivo, Oppo, Itel, Infinix, dll).
+     */
+    private val strongVmKeywords = listOf(
+        "virtualmaster", "virtual_master", "virtualandroid", "twoyi",
+        "vmos", "vphonegaga", "f1vm", "x8sandbox", "goldfish", "ranchu",
+        "vbox", "noxplayer", "bignox", "genymotion", "sdk_gphone", "google_sdk",
+        "andyos", "ttvm", "aosp_x86", "generic_x86",
+    )
+
+    /**
+     * Kata kunci LEMAH — tidak pernah cukup sendirian untuk memvonis VM.
+     */
+    private val weakVmKeywords = listOf(
+        "emulator", "simulator",
+    )
+
+    /** File khas VMOS / Nox / VirtualBox — tidak ada di HP fisik. */
+    private val strongVmPaths = listOf(
         "/dev/vboxguest",
         "/dev/vboxuser",
         "/system/lib/libc_vmos.so",
         "/system/bin/vmos_daemon",
-        "/system/bin/vm_daemon",
         "/system/bin/nox-prop",
-        "/system/bin/qemu-props",
         "/ueventd.vmos.rc",
         "/init.vmos.rc",
+    )
+
+    /**
+     * File sisa QEMU/goldfish yang terbukti IKUT TERBAWA di sebagian ROM HP fisik
+     * berbasis MediaTek / Unisoc (mis. Vivo seri Y, Itel, Tecno) → sinyal lemah.
+     */
+    private val weakVmPaths = listOf(
+        "/dev/socket/qemud",
+        "/dev/qemu_pipe",
+        "/dev/goldfish_pipe",
+        "/system/bin/qemu-props",
         "/init.ranchu.rc",
         "/init.goldfish.rc",
     )
 
+    /**
+     * Penanda pustaka/engine container atau hook yang di-inject ke PROSES KITA SENDIRI
+     * (/proc/self/maps). Sengaja berpatok pada paket/pustaka spesifik agar tidak bentrok
+     * dengan nama komponen OEM (mis. fitur App Clone Vivo / Dual App Transsion).
+     */
     private val containerMarkers = listOf(
         "virtualmaster", "virtual_master", "virtual-master",
         "com.clone.android.dual.space", "dual.space", "dualspace",
-        "virtualandroid", "virtual_android", "vandroid", "com.pspace",
-        "com.vmos", "vmos", "vphone", "f1vm", "f1player", "x8zs",
-        "twoyi", "gspace", "ourplay", "blackbox", "virtualapp",
-        "io.va.exposed", "com.lody.virtual", "lbe.parallel", "parallel.space",
-        "excelliance", "multiapp", "sandhook", "libpine", "libepic",
-        "libwhale", "libdobby", "frida-agent", "frida-gadget",
-        "lsposed", "edxposed", "xposedbridge", "proot",
+        "virtualandroid", "virtual_android", "com.pspace",
+        "com.vmos", "libvmos", "/vmos/", "com.vphone", "vphonegaga", "com.f1vm", "f1player",
+        "com.x8zs", "x8sandbox", "io.twoyi", "/twoyi/", "com.gspace", "com.ourplay",
+        "niunaijun.blackbox", "blackboxcore", "com.virtualapp", "io.va.exposed",
+        "com.lody.virtual", "lbe.parallel", "parallel.space", "com.excelliance",
+        "libsandhook", "sandhook", "libpine.so", "libepic.so",
+        "libwhale.so", "libdobby.so", "frida-agent", "frida-gadget",
+        "lsposed", "edxposed", "xposedbridge", "libproot", "/proot/",
+    )
+
+    /** Penanda mount namespace yang hanya dibuat oleh aplikasi VM/container pihak ketiga. */
+    private val containerMountMarkers = listOf(
+        "virtualmaster", "virtual_master", "com.clone.android.dual.space", "dual.space", "dualspace",
+        "virtualandroid", "virtual_android", "com.pspace", "com.vmos", "/vmos/",
+        "com.vphone", "vphonegaga", "x8sandbox", "f1player", "io.twoyi", "/twoyi/",
+        "com.x8zs", "com.f1vm", "com.gspace", "com.ourplay", "com.lody.virtual",
+        "io.va.exposed", "niunaijun.blackbox", "com.excelliance", "lbe.parallel", "parallel.space",
     )
 
     private val hookClasses = listOf(
@@ -212,12 +248,36 @@ object ExamSecurityGuard {
     )
 
     @Volatile
-    private var cachedProcVmDetected: Boolean? = null
+    private var cachedProcVmSignal: String? = null
+
+    @Volatile
+    private var cachedProcScanned: Boolean = false
 
     @VisibleForTesting
     fun resetProcCacheForTesting() {
-        cachedProcVmDetected = null
+        cachedProcVmSignal = null
+        cachedProcScanned = false
     }
+
+    /** Hasil deteksi VM beserta kode sinyal (dikirim ke server untuk audit false-positive). */
+    data class VmDetectionResult(
+        val isVirtual: Boolean,
+        val strongSignals: List<String>,
+        val weakSignals: List<String>,
+    ) {
+        fun describe(): String {
+            val parts = mutableListOf<String>()
+            if (strongSignals.isNotEmpty()) parts += "strong=" + strongSignals.joinToString(",")
+            if (weakSignals.isNotEmpty()) parts += "weak=" + weakSignals.joinToString(",")
+            return parts.joinToString("; ")
+        }
+    }
+
+    /** Minimal jumlah sinyal lemah (tanpa sinyal kuat) agar dianggap VM. */
+    private const val WEAK_SIGNAL_THRESHOLD = 2
+
+    fun deviceLabel(): String =
+        "${Build.MANUFACTURER.orEmpty()} ${Build.MODEL.orEmpty()} (Android ${Build.VERSION.RELEASE.orEmpty()})".trim()
 
     private fun readSystemProperty(key: String): String {
         return try {
@@ -229,37 +289,152 @@ object ExamSecurityGuard {
         }
     }
 
-    private fun hasVmOrContainerProcArtifacts(): Boolean {
-        cachedProcVmDetected?.let { return it }
+    /**
+     * Pindai HANYA proses kita sendiri:
+     * - /proc/self/maps     → pustaka engine VM/hook yang ter-inject ke aplikasi ini
+     * - /proc/self/mountinfo → mount khusus container pihak ketiga
+     *
+     * /proc/mounts dan /proc/net/unix sengaja TIDAK dipindai lagi karena bersifat
+     * system-wide (berisi socket/mount aplikasi lain & layanan OEM) dan memicu
+     * false-positive di HP fisik Vivo / Itel.
+     */
+    private fun scanOwnProcessForContainer(): String? {
+        if (cachedProcScanned) return cachedProcVmSignal
 
-        val procFiles = listOf(
-            "/proc/self/maps",
-            "/proc/self/mountinfo",
-            "/proc/mounts",
-            "/proc/net/unix",
-        )
-
-        var detected = false
+        var signal: String? = null
         try {
-            outer@ for (path in procFiles) {
-                val f = File(path)
-                if (!f.exists() || !f.canRead()) continue
-                f.bufferedReader().useLines { lines ->
-                    for (rawLine in lines) {
-                        val line = rawLine.lowercase()
-                        for (marker in containerMarkers) {
-                            if (line.contains(marker)) {
-                                detected = true
-                                break@outer
-                            }
-                        }
-                    }
-                }
+            signal = scanFileForMarkers("/proc/self/maps", containerMarkers, "maps")
+            if (signal == null) {
+                signal = scanFileForMarkers("/proc/self/mountinfo", containerMountMarkers, "mount")
             }
         } catch (_: Exception) {}
 
-        cachedProcVmDetected = detected
-        return detected
+        cachedProcVmSignal = signal
+        cachedProcScanned = true
+        return signal
+    }
+
+    @VisibleForTesting
+    fun matchContainerLine(
+        rawLine: String,
+        markers: List<String> = containerMarkers,
+        tag: String = "maps",
+    ): String? {
+        val sanitized = anyAndroidAppInstallHashRegex.replace(rawLine.lowercase(), "$1$2")
+        for (marker in markers) {
+            if (sanitized.contains(marker)) return "$tag:$marker"
+        }
+        return null
+    }
+
+    @VisibleForTesting
+    fun matchMountLine(rawLine: String): String? =
+        matchContainerLine(rawLine, containerMountMarkers, "mount")
+
+    private fun scanFileForMarkers(path: String, markers: List<String>, tag: String): String? {
+        val f = File(path)
+        if (!f.exists() || !f.canRead()) return null
+        f.bufferedReader().useLines { lines ->
+            for (rawLine in lines) {
+                matchContainerLine(rawLine, markers, tag)?.let { return it }
+            }
+        }
+        return null
+    }
+
+    /**
+     * Deteksi VM / emulator berbasis skor:
+     * - 1 sinyal KUAT  → VM (VMOS, Virtual Master, emulator SDK, hook engine, dll.)
+     * - sinyal LEMAH   → baru dianggap VM bila ≥ [WEAK_SIGNAL_THRESHOLD] sinyal muncul bersamaan
+     *
+     * Sinyal lemah = artefak yang ternyata juga ada di HP fisik murah (sisa file qemu di ROM
+     * MediaTek/Unisoc, properti init.svc.qemud, jumlah sensor sangat sedikit, dll).
+     */
+    fun detectVirtualEnvironment(
+        context: Context,
+        isReviewerAccount: Boolean = false,
+        bypassProcCacheForTesting: Boolean = false,
+        weakPathsOverride: List<String>? = null,
+        propertyReader: (String) -> String = ::readSystemProperty,
+    ): VmDetectionResult {
+        if (isReviewerAccount) return VmDetectionResult(false, emptyList(), emptyList())
+
+        val strong = mutableListOf<String>()
+        val weak = mutableListOf<String>()
+
+        try {
+            val fields = mapOf(
+                "fingerprint" to Build.FINGERPRINT,
+                "model" to Build.MODEL,
+                "manufacturer" to Build.MANUFACTURER,
+                "brand" to Build.BRAND,
+                "device" to Build.DEVICE,
+                "product" to Build.PRODUCT,
+                "hardware" to Build.HARDWARE,
+                "board" to Build.BOARD,
+            ).mapValues { it.value.orEmpty().lowercase() }
+
+            strongKw@ for (kw in strongVmKeywords) {
+                for ((name, value) in fields) {
+                    if (value.contains(kw)) {
+                        strong += "build_$name:$kw"
+                        break@strongKw
+                    }
+                }
+            }
+            weakKw@ for (kw in weakVmKeywords) {
+                for ((name, value) in fields) {
+                    if (value.contains(kw)) {
+                        weak += "build_$name:$kw"
+                        break@weakKw
+                    }
+                }
+            }
+
+            if (propertyReader("ro.kernel.qemu") == "1") strong += "prop:ro.kernel.qemu"
+            if (propertyReader("ro.boot.qemu") == "1") weak += "prop:ro.boot.qemu"
+            if (propertyReader("init.svc.qemud") == "running") weak += "prop:init.svc.qemud"
+            val virtualProp = propertyReader("ro.hardware.virtual")
+            if (virtualProp.isNotEmpty() && virtualProp != "0" && virtualProp != "false") {
+                weak += "prop:ro.hardware.virtual"
+            }
+
+            for (path in strongVmPaths) {
+                if (File(path).exists()) strong += "file:$path"
+            }
+            val weakHit = (weakPathsOverride ?: weakVmPaths).firstOrNull { File(it).exists() }
+            if (weakHit != null) weak += "file:$weakHit"
+
+            val ldPreload = (System.getenv("LD_PRELOAD") ?: "").lowercase()
+            val prootTmp = System.getenv("PROOT_TMP_DIR") ?: ""
+            if (prootTmp.isNotEmpty()) strong += "env:PROOT_TMP_DIR"
+            if (ldPreload.isNotEmpty() && ldPreload.contains("/data/")) strong += "env:LD_PRELOAD"
+
+            val loader = context.classLoader
+            if (loader != null) {
+                for (cls in hookClasses) {
+                    try {
+                        Class.forName(cls, false, loader)
+                        strong += "class:${cls.substringAfterLast('.')}"
+                        break
+                    } catch (_: Throwable) {}
+                }
+            }
+
+            if (!bypassProcCacheForTesting) {
+                scanOwnProcessForContainer()?.let { strong += it }
+            }
+
+            val sm = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+            if (sm != null) {
+                // HP fisik termurah (Itel/Vivo entry-level) bisa hanya punya 1 sensor
+                // (accelerometer). Hanya 0 sensor yang dihitung, itupun sebagai sinyal lemah.
+                if (sm.getSensorList(Sensor.TYPE_ALL).isEmpty()) weak += "sensors:0"
+            }
+        } catch (_: Exception) {}
+
+        val isVirtual = strong.isNotEmpty() || weak.size >= WEAK_SIGNAL_THRESHOLD
+        return VmDetectionResult(isVirtual, strong, weak)
     }
 
     /**
@@ -270,81 +445,11 @@ object ExamSecurityGuard {
         context: Context,
         isReviewerAccount: Boolean = false,
         bypassProcCacheForTesting: Boolean = false,
-    ): Boolean {
-        if (isReviewerAccount) return false
-
-        try {
-            val fingerprint = Build.FINGERPRINT.orEmpty().lowercase()
-            val model = Build.MODEL.orEmpty().lowercase()
-            val manufacturer = Build.MANUFACTURER.orEmpty().lowercase()
-            val brand = Build.BRAND.orEmpty().lowercase()
-            val device = Build.DEVICE.orEmpty().lowercase()
-            val product = Build.PRODUCT.orEmpty().lowercase()
-            val hardware = Build.HARDWARE.orEmpty().lowercase()
-            val board = Build.BOARD.orEmpty().lowercase()
-            val display = Build.DISPLAY.orEmpty().lowercase()
-            val host = Build.HOST.orEmpty().lowercase()
-
-            for (kw in vmKeywords) {
-                if (fingerprint.contains(kw) || model.contains(kw) || manufacturer.contains(kw) ||
-                    brand.contains(kw) || device.contains(kw) || product.contains(kw) ||
-                    hardware.contains(kw) || board.contains(kw) || display.contains(kw) ||
-                    host.contains(kw)
-                ) {
-                    return true
-                }
-            }
-
-            if (readSystemProperty("ro.kernel.qemu") == "1" ||
-                readSystemProperty("ro.boot.qemu") == "1" ||
-                readSystemProperty("init.svc.qemud").isNotEmpty()
-            ) {
-                return true
-            }
-            val virtualProp = readSystemProperty("ro.hardware.virtual")
-            if (virtualProp.isNotEmpty() && virtualProp != "0" && virtualProp != "false") {
-                return true
-            }
-
-            for (path in vmPaths) {
-                if (File(path).exists()) return true
-            }
-
-            val ldPreload = (System.getenv("LD_PRELOAD") ?: "").lowercase()
-            val prootTmp = System.getenv("PROOT_TMP_DIR") ?: ""
-            if (prootTmp.isNotEmpty() ||
-                (ldPreload.isNotEmpty() && ldPreload.contains("/data/"))
-            ) {
-                return true
-            }
-
-            val loader = context.classLoader
-            if (loader != null) {
-                for (cls in hookClasses) {
-                    try {
-                        Class.forName(cls, false, loader)
-                        return true
-                    } catch (_: Throwable) {}
-                }
-            }
-
-            if (!bypassProcCacheForTesting && hasVmOrContainerProcArtifacts()) {
-                return true
-            }
-
-            val sm = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
-            if (sm != null) {
-                val sensorList = sm.getSensorList(Sensor.TYPE_ALL)
-                // HP fisik murah/entry-level kadang hanya punya 2-4 sensor;
-                // hanya anggap VM jika sensor <= 1.
-                if (sensorList.size <= 1) {
-                    return true
-                }
-            }
-        } catch (_: Exception) {}
-
-        return false
-    }
+    ): Boolean = detectVirtualEnvironment(
+        context,
+        isReviewerAccount,
+        bypassProcCacheForTesting,
+    ).isVirtual
 
     /**
      * Evaluasi murni deteksi ruang ganda / cloned app tanpa ketergantungan host APK path,

@@ -94,9 +94,11 @@ class _LoginScreenState extends State<LoginScreen>
       if (!KioskController.isReviewerUsername(rawUsername)) {
         final isVm = await KioskController.instance.checkVirtualEnvironment();
         if (isVm) {
+          final detail = await KioskController.instance.getVirtualEnvironmentDetail();
           _showError(
             'Virtual Machine / Emulator terdeteksi (Virtual Master, VMOS, VPhone, dll). '
-            'Aplikasi ujian wajib dijalankan langsung di sistem utama HP Anda.',
+            'Aplikasi ujian wajib dijalankan langsung di sistem utama HP Anda.'
+            '${detail.isNotEmpty ? '\n\nKode: $detail' : ''}',
           );
           return;
         }
