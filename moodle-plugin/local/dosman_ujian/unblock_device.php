@@ -22,6 +22,8 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
+require_once __DIR__ . '/device_id_helper.inc.php';
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -127,6 +129,8 @@ try {
                     timemodified   = UNIX_TIMESTAMP()
               WHERE userid = ? AND status = 'blocked'"
         )->execute([$uid]);
+
+        dosman_record_unsuspend_log($pdo, $prefix, $uid, (int)$adminId, 'unblock_device');
     }
 
     $pdo->commit();

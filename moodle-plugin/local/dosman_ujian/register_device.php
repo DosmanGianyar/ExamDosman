@@ -103,6 +103,16 @@ try {
     $now = time();
     $storageDeviceId = dosman_normalize_storage_device_id($deviceId, $userid);
 
+    // Ambil last_seen device terdahulu sebelum di-update agar validasi jatah 1x login
+    // ulang pasca-unsuspend tetap akurat.
+    $stmtPrevSeen = $pdo->prepare(
+        "SELECT COALESCE(MAX(last_seen), 0)
+           FROM {$prefix}local_dosman_ujian_devices
+          WHERE userid = ?"
+    );
+    $stmtPrevSeen->execute([$userid]);
+    $maxPrevLastSeen = (int)($stmtPrevSeen->fetchColumn() ?: 0);
+
     // Cek apakah device_id sudah ada di tabel
     $stmtCheck = $pdo->prepare(
         "SELECT status FROM {$prefix}local_dosman_ujian_devices
@@ -198,6 +208,33 @@ try {
             'blocked_at'     => (int)($finalRow['blocked_at'] ?? 0),
         ]);
         exit;
+    }
+
+    // Deteksi keluar & login ulang di tengah kuis aktif (indikasi force-close/tutup paksa
+    // aplikasi, terutama di iOS sebelum Apple AAC disetujui).
+    if (!dosman_is_protected_user($pdo, $prefix, $userid)) {
+        $activeAttempt     = dosman_get_active_quiz_attempt($pdo, $prefix, $userid, $now);
+        $latestUnsuspendTs = dosman_get_latest_unsuspend_time($pdo, $prefix, $userid);
+        if (dosman_should_suspend_mid_exam_relogin($activeAttempt, $maxPrevLastSeen, $latestUnsuspendTs, $now)) {
+            $reason = 'Terdeteksi keluar & login ulang aplikasi saat ujian sedang berlangsung (indikasi tutup paksa aplikasi). Harap melapor ke pengawas ujian.';
+            dosman_suspend_student_account(
+                $pdo,
+                $prefix,
+                $userid,
+                (int)$activeAttempt['quizid'],
+                $reason,
+                'server_relogin_guard',
+                $platform
+            );
+            echo json_encode([
+                'success'           => true,
+                'device_blocked'    => true,
+                'account_suspended' => true,
+                'block_reason'      => $reason,
+                'blocked_at'        => $now,
+            ]);
+            exit;
+        }
     }
 
     echo json_encode(['success' => true, 'device_blocked' => false]);

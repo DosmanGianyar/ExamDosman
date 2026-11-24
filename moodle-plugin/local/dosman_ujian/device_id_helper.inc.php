@@ -142,11 +142,11 @@ function dosman_is_attempt_currently_active(
  * Satu-satunya sumber kebenaran apakah siswa sedang aktif mengerjakan ujian:
  * wajib memiliki attempt Moodle non-preview dengan state = 'inprogress' yang
  * masih berada dalam jendela waktu efektif (termasuk quiz_overrides user/grup).
- * Mengembalikan quizid aktif (> 0) atau 0 jika siswa tidak sedang mengerjakan ujian.
+ * Mengembalikan ['quizid' => int, 'timestart' => int] atau null jika tidak ada.
  */
-function dosman_get_active_quiz_id(PDO $pdo, string $prefix, int $userid, ?int $now = null): int {
+function dosman_get_active_quiz_attempt(PDO $pdo, string $prefix, int $userid, ?int $now = null): ?array {
     if ($userid <= 0) {
-        return 0;
+        return null;
     }
     $now = $now ?? time();
 
@@ -160,7 +160,7 @@ function dosman_get_active_quiz_id(PDO $pdo, string $prefix, int $userid, ?int $
     $stmt->execute([$userid]);
     $attempts = $stmt->fetchAll(PDO::FETCH_ASSOC);
     if (empty($attempts)) {
-        return 0;
+        return null;
     }
 
     $stmtOv = $pdo->prepare(
@@ -216,9 +216,208 @@ function dosman_get_active_quiz_id(PDO $pdo, string $prefix, int $userid, ?int $
         }
 
         if (dosman_is_attempt_currently_active($timestart, $effClose, $effLimit, $now)) {
-            return $quizId;
+            return [
+                'quizid'    => $quizId,
+                'timestart' => $timestart,
+            ];
         }
     }
 
-    return 0;
+    return null;
+}
+
+/**
+ * Mengembalikan quizid aktif (> 0) jika siswa sedang mengerjakan ujian, atau 0 jika tidak ada.
+ */
+function dosman_get_active_quiz_id(PDO $pdo, string $prefix, int $userid, ?int $now = null): int {
+    $attempt = dosman_get_active_quiz_attempt($pdo, $prefix, $userid, $now);
+    return (int)($attempt['quizid'] ?? 0);
+}
+
+/**
+ * Cek apakah siswa masih memiliki 1x jatah login ulang yang sah setelah di-unsuspend
+ * atau di-unblock oleh pengawas (dalam jendela grace, dan belum dipakai login lagi).
+ */
+function dosman_has_valid_relogin_grace(
+    int $maxPrevLastSeen,
+    int $latestUnsuspendTs,
+    int $now,
+    int $graceSec = 600
+): bool {
+    return $latestUnsuspendTs > 0
+        && ($now - $latestUnsuspendTs) >= 0
+        && ($now - $latestUnsuspendTs) <= $graceSec
+        && $maxPrevLastSeen < $latestUnsuspendTs;
+}
+
+/**
+ * Tentukan apakah panggilan register_device saat ada attempt ujian 'inprogress' harus
+ * langsung men-suspend akun siswa (indikasi tutup paksa & buka ulang aplikasi).
+ */
+function dosman_should_suspend_mid_exam_relogin(
+    ?array $activeAttempt,
+    int $maxPrevLastSeen,
+    int $latestUnsuspendTs,
+    int $now,
+    int $minQuizAgeSec = 30,
+    int $unsuspendGraceSec = 600
+): bool {
+    if ($activeAttempt === null || (int)($activeAttempt['quizid'] ?? 0) <= 0) {
+        return false;
+    }
+    if (($now - (int)($activeAttempt['timestart'] ?? 0)) < $minQuizAgeSec) {
+        return false;
+    }
+    if (dosman_has_valid_relogin_grace($maxPrevLastSeen, $latestUnsuspendTs, $now, $unsuspendGraceSec)) {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Ambil timestamp pembukaan blokir/unsuspend terbaru dari log pengawas untuk user ini.
+ */
+function dosman_get_latest_unsuspend_time(PDO $pdo, string $prefix, int $userid): int {
+    if ($userid <= 0) {
+        return 0;
+    }
+    $stmt = $pdo->prepare(
+        "SELECT COALESCE(MAX(timecreated), 0)
+           FROM {$prefix}local_dosman_ujian_logs
+          WHERE userid = ? AND eventtype = 'account_unsuspended'"
+    );
+    $stmt->execute([$userid]);
+    return (int)($stmt->fetchColumn() ?: 0);
+}
+
+/**
+ * Catat log pembukaan suspend/blokir agar register_device memberi 1x izin login ulang.
+ */
+function dosman_record_unsuspend_log(
+    PDO $pdo,
+    string $prefix,
+    int $userid,
+    int $adminId,
+    string $source
+): void {
+    $pdo->prepare(
+        "INSERT INTO {$prefix}local_dosman_ujian_logs
+             (userid, courseid, quizid, eventtype, eventdata, suspicious, timecreated)
+         VALUES (?, 1, 0, 'account_unsuspended', ?, 0, ?)"
+    )->execute([
+        $userid,
+        json_encode(['admin_id' => $adminId, 'source' => $source], JSON_UNESCAPED_UNICODE),
+        time(),
+    ]);
+}
+
+/**
+ * Suspend akun siswa secara atomik (identik dengan alur suspend_student.php) beserta pencatatan log.
+ */
+function dosman_suspend_student_account(
+    PDO $pdo,
+    string $prefix,
+    int $userid,
+    int $quizId,
+    string $reason,
+    string $source,
+    string $platform = ''
+): void {
+    $svcStmt = $pdo->prepare(
+        "SELECT id FROM {$prefix}external_services
+          WHERE shortname IN ('dosman_ujian_mobile', 'moodle_mobile_app')"
+    );
+    $svcStmt->execute();
+    $serviceIds = array_map('intval', $svcStmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+
+    $stmt = $pdo->prepare(
+        "SELECT value FROM {$prefix}config_plugins
+          WHERE plugin = 'local_dosman_ujian' AND name = 'blocked_students' LIMIT 1"
+    );
+    $stmt->execute();
+    $existing = $stmt->fetchColumn();
+    $blocked  = ($existing !== false) ? (json_decode((string)$existing, true) ?: []) : [];
+    unset($blocked[(string)$userid]);
+
+    $startedTx = !$pdo->inTransaction();
+    if ($startedTx) {
+        $pdo->beginTransaction();
+    }
+
+    try {
+        $stmtLock = $pdo->prepare("SELECT suspended FROM {$prefix}user WHERE id = ? FOR UPDATE");
+        $stmtLock->execute([$userid]);
+        $stmtLock->fetchColumn();
+
+        $pdo->prepare(
+            "UPDATE {$prefix}user
+                SET suspended = 1, timemodified = UNIX_TIMESTAMP()
+              WHERE id = ?"
+        )->execute([$userid]);
+
+        if (!empty($serviceIds)) {
+            $placeholders = implode(',', array_fill(0, count($serviceIds), '?'));
+            $delParams    = array_merge([$userid], $serviceIds);
+            $pdo->prepare(
+                "DELETE FROM {$prefix}external_tokens
+                  WHERE userid = ? AND externalserviceid IN ({$placeholders})"
+            )->execute($delParams);
+        }
+
+        $pdo->prepare("DELETE FROM {$prefix}sessions WHERE userid = ?")->execute([$userid]);
+
+        $pdo->prepare(
+            "INSERT INTO {$prefix}config_plugins (plugin, name, value)
+             VALUES ('local_dosman_ujian', 'blocked_students', ?)
+             ON DUPLICATE KEY UPDATE value = VALUES(value)"
+        )->execute([json_encode($blocked)]);
+
+        $pdo->prepare(
+            "DELETE FROM {$prefix}local_dosman_ujian_appstatus WHERE userid = ?"
+        )->execute([$userid]);
+
+        $pdo->prepare(
+            "DELETE FROM {$prefix}config_plugins
+              WHERE plugin = 'local_dosman_ujian' AND name = ?"
+        )->execute(['browser_hb_' . $userid]);
+
+        $pdo->prepare(
+            "UPDATE {$prefix}local_dosman_ujian_sessions
+                SET status = 'released', timemodified = UNIX_TIMESTAMP()
+              WHERE userid = ? AND status IN ('active','blocked','paused')"
+        )->execute([$userid]);
+
+        $pdo->prepare(
+            "UPDATE {$prefix}local_dosman_ujian_devices
+                SET status = 'blocked',
+                    block_reason = ?,
+                    blocked_at = UNIX_TIMESTAMP()
+              WHERE userid = ? AND status IN ('active', 'blocked')"
+        )->execute([$reason, $userid]);
+
+        $pdo->prepare(
+            "INSERT INTO {$prefix}local_dosman_ujian_logs
+                 (userid, courseid, quizid, eventtype, eventdata, suspicious, timecreated)
+             VALUES (?, 1, ?, 'account_suspended', ?, 1, UNIX_TIMESTAMP())"
+        )->execute([
+            $userid,
+            $quizId,
+            json_encode([
+                'reason'   => $reason,
+                'source'   => $source,
+                'platform' => $platform,
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        if ($startedTx) {
+            $pdo->commit();
+        }
+    } catch (Throwable $e) {
+        if ($startedTx && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+
+    @unlink('/dev/shm/dosman_app_users_cache.json');
 }
