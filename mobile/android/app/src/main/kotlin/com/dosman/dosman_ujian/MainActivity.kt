@@ -217,11 +217,19 @@ class MainActivity : FlutterActivity() {
 
     /**
      * Paksa volume STREAM_ALARM ke maksimum dan ringer mode ke normal.
+     * Dipisah blok try-catch agar kegagalan ubah ringerMode (bila izin DND belum
+     * diberikan) tidak membatalkan penaikan volume STREAM_ALARM.
      */
     private fun forceMaxVolume() {
+        val am = try {
+            getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        } catch (_: Exception) {
+            return
+        }
         try {
-            val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
             am.ringerMode = AudioManager.RINGER_MODE_NORMAL
+        } catch (_: Exception) {}
+        try {
             val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
             am.setStreamVolume(AudioManager.STREAM_ALARM, maxVol, 0)
         } catch (_: Exception) {}
@@ -230,28 +238,35 @@ class MainActivity : FlutterActivity() {
     private fun stopUnpinAlert() {
         alarmRunnable?.let { mainHandler.removeCallbacks(it) }
         alarmRunnable = null
+        try { alarmToneGenerator?.stopTone() } catch (_: Exception) {}
         try { alarmToneGenerator?.release() } catch (_: Exception) {}
         alarmToneGenerator = null
     }
 
     /**
-     * Putar nada alarm mendesak dan berulang saat siswa mencabut pin / split screen.
+     * Putar nada alarm mendesak sebanyak 10x berulang (~10 detik) saat siswa
+     * melepas pin layar / split screen saat ujian aktif.
      */
     private fun playUnpinAlert() {
         try {
             stopUnpinAlert()
+            disableDnd()
             forceMaxVolume()
             alarmToneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, 100)
             unpinAlarmCount = 0
             val runnable = object : Runnable {
                 override fun run() {
-                    if (unpinAlarmCount < 10) { // Bunyikan 10 kali berulang (~11 detik)
+                    if (unpinAlarmCount < 10) {
                         try {
                             forceMaxVolume()
-                            alarmToneGenerator?.startTone(ToneGenerator.TONE_CDMA_EMERGENCY_RINGBACK, 850)
+                            val gen = alarmToneGenerator ?: ToneGenerator(AudioManager.STREAM_ALARM, 100).also {
+                                alarmToneGenerator = it
+                            }
+                            gen.stopTone()
+                            gen.startTone(ToneGenerator.TONE_CDMA_EMERGENCY_RINGBACK, 800)
                         } catch (_: Exception) {}
                         unpinAlarmCount++
-                        mainHandler.postDelayed(this, 1_100L)
+                        mainHandler.postDelayed(this, 1_000L)
                     } else {
                         stopUnpinAlert()
                     }
@@ -528,8 +543,11 @@ class MainActivity : FlutterActivity() {
                 }
 
                 "exitLockTask" -> {
+                    val preserveAlarm = call.argument<Boolean>("preserveAlarm") ?: false
                     stopKiosk()
-                    stopUnpinAlert()
+                    if (!preserveAlarm) {
+                        stopUnpinAlert()
+                    }
                     disableDnd()
                     try { stopLockTask() } catch (_: Exception) {}
                     try { showSystemBars() } catch (_: Exception) {}

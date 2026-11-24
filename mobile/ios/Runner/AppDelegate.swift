@@ -16,6 +16,8 @@ import AVFoundation
     private var isScreenLocked = false
     private var bluetoothViolationReported = false
     private var privacyOverlay: UIView?
+    private var unpinAlarmTimer: Timer?
+    private var unpinAlarmRemaining = 0
 
     override func application(
         _ application: UIApplication,
@@ -33,6 +35,7 @@ import AVFoundation
     }
 
     deinit {
+        stopUnpinAlert()
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -89,6 +92,7 @@ import AVFoundation
                 self.isExamMode = false
                 self.wasGuidedAccessEnabled = false
                 self.bluetoothViolationReported = false
+                self.stopUnpinAlert()
                 result(true)
 
             case "checkVirtualEnvironment", "checkClonedApp", "isSplitScreenActive":
@@ -108,10 +112,14 @@ import AVFoundation
                 result(true)
 
             case "exitLockTask":
+                let preserveAlarm = (call.arguments as? [String: Any])?["preserveAlarm"] as? Bool ?? false
                 self.isLockdownActive = false
                 self.isExamMode = false
                 self.wasGuidedAccessEnabled = false
                 self.bluetoothViolationReported = false
+                if !preserveAlarm {
+                    self.stopUnpinAlert()
+                }
                 UIApplication.shared.isIdleTimerDisabled = false
                 self.hidePrivacyOverlay()
                 result(true)
@@ -272,6 +280,29 @@ import AVFoundation
         )
     }
 
+    private func stopUnpinAlert() {
+        unpinAlarmTimer?.invalidate()
+        unpinAlarmTimer = nil
+        unpinAlarmRemaining = 0
+    }
+
+    private func playUnpinAlert() {
+        stopUnpinAlert()
+        try? AVAudioSession.sharedInstance().setCategory(.playback, options: .mixWithOthers)
+        try? AVAudioSession.sharedInstance().setActive(true)
+        AudioServicesPlayAlertSound(1005)
+        unpinAlarmRemaining = 9
+        unpinAlarmTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            if self.unpinAlarmRemaining > 0 {
+                AudioServicesPlayAlertSound(1005)
+                self.unpinAlarmRemaining -= 1
+            } else {
+                self.stopUnpinAlert()
+            }
+        }
+    }
+
     private func isScreenCapturedOrExternal() -> Bool {
         let currentScreen = self.window?.windowScene?.screen ?? UIScreen.main
         return currentScreen.isCaptured || UIScreen.screens.count > 1
@@ -349,6 +380,7 @@ import AVFoundation
             // Jika Akses Terpadu dimatikan oleh siswa saat ujian aktif
             if self.isLockdownActive && self.isExamMode && self.wasGuidedAccessEnabled && !self.isReviewerMode {
                 self.wasGuidedAccessEnabled = false
+                self.playUnpinAlert()
                 self.flutterChannel?.invokeMethod("onLockTaskLost", arguments: nil)
             }
         }

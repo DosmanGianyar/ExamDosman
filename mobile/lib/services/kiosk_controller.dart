@@ -297,7 +297,7 @@ class KioskController {
     _notifyViolation(reason);
     await AuthService.saveBlockedStatus(true);
     await AuthService.saveSuspendedByAdmin(true);
-    await unlock();
+    await unlock(preserveAlarm: true);
 
     final navState = _rootNavigatorKey?.currentState;
     if (navState != null && navState.mounted) {
@@ -410,9 +410,11 @@ class KioskController {
   }
 
   /// Lepas semua kunci — dipanggil saat keluar aplikasi atau saat suspend.
-  Future<void> unlock() async {
+  /// Saat dipanggil dari [handleFatalViolation], [preserveAlarm] true agar
+  /// suara alarm 10x (~10 detik) tidak langsung terpotong oleh `exitLockTask`.
+  Future<void> unlock({bool preserveAlarm = false}) async {
     try { await _channel.invokeMethod('setExamMode', {'active': false}); } catch (_) {}
-    try { await _channel.invokeMethod('exitLockTask'); } catch (_) {}
+    try { await _channel.invokeMethod('exitLockTask', {'preserveAlarm': preserveAlarm}); } catch (_) {}
     try { await _channel.invokeMethod('disableLockdown'); } catch (_) {}
     try { await _channel.invokeMethod('unlockBackButton'); } catch (_) {}
     try { await _channel.invokeMethod('clearScreenOn'); } catch (_) {}

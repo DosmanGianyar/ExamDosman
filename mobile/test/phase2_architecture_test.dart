@@ -226,14 +226,17 @@ void main() {
     const secureStorageChannel = MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
     final storageStore = <String, String>{};
     final invokedMethods = <String>[];
+    final invokedCalls = <MethodCall>[];
 
     setUp(() {
       storageStore.clear();
       invokedMethods.clear();
+      invokedCalls.clear();
       KioskController.instance.resetForTesting();
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(lockdownChannel, (call) async {
         invokedMethods.add(call.method);
+        invokedCalls.add(call);
         return true;
       });
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -337,6 +340,27 @@ void main() {
       expect(storageStore['dosman_blocked_status'], '1');
       expect(storageStore['dosman_suspended_by_admin'], '1');
       expect(storageStore.containsKey('dosman_pending_suspend_userid'), isFalse);
+    });
+
+    test('handleFatalViolation passes preserveAlarm=true while normal unlock() passes preserveAlarm=false', () async {
+      final kiosk = KioskController.instance;
+      await kiosk.ensureLockedAndEnterExam(userId: 99);
+      kiosk.setSuspendHandlerForTesting(({required int userId, required String reason}) async {
+        return SuspendAccountOutcome.suspended;
+      });
+
+      invokedCalls.clear();
+      await kiosk.handleFatalViolation(
+        reason: 'Siswa memaksa melepas pinned screen (alarm aktif)',
+        userId: 99,
+      );
+      final fatalExitCall = invokedCalls.lastWhere((c) => c.method == 'exitLockTask');
+      expect(fatalExitCall.arguments, equals({'preserveAlarm': true}));
+
+      invokedCalls.clear();
+      await kiosk.unlock();
+      final normalExitCall = invokedCalls.lastWhere((c) => c.method == 'exitLockTask');
+      expect(normalExitCall.arguments, equals({'preserveAlarm': false}));
     });
   });
 }
