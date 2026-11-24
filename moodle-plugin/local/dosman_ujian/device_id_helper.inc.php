@@ -242,7 +242,7 @@ function dosman_has_valid_relogin_grace(
     int $maxPrevLastSeen,
     int $latestUnsuspendTs,
     int $now,
-    int $graceSec = 600
+    int $graceSec = 180
 ): bool {
     return $latestUnsuspendTs > 0
         && ($now - $latestUnsuspendTs) >= 0
@@ -260,7 +260,7 @@ function dosman_should_suspend_mid_exam_relogin(
     int $latestUnsuspendTs,
     int $now,
     int $minQuizAgeSec = 30,
-    int $unsuspendGraceSec = 600
+    int $unsuspendGraceSec = 180
 ): bool {
     if ($activeAttempt === null || (int)($activeAttempt['quizid'] ?? 0) <= 0) {
         return false;
