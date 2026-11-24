@@ -88,6 +88,31 @@ try {
         }
     }
 
+    // Sinkronkan status kuis aktif (state='inprogress') langsung dari Moodle
+    // agar dashboard langsung tahu saat siswa sudah submit & tetap melacak siswa yg keluar saat kuis aktif.
+    $activeQuizMap = [];
+    $stmtAct = $pdo->query(
+        "SELECT qa.userid, qa.quiz, q.name AS quizname, qa.timestart, q.timeclose, q.timelimit
+           FROM {$prefix}quiz_attempts qa
+           JOIN {$prefix}quiz q ON q.id = qa.quiz
+          WHERE qa.state = 'inprogress'
+            AND qa.preview = 0
+            AND qa.timestart >= UNIX_TIMESTAMP() - 10800
+            AND (q.timeclose = 0 OR q.timeclose >= UNIX_TIMESTAMP() - 300)
+          ORDER BY qa.timestart ASC"
+    );
+    foreach ($stmtAct->fetchAll(PDO::FETCH_OBJ) as $aq) {
+        $tStart = (int)$aq->timestart;
+        $tLimit = (int)$aq->timelimit;
+        if ($tLimit > 0 && ($tStart + $tLimit) < ($now - 300)) {
+            continue;
+        }
+        $activeQuizMap[(int)$aq->userid] = [
+            'quizid'   => (int)$aq->quiz,
+            'quizname' => (string)$aq->quizname,
+        ];
+    }
+
     // Query data siswa Moodle & status aplikasi CBT
     // Siswa yang sedang online/ujian berada di paling atas, disusul seluruh siswa Moodle.
     $sql = "SELECT u.id AS userid,
@@ -101,6 +126,7 @@ try {
                    IFNULL(a.ipaddress, '') AS ipaddress,
                    IFNULL(a.lock_status, -1) AS lock_status,
                    IFNULL(a.current_quizid, 0) AS current_quizid,
+                   IFNULL(a.platform, '') AS raw_platform,
                    IFNULL(q.name, '') AS quiz_name,
                    CASE 
                      WHEN (a.lastping IS NOT NULL AND a.lastping > UNIX_TIMESTAMP() - 300 AND a.lock_status IN (1, 2, 3)) THEN
@@ -187,8 +213,35 @@ try {
             $grade = 'Lainnya';
         }
 
+        $uid          = (int)$r->userid;
+        $lastPing     = (int)$r->lastping;
+        $pingAgeSec   = ($lastPing > 0) ? max(0, $now - $lastPing) : -1;
+        $lockStatus   = (int)$r->lock_status;
+        $isOnline     = (int)$r->is_online;
+        $liveQuizId   = $activeQuizMap[$uid]['quizid'] ?? 0;
+        $liveQuizName = $activeQuizMap[$uid]['quizname'] ?? '';
+
+        $isUnresponsive = 0;
+        if ($lockStatus !== 2 && $lockStatus !== 3) {
+            if ($liveQuizId > 0 && ($pingAgeSec < 0 || $pingAgeSec >= 95)) {
+                $isUnresponsive = 1;
+            } else if ($isOnline === 1 && $pingAgeSec >= 95) {
+                $isUnresponsive = 1;
+            }
+        }
+
+        $clientType = (string)$r->client_type;
+        if ($clientType === 'none' && $isUnresponsive === 1) {
+            $rawPlat = strtolower(trim((string)($r->raw_platform ?? '')));
+            if ($rawPlat === 'ios' || $rawPlat === 'android') {
+                $clientType = $rawPlat;
+            } else if ($rawPlat !== '') {
+                $clientType = 'cbt_app';
+            }
+        }
+
         $users[] = [
-            'userid'          => (int)$r->userid,
+            'userid'          => $uid,
             'firstname'       => $r->firstname ?? '',
             'lastname'        => $r->lastname ?? '',
             'student_name'    => $cleanName,
@@ -201,17 +254,30 @@ try {
             'department'      => $r->department ?? '',
             'grade'           => $grade,
             'cohort_names'    => $cnames,
-            'lock_status'     => (int)$r->lock_status,
-            'lastping'        => (int)$r->lastping,
-            'is_online'       => (int)$r->is_online,
+            'lock_status'     => $lockStatus,
+            'lastping'        => $lastPing,
+            'ping_age_sec'    => $pingAgeSec,
+            'is_online'       => $isOnline,
+            'is_unresponsive' => $isUnresponsive,
             'ipaddress'       => $r->ipaddress ?? '',
-            'current_quizid'  => (int)$r->current_quizid,
-            'quiz_name'       => $r->quiz_name ?? '',
-            'client_type'     => $r->client_type,
+            'current_quizid'  => $liveQuizId,
+            'quiz_name'       => $liveQuizName,
+            'client_type'     => $clientType,
         ];
     }
 
-    $jsonOut = json_encode(['users' => $users]);
+    // Prioritaskan siswa yang Tidak Merespons saat kuis masih aktif di bagian teratas daftar Live
+    usort($users, static function (array $a, array $b): int {
+        $aUnrespQuiz = ($a['is_unresponsive'] === 1 && $a['current_quizid'] > 0) ? 1 : 0;
+        $bUnrespQuiz = ($b['is_unresponsive'] === 1 && $b['current_quizid'] > 0) ? 1 : 0;
+        if ($aUnrespQuiz !== $bUnrespQuiz) return $bUnrespQuiz <=> $aUnrespQuiz;
+        if ($a['is_online'] !== $b['is_online']) return $b['is_online'] <=> $a['is_online'];
+        if ($a['lock_status'] !== $b['lock_status']) return $b['lock_status'] <=> $a['lock_status'];
+        if ($a['lastping'] !== $b['lastping']) return $b['lastping'] <=> $a['lastping'];
+        return strcmp((string)$a['firstname'], (string)$b['firstname']);
+    });
+
+    $jsonOut = json_encode(['server_time' => $now, 'users' => $users]);
     if (is_dir('/dev/shm') && is_writable('/dev/shm')) {
         @file_put_contents($cacheFile, $jsonOut, LOCK_EX);
     }

@@ -287,10 +287,10 @@
   function updateLiveKPI() {
     const users = state.liveUsers;
     const total = users.length;
-    const onlineUsers = users.filter(u => u.is_online === 1);
+    const onlineUsers = users.filter(u => u.is_online === 1 || isUserUnresponsive(u));
     const onlineCount = onlineUsers.length;
-    const inQuiz = users.filter(u => u.is_online === 1 && u.current_quizid > 0).length;
-    const standby = users.filter(u => u.is_online === 1 && u.current_quizid === 0).length;
+    const inQuiz = users.filter(u => u.current_quizid > 0).length;
+    const standby = users.filter(u => u.is_online === 1 && !isUserUnresponsive(u) && u.current_quizid === 0).length;
     const blocked = users.filter(u => u.lock_status === 2 || u.lock_status === 3).length;
 
     const elTotal = document.getElementById('kpi-total');
@@ -392,6 +392,14 @@
     }
   }
 
+  function isUserUnresponsive(u) {
+    if (!u || u.lock_status === 2 || u.lock_status === 3) return false;
+    if (typeof u.is_unresponsive !== 'undefined') return u.is_unresponsive === 1;
+    const age = (u.lastping > 0) ? (Math.floor(Date.now() / 1000) - u.lastping) : -1;
+    if (u.current_quizid > 0 && (age < 0 || age >= 95)) return true;
+    return u.is_online === 1 && age >= 95;
+  }
+
   function getFilteredLiveUsers() {
     const searchInput = document.getElementById('search-live');
     const q = (searchInput ? searchInput.value : '').trim().toLowerCase();
@@ -411,7 +419,7 @@
     return state.liveUsers.filter(u => {
       // 0. Mode Filter (Sedang Login / Live vs Semua Akun Terdaftar)
       if (state.listMode === 'live') {
-        const isLive = (u.is_online === 1) || (u.lock_status === 2 || u.lock_status === 3) || (u.current_quizid > 0);
+        const isLive = (u.is_online === 1) || (u.lock_status === 2 || u.lock_status === 3) || (u.current_quizid > 0) || isUserUnresponsive(u);
         if (!isLive) return false;
       }
 
@@ -460,15 +468,17 @@
       if (selectedStatus === 'online') {
         if (u.is_online !== 1) return false;
       } else if (selectedStatus === 'inquiz') {
-        if (!(u.current_quizid > 0 && u.is_online === 1)) return false;
+        if (!(u.current_quizid > 0)) return false;
+      } else if (selectedStatus === 'unresponsive') {
+        if (!isUserUnresponsive(u)) return false;
       } else if (selectedStatus === 'standby') {
-        if (!(u.current_quizid === 0 && u.is_online === 1)) return false;
+        if (!(u.current_quizid === 0 && u.is_online === 1 && !isUserUnresponsive(u))) return false;
       } else if (selectedStatus === 'paused') {
         if (u.lock_status !== 3) return false;
       } else if (selectedStatus === 'blocked') {
         if (u.lock_status !== 2) return false;
       } else if (selectedStatus === 'offline') {
-        if (u.is_online === 1 || u.lock_status === 2 || u.lock_status === 3) return false;
+        if (u.is_online === 1 || u.lock_status === 2 || u.lock_status === 3 || isUserUnresponsive(u)) return false;
       }
 
       // 5. Search keyword filter
@@ -572,9 +582,12 @@
       const isBlocked = u.lock_status === 2;
       const isPaused = u.lock_status === 3;
       const isOnline = u.is_online === 1;
-      const isOnQuiz = isOnline && (u.current_quizid > 0);
-      const isIOS = isOnline && (u.client_type === 'ios');
-      const isAndroid = isOnline && (u.client_type === 'android');
+      const isUnresponsive = isUserUnresponsive(u);
+      const hasActiveQuiz = u.current_quizid > 0;
+      const isOnQuiz = isOnline && hasActiveQuiz;
+      const hasClient = isOnline || isUnresponsive;
+      const isIOS = hasClient && (u.client_type === 'ios');
+      const isAndroid = hasClient && (u.client_type === 'android');
 
       // Status Badge
       let statusBadge = '';
@@ -582,6 +595,10 @@
         statusBadge = '<span class="badge badge-danger">&#x1F534; Terblokir</span>';
       } else if (isPaused) {
         statusBadge = '<span class="badge badge-warning">&#x23F8;&#xFE0F; Dijeda</span>';
+      } else if (isUnresponsive && hasActiveQuiz) {
+        statusBadge = '<span class="badge badge-warning" style="background:rgba(245,158,11,0.22); color:#fbbf24; border:1px solid rgba(245,158,11,0.55);" title="HP tidak mengirim ping lebih dari 95 detik saat kuis masih berlangsung (kemungkinan keluar aplikasi / force-close / sinyal putus)">&#x26A0;&#xFE0F; Tidak Merespons</span>';
+      } else if (isUnresponsive) {
+        statusBadge = '<span class="badge badge-warning" title="HP tidak mengirim ping lebih dari 95 detik">&#x26A0;&#xFE0F; Tidak Merespons</span>';
       } else if (isOnQuiz) {
         statusBadge = '<span class="badge badge-success">&#x270D;&#xFE0F; Sedang Kuis</span>';
       } else if (isOnline) {
@@ -590,15 +607,17 @@
         statusBadge = '<span class="badge badge-secondary" style="opacity:0.55;">&#x26AA; Belum Login</span>';
       }
 
-      // Platform Badge: Hanya tampilkan iOS/Android jika siswa BENAR-BENAR sedang online
+      // Platform Badge: Tampilkan iOS/Android saat siswa online atau masih tercatat aktif/tidak merespons
       let platformBadge = '';
-      if (isOnline) {
+      if (hasClient) {
         if (isIOS) {
           platformBadge = '<span class="badge badge-ios">&#x1F34E; iOS / Apple</span>';
         } else if (isAndroid) {
           platformBadge = '<span class="badge badge-android">&#x1F916; Android</span>';
-        } else {
+        } else if (u.client_type === 'cbt_app') {
           platformBadge = '<span class="badge badge-primary">&#x1F4F1; CBT App</span>';
+        } else {
+          platformBadge = '<span class="badge badge-secondary" style="opacity:0.55;">&#x1F4F1; Tidak diketahui</span>';
         }
       } else {
         platformBadge = '<span class="badge badge-secondary" style="opacity:0.5;">— (Offline)</span>';
@@ -641,16 +660,21 @@
       const avatarBg = noAbsen ? 'background: linear-gradient(135deg, #1e40af, #3b82f6); color: #ffffff; font-weight: 700; font-family: "JetBrains Mono", monospace;' : '';
 
       // Quiz cell
-      const quizHtml = isOnQuiz
-        ? `<strong style="color:var(--primary); font-size:0.825rem;">${escapeHtml(u.quiz_name || `Kuis #${u.current_quizid}`)}</strong>`
+      const quizHtml = hasActiveQuiz
+        ? `<strong style="color:${isUnresponsive ? '#fbbf24' : 'var(--primary)'}; font-size:0.825rem;">${escapeHtml(u.quiz_name || `Kuis #${u.current_quizid}`)}</strong>`
         : `<span style="color:var(--text-dim); font-size:0.8rem;">${isOnline ? 'Di Beranda Ujian' : 'Tidak Ada Ujian'}</span>`;
 
-      // Live ping ticker
+      // Live ping ticker (dot di luar .live-ticker-cell agar tidak tertimpa interval 1 detik)
       let pingHtml = '';
-      if (isOnline) {
-        pingHtml = `<span style="color:#10b981; font-weight:600; display:inline-flex; align-items:center; gap:5px;"><span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#10b981; animation:pulse 1.5s infinite;"></span> ${formatLastSeen(u.lastping)}</span>`;
+      if (isUnresponsive) {
+        const lastSeenTxt = u.lastping > 0
+          ? `<span class="live-ticker-cell" data-lastping="${u.lastping}">${formatLastSeen(u.lastping)}</span>`
+          : 'Tidak ada ping';
+        pingHtml = `<span style="color:#fbbf24; font-weight:600; display:inline-flex; align-items:center; gap:5px;"><span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#f59e0b;"></span> ${lastSeenTxt}</span>`;
+      } else if (isOnline) {
+        pingHtml = `<span style="color:#10b981; font-weight:600; display:inline-flex; align-items:center; gap:5px;"><span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#10b981; animation:pulse 1.5s infinite;"></span> <span class="live-ticker-cell" data-lastping="${u.lastping || 0}">${formatLastSeen(u.lastping)}</span></span>`;
       } else if (u.lastping > 0) {
-        pingHtml = `<span style="color:var(--text-dim); font-size:0.8rem;">${formatLastSeen(u.lastping)}</span>`;
+        pingHtml = `<span class="live-ticker-cell" data-lastping="${u.lastping}" style="color:var(--text-dim); font-size:0.8rem;">${formatLastSeen(u.lastping)}</span>`;
       } else {
         pingHtml = `<span style="color:var(--text-dim); font-size:0.8rem; font-style:italic;">Belum ada sesi</span>`;
       }
@@ -669,7 +693,7 @@
             &#x1F513; Buka Kunci
           </button>
         `;
-      } else if (isOnline) {
+      } else if (isOnline || isUnresponsive) {
         actionButtons += `
           <button class="btn-action" style="background:rgba(245,158,11,0.15); color:#fbbf24; border:1px solid rgba(245,158,11,0.3);" onclick="DosmanApp.pauseStudent(${u.userid}, '${escapeJs(studentName)}')" title="Jeda ujian siswa sementara">
             &#x23F8;&#xFE0F; Jeda
@@ -677,7 +701,7 @@
         `;
       }
 
-      if (u.lastping > 0 || isOnline || isBlocked || isPaused) {
+      if (u.lastping > 0 || isOnline || isUnresponsive || isBlocked || isPaused) {
         actionButtons += `
           <button class="btn-action btn-action-reset" onclick="DosmanApp.resetStudentSession(${u.userid}, '${escapeJs(studentName)}')" title="Reset sesi aplikasi (paksa login ulang)">
             &#x1F504; Reset
@@ -691,8 +715,12 @@
         </button>
       `;
 
+      const rowBgStyle = (isUnresponsive && hasActiveQuiz)
+        ? 'background: rgba(245,158,11,0.08);'
+        : (isUnresponsive ? 'background: rgba(245,158,11,0.04);' : (isOnline ? 'background: rgba(16,185,129,0.03);' : ''));
+
       rowsHtml += `
-        <tr style="${isOnline ? 'background: rgba(16,185,129,0.03);' : ''}">
+        <tr style="${rowBgStyle}">
           <td style="color:var(--text-dim); font-size:0.8rem; font-family:'JetBrains Mono';">${idx + 1}</td>
           <td>
             <div class="student-cell">
@@ -723,9 +751,7 @@
           <td>${statusBadge}</td>
           <td>${quizHtml}</td>
           <td>
-            <div class="time-ticker live-ticker-cell" data-lastping="${u.lastping || 0}">
-              ${pingHtml}
-            </div>
+            ${pingHtml}
           </td>
           <td>
             <div class="action-group">
