@@ -560,7 +560,7 @@ body {
 }
 
 .data-table th:last-child,
-.data-table td:last-child {
+.data-table td:last-child:not([colspan]) {
   position: sticky;
   right: 0;
   z-index: 2;
@@ -572,7 +572,7 @@ body {
   z-index: 3;
 }
 
-.data-table td:last-child {
+.data-table td:last-child:not([colspan]) {
   background: var(--bg-surface);
 }
 
@@ -584,7 +584,7 @@ body {
   background: rgba(255, 255, 255, 0.03);
 }
 
-.data-table tbody tr:hover td:last-child {
+.data-table tbody tr:hover td:last-child:not([colspan]) {
   background: #131f35;
 }
 

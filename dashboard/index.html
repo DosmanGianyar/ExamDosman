@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Dosman Exam — Dashboard Guru & Proctoring</title>
-  <link rel="stylesheet" href="css/style.css?v=3.5.2">
+  <link rel="stylesheet" href="css/style.css?v=3.5.3">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
   <link rel="icon" type="image/png" href="assets/logo_sekolah.png">
 </head>
@@ -231,43 +231,6 @@
     <!-- ════ TAB 2: PELANGGARAN & TERSUSPEND ═══════════════════════════════ -->
     <div class="tab-panel" id="tab-suspended-violations">
       
-      <!-- Section A: Device Blocked (Tier 1) -->
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title-group">
-            <h2 class="card-title">&#x1F6A8; Perangkat Diblokir Sementara (Tier 1)</h2>
-            <span class="card-subtitle">Terdeteksi pelanggaran aplikasi (minimize, screenshot, gestur tidak sah). Memiliki countdown sebelum auto-suspend.</span>
-          </div>
-          <span class="badge badge-warning" id="device-blocked-count">0 perangkat</span>
-        </div>
-
-        <div class="table-responsive">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th style="width:45px;">No</th>
-                <th>Siswa & Perangkat</th>
-                <th>Alasan Pelanggaran</th>
-                <th>Waktu Kejadian</th>
-                <th>Status Eskalasi</th>
-                <th style="text-align:right;">Tindakan</th>
-              </tr>
-            </thead>
-            <tbody id="device-blocked-tbody">
-              <tr>
-                <td colspan="6">
-                  <div class="empty-state">
-                    <div class="empty-icon">&#x2705;</div>
-                    <div class="empty-title">Tidak Ada Pelanggaran Perangkat</div>
-                    <div class="empty-desc">Semua perangkat siswa beroperasi aman dan terkunci normal.</div>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
       <!-- Section B: Suspended Accounts (Tier 2) -->
       <div class="card">
         <div class="card-header">
@@ -315,6 +278,43 @@
                   <div class="empty-state">
                     <div class="empty-icon">&#x23F3;</div>
                     <div class="empty-title">Memuat Akun Tersuspend...</div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Section A: Device Blocked (Tier 1) -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <h2 class="card-title">&#x1F6A8; Perangkat Diblokir Sementara (Tier 1)</h2>
+            <span class="card-subtitle">Terdeteksi pelanggaran aplikasi (minimize, screenshot, gestur tidak sah). Memiliki countdown sebelum auto-suspend.</span>
+          </div>
+          <span class="badge badge-warning" id="device-blocked-count">0 perangkat</span>
+        </div>
+
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width:45px;">No</th>
+                <th>Siswa & Perangkat</th>
+                <th>Alasan Pelanggaran</th>
+                <th>Waktu Kejadian</th>
+                <th>Status Eskalasi</th>
+                <th style="text-align:right;">Tindakan</th>
+              </tr>
+            </thead>
+            <tbody id="device-blocked-tbody">
+              <tr>
+                <td colspan="6">
+                  <div class="empty-state">
+                    <div class="empty-icon">&#x2705;</div>
+                    <div class="empty-title">Tidak Ada Pelanggaran Perangkat</div>
+                    <div class="empty-desc">Semua perangkat siswa beroperasi aman dan terkunci normal.</div>
                   </div>
                 </td>
               </tr>
