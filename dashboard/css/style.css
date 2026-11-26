@@ -258,10 +258,10 @@ body {
 
 /* ─── MAIN CONTAINER ────────────────────────────────────────────────────── */
 .main-container {
-  max-width: 1400px;
+  max-width: 1760px;
   width: 100%;
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: 1.25rem;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -439,7 +439,7 @@ body {
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: 1.5rem;
+  padding: 1.15rem 1.25rem;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -537,26 +537,43 @@ body {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
-  font-size: 0.875rem;
+  font-size: 0.83rem;
 }
 
 .data-table th {
   background: var(--bg-surface-elevated);
   color: var(--text-muted);
   font-weight: 600;
-  padding: 0.85rem 1rem;
+  padding: 0.7rem 0.65rem;
   text-transform: uppercase;
-  font-size: 0.75rem;
-  letter-spacing: 0.05em;
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
   border-bottom: 1px solid var(--border-color);
   white-space: nowrap;
 }
 
 .data-table td {
-  padding: 0.85rem 1rem;
+  padding: 0.7rem 0.65rem;
   border-bottom: 1px solid var(--border-color);
   color: var(--text-main);
   vertical-align: middle;
+}
+
+.data-table th:last-child,
+.data-table td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  box-shadow: -6px 0 12px rgba(2, 6, 23, 0.35);
+}
+
+.data-table th:last-child {
+  background: var(--bg-surface-elevated);
+  z-index: 3;
+}
+
+.data-table td:last-child {
+  background: var(--bg-surface);
 }
 
 .data-table tbody tr {
@@ -565,6 +582,10 @@ body {
 
 .data-table tbody tr:hover {
   background: rgba(255, 255, 255, 0.03);
+}
+
+.data-table tbody tr:hover td:last-child {
+  background: #131f35;
 }
 
 .data-table tbody tr:last-child td {
@@ -760,16 +781,18 @@ body {
 .action-group {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  min-width: 165px;
 }
 
 .btn-action {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.3rem 0.6rem;
-  font-size: 0.75rem;
+  padding: 0.28rem 0.5rem;
+  font-size: 0.73rem;
   font-weight: 600;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
