@@ -171,5 +171,37 @@ function xmldb_local_dosman_ujian_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026050100, 'local', 'dosman_ujian');
     }
 
+    if ($oldversion < 2026050200) {
+        $devicesTable = new xmldb_table('local_dosman_ujian_devices');
+        if ($dbman->table_exists($devicesTable)) {
+            $field = new xmldb_field('app_version', XMLDB_TYPE_CHAR, '32', null, null, null, null);
+            if (!$dbman->field_exists($devicesTable, $field)) {
+                $dbman->add_field($devicesTable, $field);
+            }
+            $field = new xmldb_field('app_build', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            if (!$dbman->field_exists($devicesTable, $field)) {
+                $dbman->add_field($devicesTable, $field);
+            }
+        }
+
+        $appstatusTable = new xmldb_table('local_dosman_ujian_appstatus');
+        if ($dbman->table_exists($appstatusTable)) {
+            $field = new xmldb_field('platform', XMLDB_TYPE_CHAR, '20', null, null, null, '');
+            if (!$dbman->field_exists($appstatusTable, $field)) {
+                $dbman->add_field($appstatusTable, $field);
+            }
+            $field = new xmldb_field('app_version', XMLDB_TYPE_CHAR, '32', null, null, null, null);
+            if (!$dbman->field_exists($appstatusTable, $field)) {
+                $dbman->add_field($appstatusTable, $field);
+            }
+            $field = new xmldb_field('app_build', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            if (!$dbman->field_exists($appstatusTable, $field)) {
+                $dbman->add_field($appstatusTable, $field);
+            }
+        }
+
+        upgrade_plugin_savepoint(true, 2026050200, 'local', 'dosman_ujian');
+    }
+
     return true;
 }

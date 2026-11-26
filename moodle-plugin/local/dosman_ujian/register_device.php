@@ -61,8 +61,11 @@ if (!in_array($platform, ['android', 'ios'], true)) {
     $platform = 'android';
 }
 
-// Potong model maks 100 karakter
-$model = mb_substr($model, 0, 100);
+// Potong model & app_version sesuai batas kolom DB
+$model      = mb_substr($model, 0, 100);
+$appVersion = mb_substr($appVersion, 0, 32);
+$appBuild   = max(0, $appBuild);
+$storedAppVersion = ($appVersion !== '') ? $appVersion : (($appBuild > 0) ? ('build-' . $appBuild) : 'legacy');
 
 try {
     $configfile = __DIR__ . '/../../config.php';
@@ -126,20 +129,31 @@ try {
         // Belum ada → INSERT baru dengan status='active'
         $pdo->prepare(
             "INSERT INTO {$prefix}local_dosman_ujian_devices
-                (device_id, userid, platform, model, status, registered_at, last_seen)
-             VALUES (?, ?, ?, ?, 'active', ?, ?)"
-        )->execute([$storageDeviceId, $userid, $platform, $model, $now, $now]);
+                (device_id, userid, platform, model, app_version, app_build, status, registered_at, last_seen)
+             VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)"
+        )->execute([$storageDeviceId, $userid, $platform, $model, $storedAppVersion, $appBuild, $now, $now]);
     } else {
-        // Sudah ada → UPDATE userid, model, last_seen
+        // Sudah ada → UPDATE userid, platform, model, app_version, app_build, last_seen
         // Jangan ubah status jika sedang diblokir
         $pdo->prepare(
             "UPDATE {$prefix}local_dosman_ujian_devices
-                SET userid    = ?,
-                    model     = ?,
-                    last_seen = ?
+                SET userid      = ?,
+                    platform    = ?,
+                    model       = ?,
+                    app_version = ?,
+                    app_build   = ?,
+                    last_seen   = ?
               WHERE device_id = ?"
-        )->execute([$userid, $model, $now, $storageDeviceId]);
+        )->execute([$userid, $platform, $model, $storedAppVersion, $appBuild, $now, $storageDeviceId]);
     }
+
+    // Sinkronkan versi aplikasi terbaru ke tabel appstatus segera (sebelum cek minBuild)
+    // agar dashboard tetap mendeteksi siswa dengan APK lama / ditolak update.
+    $pdo->prepare(
+        "UPDATE {$prefix}local_dosman_ujian_appstatus
+            SET app_version = ?, app_build = ?, platform = ?
+          WHERE userid = ?"
+    )->execute([$storedAppVersion, $appBuild, $platform, $userid]);
 
     // Setelah upsert: pastikan akun reviewer tidak pernah terkena blokir perangkat
     $stmtUser = $pdo->prepare("SELECT username FROM {$prefix}user WHERE id = ? LIMIT 1");

@@ -484,6 +484,8 @@ class ExamService {
       final bodyMap = <String, dynamic>{
         'token': token,
         'platform': kIsWeb ? 'web' : (Platform.isIOS ? 'ios' : 'android'),
+        'app_version': kAppVersion,
+        'app_build': kBuildNumber,
       };
       if (quizId > 0) bodyMap['quizid'] = quizId;
       final resp = await http.post(

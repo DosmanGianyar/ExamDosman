@@ -89,6 +89,8 @@ try {
     $ip  = $_SERVER['REMOTE_ADDR'] ?? '';
     $quizId = (int)($body['quizid'] ?? 0);
     $platform = trim((string)($body['platform'] ?? ''));
+    $appVersion = mb_substr(trim((string)($body['app_version'] ?? '')), 0, 32);
+    $appBuild   = max(0, (int)($body['app_build'] ?? 0));
     if (empty($platform)) {
         $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
         if (stripos($ua, 'iPhone') !== false || stripos($ua, 'iPad') !== false || stripos($ua, 'Darwin') !== false || stripos($ua, 'CFNetwork') !== false) {
@@ -100,13 +102,34 @@ try {
         }
     }
 
-    // Ambil lock_status, lastping, platform, dan current_quizid saat ini (jika ada)
+    // Ambil lock_status, lastping, platform, current_quizid, dan versi app saat ini (jika ada)
     $stmtCur = $pdo->prepare(
-        "SELECT lock_status, lastping, platform, current_quizid FROM {$prefix}local_dosman_ujian_appstatus
+        "SELECT lock_status, lastping, platform, current_quizid, app_version, app_build
+           FROM {$prefix}local_dosman_ujian_appstatus
           WHERE userid = ? LIMIT 1"
     );
     $stmtCur->execute([$userid]);
     $curRow = $stmtCur->fetch(PDO::FETCH_OBJ);
+
+    // Fallback: jika ping tidak membawa app_version dan appstatus belum punya versi,
+    // tarik versi terbaru dari tabel devices agar tetap tercatat di appstatus.
+    if ($appVersion === '' && (!$curRow || empty($curRow->app_version))) {
+        $stmtDevVer = $pdo->prepare(
+            "SELECT app_version, app_build
+               FROM {$prefix}local_dosman_ujian_devices
+              WHERE userid = ?
+                AND app_version IS NOT NULL
+                AND app_version <> ''
+              ORDER BY last_seen DESC, id DESC
+              LIMIT 1"
+        );
+        $stmtDevVer->execute([$userid]);
+        $devVerRow = $stmtDevVer->fetch(PDO::FETCH_OBJ);
+        if ($devVerRow) {
+            $appVersion = mb_substr(trim((string)$devVerRow->app_version), 0, 32);
+            $appBuild   = max(0, (int)($devVerRow->app_build ?? 0));
+        }
+    }
 
     // Sinkronkan current_quizid satu pintu dengan attempt Moodle 'inprogress' yang masih aktif
     // (jangan percaya parameter quizid usang dari client / APK lama).
@@ -116,34 +139,41 @@ try {
         // Belum ada record → insert baru dengan lock_status = 1
         $pdo->prepare(
             "INSERT INTO {$prefix}local_dosman_ujian_appstatus
-                (userid, lastping, ipaddress, lock_status, current_quizid, platform)
-             VALUES (?, ?, ?, 1, ?, ?)"
-        )->execute([$userid, $now, $ip, max(0, $effectiveQuizId), $platform]);
+                (userid, lastping, ipaddress, lock_status, current_quizid, platform, app_version, app_build)
+             VALUES (?, ?, ?, 1, ?, ?, ?, ?)"
+        )->execute([$userid, $now, $ip, max(0, $effectiveQuizId), $platform, ($appVersion !== '' ? $appVersion : null), $appBuild]);
         $finalStatus = 1;
     } else {
         $currentStatus = (int)$curRow->lock_status;
         $elapsedPing   = $now - (int)$curRow->lastping;
         $platChanged   = ($curRow->platform !== $platform);
         $quizChanged   = ((int)$curRow->current_quizid !== $effectiveQuizId);
+        $curVer        = trim((string)($curRow->app_version ?? ''));
+        $curBuild      = (int)($curRow->app_build ?? 0);
+        $nextVer       = ($appVersion !== '') ? $appVersion : $curVer;
+        $nextBuild     = ($appBuild > 0 || $appVersion !== '') ? $appBuild : $curBuild;
+        $verChanged    = ($nextVer !== $curVer || $nextBuild !== $curBuild);
 
         if (in_array($currentStatus, [2, 3], true)) {
-            // Diblokir atau dijeda — update bila interval >= 15s atau platform/quiz berubah
-            if ($elapsedPing >= 15 || $platChanged || $quizChanged) {
+            // Diblokir atau dijeda — update bila interval >= 15s atau platform/quiz/versi berubah
+            if ($elapsedPing >= 15 || $platChanged || $quizChanged || $verChanged) {
                 $pdo->prepare(
                     "UPDATE {$prefix}local_dosman_ujian_appstatus
-                        SET lastping = ?, ipaddress = ?, platform = ?, current_quizid = ?
+                        SET lastping = ?, ipaddress = ?, platform = ?, current_quizid = ?,
+                            app_version = ?, app_build = ?
                       WHERE userid = ?"
-                )->execute([$now, $ip, $platform, $effectiveQuizId, $userid]);
+                )->execute([$now, $ip, $platform, $effectiveQuizId, ($nextVer !== '' ? $nextVer : null), $nextBuild, $userid]);
             }
             $finalStatus = $currentStatus;
         } else {
-            // Normal → set lock_status = 1 (aktif), selalu sinkronkan current_quizid
-            if ($currentStatus !== 1 || $elapsedPing >= 15 || $platChanged || $quizChanged) {
+            // Normal → set lock_status = 1 (aktif), selalu sinkronkan current_quizid & versi app
+            if ($currentStatus !== 1 || $elapsedPing >= 15 || $platChanged || $quizChanged || $verChanged) {
                 $pdo->prepare(
                     "UPDATE {$prefix}local_dosman_ujian_appstatus
-                        SET lastping = ?, ipaddress = ?, lock_status = 1, platform = ?, current_quizid = ?
+                        SET lastping = ?, ipaddress = ?, lock_status = 1, platform = ?, current_quizid = ?,
+                            app_version = ?, app_build = ?
                       WHERE userid = ?"
-                )->execute([$now, $ip, $platform, $effectiveQuizId, $userid]);
+                )->execute([$now, $ip, $platform, $effectiveQuizId, ($nextVer !== '' ? $nextVer : null), $nextBuild, $userid]);
             }
             $finalStatus = 1;
         }

@@ -167,6 +167,10 @@
                 <option value="android">&#x1F916; Android</option>
                 <option value="ios">&#x1F34E; iOS / Apple</option>
               </select>
+
+              <select class="select-field" id="filter-version" onchange="DosmanApp.onFilterChange()" title="Filter berdasarkan Versi Aplikasi Siswa">
+                <option value="">Semua Versi Aplikasi</option>
+              </select>
             </div>
 
             <div class="toolbar-right">
@@ -189,6 +193,8 @@
           </div>
         </div>
 
+        <div id="version-summary-bar" style="display:none; padding:10px 18px; border-bottom:1px solid rgba(255,255,255,0.06); background:rgba(15,23,42,0.45); flex-wrap:wrap; align-items:center; gap:8px;"></div>
+
         <div class="table-responsive">
           <table class="data-table">
             <thead>
@@ -196,7 +202,7 @@
                 <th style="width:40px;">No</th>
                 <th>Peserta Ujian (No Absen, Nama &amp; Username)</th>
                 <th>Tingkat, Kelas &amp; Angkatan</th>
-                <th>Perangkat</th>
+                <th>Perangkat &amp; Versi App</th>
                 <th>Status Sesi</th>
                 <th>Kuis Moodle</th>
                 <th>Aktivitas Terakhir</th>
@@ -612,6 +618,6 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="js/config.js?v=3.3.0"></script>
   <script src="js/auth.js?v=3.3.0"></script>
-  <script src="js/app.js?v=3.3.3"></script>
+  <script src="js/app.js?v=3.4.0"></script>
 </body>
 </html>

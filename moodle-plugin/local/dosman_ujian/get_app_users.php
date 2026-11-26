@@ -113,6 +113,39 @@ try {
         ];
     }
 
+    // Ambil setting minimum build dari plugin config untuk highlight versi usang di dashboard
+    $minAndroidBuild = 0;
+    $minIosBuild     = 0;
+    $stmtCfg = $pdo->prepare(
+        "SELECT name, value FROM {$prefix}config_plugins
+          WHERE plugin = 'local_dosman_ujian'
+            AND name IN ('min_android_build', 'min_ios_build')"
+    );
+    $stmtCfg->execute();
+    while ($cfgRow = $stmtCfg->fetch(PDO::FETCH_ASSOC)) {
+        if ($cfgRow['name'] === 'min_android_build') {
+            $minAndroidBuild = max(0, (int)$cfgRow['value']);
+        } else if ($cfgRow['name'] === 'min_ios_build') {
+            $minIosBuild = max(0, (int)$cfgRow['value']);
+        }
+    }
+
+    // Ambil device terbaru per userid (model, platform, app_version, app_build) dalam 1 query ringan
+    $latestDeviceMap = [];
+    $stmtDev = $pdo->query(
+        "SELECT userid, platform, model, app_version, app_build
+           FROM {$prefix}local_dosman_ujian_devices
+          ORDER BY last_seen ASC, id ASC"
+    );
+    foreach ($stmtDev->fetchAll(PDO::FETCH_OBJ) as $d) {
+        $latestDeviceMap[(int)$d->userid] = [
+            'platform'    => strtolower(trim((string)($d->platform ?? ''))),
+            'model'       => trim((string)($d->model ?? '')),
+            'app_version' => trim((string)($d->app_version ?? '')),
+            'app_build'   => (int)($d->app_build ?? 0),
+        ];
+    }
+
     // Query data siswa Moodle & status aplikasi CBT
     // Siswa yang sedang online/ujian berada di paling atas, disusul seluruh siswa Moodle.
     $sql = "SELECT u.id AS userid,
@@ -127,6 +160,8 @@ try {
                    IFNULL(a.lock_status, -1) AS lock_status,
                    IFNULL(a.current_quizid, 0) AS current_quizid,
                    IFNULL(a.platform, '') AS raw_platform,
+                   IFNULL(a.app_version, '') AS app_version,
+                   IFNULL(a.app_build, 0) AS app_build,
                    IFNULL(q.name, '') AS quiz_name,
                    CASE 
                      WHEN (a.lastping IS NOT NULL AND a.lastping > UNIX_TIMESTAMP() - 300 AND a.lock_status IN (1, 2, 3)) THEN
@@ -240,6 +275,15 @@ try {
             }
         }
 
+        $devInfo       = $latestDeviceMap[$uid] ?? null;
+        $rawPlatStr    = strtolower(trim((string)($r->raw_platform ?? '')));
+        $devicePlat    = ($rawPlatStr === 'ios' || $rawPlatStr === 'android') ? $rawPlatStr : ($devInfo['platform'] ?? '');
+        $rowAppVer     = trim((string)($r->app_version ?? ''));
+        $rowAppBuild   = (int)($r->app_build ?? 0);
+        $finalAppVer   = ($rowAppVer !== '') ? $rowAppVer : ($devInfo['app_version'] ?? '');
+        $finalAppBuild = ($rowAppBuild > 0) ? $rowAppBuild : (int)($devInfo['app_build'] ?? 0);
+        $deviceModel   = $devInfo['model'] ?? '';
+
         $users[] = [
             'userid'          => $uid,
             'firstname'       => $r->firstname ?? '',
@@ -263,6 +307,10 @@ try {
             'current_quizid'  => $liveQuizId,
             'quiz_name'       => $liveQuizName,
             'client_type'     => $clientType,
+            'device_platform' => $devicePlat,
+            'device_model'    => $deviceModel,
+            'app_version'     => $finalAppVer,
+            'app_build'       => $finalAppBuild,
         ];
     }
 
@@ -277,7 +325,14 @@ try {
         return strcmp((string)$a['firstname'], (string)$b['firstname']);
     });
 
-    $jsonOut = json_encode(['server_time' => $now, 'users' => $users]);
+    $jsonOut = json_encode([
+        'server_time'   => $now,
+        'plugin_config' => [
+            'min_android_build' => $minAndroidBuild,
+            'min_ios_build'     => $minIosBuild,
+        ],
+        'users'         => $users,
+    ]);
     if (is_dir('/dev/shm') && is_writable('/dev/shm')) {
         @file_put_contents($cacheFile, $jsonOut, LOCK_EX);
     }

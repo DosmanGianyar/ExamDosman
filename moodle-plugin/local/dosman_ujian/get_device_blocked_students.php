@@ -64,7 +64,9 @@ try {
 
     $now = time();
 
-    $sql = "SELECT d.device_id, d.userid, d.block_reason, d.blocked_at, d.model,
+    $sql = "SELECT d.device_id, d.userid, d.platform, d.block_reason, d.blocked_at, d.model,
+                   IFNULL(d.app_version, '') AS app_version,
+                   IFNULL(d.app_build, 0) AS app_build,
                    u.firstname, u.lastname, u.username, u.department
               FROM {$prefix}local_dosman_ujian_devices d
               JOIN {$prefix}user u ON u.id = d.userid AND u.deleted = 0 AND u.suspended = 0
@@ -78,6 +80,7 @@ try {
         $blockedAt = (int)$row['blocked_at'];
         $row['blocked_at']             = $blockedAt;
         $row['userid']                 = (int)$row['userid'];
+        $row['app_build']              = (int)($row['app_build'] ?? 0);
         $row['seconds_since_blocked']  = $now - $blockedAt;
         $row['seconds_until_escalation'] = max(0, 300 - ($now - $blockedAt));
         $students[] = $row;

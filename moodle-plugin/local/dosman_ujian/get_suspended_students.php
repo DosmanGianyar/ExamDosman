@@ -74,7 +74,25 @@ try {
                          WHERE d2.userid = u.id
                          ORDER BY d2.last_seen DESC, d2.id DESC LIMIT 1),
                        ''
-                   ) AS platform
+                   ) AS platform,
+                   COALESCE(
+                       (SELECT d3.model FROM {$prefix}local_dosman_ujian_devices d3
+                         WHERE d3.userid = u.id
+                         ORDER BY d3.last_seen DESC, d3.id DESC LIMIT 1),
+                       ''
+                   ) AS device_model,
+                   COALESCE(
+                       (SELECT d4.app_version FROM {$prefix}local_dosman_ujian_devices d4
+                         WHERE d4.userid = u.id
+                         ORDER BY d4.last_seen DESC, d4.id DESC LIMIT 1),
+                       ''
+                   ) AS app_version,
+                   COALESCE(
+                       (SELECT d5.app_build FROM {$prefix}local_dosman_ujian_devices d5
+                         WHERE d5.userid = u.id
+                         ORDER BY d5.last_seen DESC, d5.id DESC LIMIT 1),
+                       0
+                   ) AS app_build
               FROM {$prefix}user u
              WHERE u.suspended = 1
                AND u.deleted  = 0
@@ -101,6 +119,9 @@ try {
             'timemodified' => (int)$r->timemodified,
             'reason'       => $reason,
             'platform'     => $r->platform ?? '',
+            'device_model' => $r->device_model ?? '',
+            'app_version'  => $r->app_version ?? '',
+            'app_build'    => (int)($r->app_build ?? 0),
         ];
     }
 

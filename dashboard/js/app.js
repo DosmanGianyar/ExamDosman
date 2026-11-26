@@ -18,6 +18,7 @@
     deviceBlocked: [],
     suspendedStudents: [],
     selectedSuspendedIds: new Set(),
+    pluginConfig: { min_android_build: 0, min_ios_build: 0 },
     countdown: 10,
     countdownInterval: null,
     tickerInterval: null,
@@ -273,9 +274,16 @@
       }
 
       state.liveUsers = Array.isArray(data.users) ? data.users : [];
+      if (data.plugin_config && typeof data.plugin_config === 'object') {
+        state.pluginConfig = {
+          min_android_build: parseInt(data.plugin_config.min_android_build || 0, 10) || 0,
+          min_ios_build: parseInt(data.plugin_config.min_ios_build || 0, 10) || 0,
+        };
+      }
 
       updateLiveKPI();
       rebuildClassFilterOptions();
+      rebuildVersionFilterAndSummary();
 
       if (!backgroundOnly) {
         renderLiveMonitorTable();
@@ -337,6 +345,203 @@
         if (cardTitle) cardTitle.innerHTML = '&#x1F465; Direktori Semua Akun Siswa Terdaftar (LMS Moodle)';
       }
     }
+    rebuildVersionFilterAndSummary();
+    renderLiveMonitorTable();
+  }
+
+  /* ─── APP VERSION & DEVICE HELPERS ───────────────────────────────────────── */
+  function getEffectivePlatform(u) {
+    const ct = (u.client_type || '').toLowerCase();
+    if (ct === 'android' || ct === 'ios') return ct;
+    const dp = (u.device_platform || u.platform || '').toLowerCase();
+    if (dp === 'android' || dp === 'ios') return dp;
+    return '';
+  }
+
+  function getVersionKey(u) {
+    const ver = (u.app_version || '').trim();
+    const build = parseInt(u.app_build || 0, 10) || 0;
+    if (ver.toLowerCase() === 'legacy') return 'legacy';
+    if (!ver && build <= 0) return 'unknown';
+    const plat = getEffectivePlatform(u) || 'app';
+    return `${plat}|${ver || 'v?'}|${build}`;
+  }
+
+  function formatVersionLabel(ver, build) {
+    const cleanVer = (ver || '').trim();
+    const numBuild = parseInt(build || 0, 10) || 0;
+    if (cleanVer.toLowerCase() === 'legacy') return 'Versi Lama (<2.8.0)';
+    if (!cleanVer && numBuild <= 0) return 'Belum tercatat';
+    const vText = cleanVer ? (cleanVer.startsWith('v') ? cleanVer : `v${cleanVer}`) : 'App';
+    return numBuild > 0 ? `${vText} (b${numBuild})` : vText;
+  }
+
+  function computeLatestBuildByPlatform(users) {
+    const latest = { android: 0, ios: 0 };
+    (users || []).forEach(u => {
+      const plat = getEffectivePlatform(u);
+      const build = parseInt(u.app_build || 0, 10) || 0;
+      if ((plat === 'android' || plat === 'ios') && build > (latest[plat] || 0)) {
+        latest[plat] = build;
+      }
+    });
+    return latest;
+  }
+
+  function isOutdatedVersion(u, latestByPlatform) {
+    const ver = (u.app_version || '').trim().toLowerCase();
+    if (ver === 'legacy') return true;
+    const build = parseInt(u.app_build || 0, 10) || 0;
+    if (!ver && build <= 0) return false;
+    const plat = getEffectivePlatform(u);
+    const minBuild = plat === 'ios'
+      ? (state.pluginConfig.min_ios_build || 0)
+      : (plat === 'android' ? (state.pluginConfig.min_android_build || 0) : 0);
+    if (minBuild > 0 && build > 0 && build < minBuild) return true;
+    if (minBuild > 0 && build === 0) return true;
+    const maxObserved = (latestByPlatform && plat) ? (latestByPlatform[plat] || 0) : 0;
+    return maxObserved > 0 && build > 0 && build < maxObserved;
+  }
+
+  function renderAppVersionBadge(appVersion, appBuild, platform, latestByPlatform) {
+    const ver = (appVersion || '').trim();
+    const build = parseInt(appBuild || 0, 10) || 0;
+    const plat = (platform || '').toLowerCase();
+
+    if (ver.toLowerCase() === 'legacy') {
+      return '<span class="badge badge-danger" style="font-size:0.7rem; padding:2px 7px;" title="APK versi lama sebelum v2.8.0 (tidak mengirim metadata versi). Rentan kendala gambar/upload, wajib update!">&#x26A0;&#xFE0F; Versi Lama (&lt;2.8.0)</span>';
+    }
+    if (!ver && build <= 0) {
+      return '<span class="badge badge-secondary" style="font-size:0.7rem; padding:2px 7px; opacity:0.65;" title="Akan tercatat otomatis saat siswa login ulang menggunakan versi terbaru">Versi belum tercatat</span>';
+    }
+
+    const label = formatVersionLabel(ver, build);
+    const minBuild = plat === 'ios'
+      ? (state.pluginConfig.min_ios_build || 0)
+      : (plat === 'android' ? (state.pluginConfig.min_android_build || 0) : 0);
+    const maxObserved = (latestByPlatform && plat) ? (latestByPlatform[plat] || 0) : 0;
+
+    if (minBuild > 0 && build < minBuild) {
+      return `<span class="badge badge-danger" style="font-size:0.7rem; padding:2px 7px;" title="Di bawah batas minimum server (build ${minBuild}+)">&#x26A0;&#xFE0F; ${escapeHtml(label)}</span>`;
+    }
+    if (maxObserved > 0 && build > 0 && build < maxObserved) {
+      return `<span class="badge badge-warning" style="font-size:0.7rem; padding:2px 7px;" title="Sudah ada build lebih baru terdeteksi (build ${maxObserved})">${escapeHtml(label)}</span>`;
+    }
+    return `<span class="badge badge-success" style="font-size:0.7rem; padding:2px 7px;">&#x2705; ${escapeHtml(label)}</span>`;
+  }
+
+  function getActiveModeUsers() {
+    if (state.listMode === 'live') {
+      return state.liveUsers.filter(u =>
+        (u.is_online === 1) || (u.lock_status === 2 || u.lock_status === 3) || (u.current_quizid > 0) || isUserUnresponsive(u)
+      );
+    }
+    return state.liveUsers;
+  }
+
+  function rebuildVersionFilterAndSummary() {
+    const versionSelect = document.getElementById('filter-version');
+    const summaryBar = document.getElementById('version-summary-bar');
+    const scopeUsers = getActiveModeUsers();
+    const latestByPlatform = computeLatestBuildByPlatform(state.liveUsers);
+
+    const groups = new Map();
+    let outdatedCount = 0;
+    let unknownCount = 0;
+
+    scopeUsers.forEach(u => {
+      const key = getVersionKey(u);
+      const plat = getEffectivePlatform(u);
+      const ver = (u.app_version || '').trim();
+      const build = parseInt(u.app_build || 0, 10) || 0;
+
+      if (isOutdatedVersion(u, latestByPlatform)) {
+        outdatedCount++;
+      }
+      if (key === 'unknown') {
+        unknownCount++;
+        return;
+      }
+
+      if (!groups.has(key)) {
+        const platPrefix = plat === 'ios' ? 'iOS' : (plat === 'android' ? 'Android' : 'App');
+        const label = key === 'legacy'
+          ? 'Versi Lama (<2.8.0)'
+          : `${platPrefix} ${formatVersionLabel(ver, build)}`;
+        groups.set(key, {
+          key,
+          plat,
+          build,
+          label,
+          count: 0,
+          outdated: isOutdatedVersion(u, latestByPlatform),
+          isLegacy: key === 'legacy',
+        });
+      }
+      groups.get(key).count += 1;
+    });
+
+    const sortedGroups = Array.from(groups.values()).sort((a, b) => {
+      if (a.isLegacy !== b.isLegacy) return a.isLegacy ? 1 : -1;
+      if (a.plat !== b.plat) return a.plat.localeCompare(b.plat);
+      return b.build - a.build;
+    });
+
+    if (versionSelect) {
+      const currentVal = versionSelect.value;
+      let html = '<option value="">Semua Versi Aplikasi</option>';
+      if (outdatedCount > 0) {
+        html += `<option value="__outdated__">&#x26A0;&#xFE0F; Versi Lama / Perlu Update (${outdatedCount})</option>`;
+      }
+      sortedGroups.forEach(g => {
+        html += `<option value="${escapeHtml(g.key)}">${escapeHtml(g.label)} (${g.count})</option>`;
+      });
+      if (unknownCount > 0) {
+        html += `<option value="__unknown__">Belum Tercatat (${unknownCount})</option>`;
+      }
+      versionSelect.innerHTML = html;
+      const validValues = new Set(['', '__outdated__', '__unknown__', ...sortedGroups.map(g => g.key)]);
+      versionSelect.value = validValues.has(currentVal) ? currentVal : '';
+    }
+
+    if (summaryBar) {
+      if (scopeUsers.length === 0) {
+        summaryBar.style.display = 'none';
+        summaryBar.innerHTML = '';
+        return;
+      }
+
+      const activeFilter = versionSelect ? versionSelect.value : '';
+      let pillsHtml = '<span style="font-size:0.75rem; font-weight:600; color:var(--text-muted); margin-right:4px;">Distribusi Versi App:</span>';
+
+      sortedGroups.forEach(g => {
+        const isActive = activeFilter === g.key;
+        const badgeCls = g.isLegacy ? 'badge-danger' : (g.outdated ? 'badge-warning' : 'badge-success');
+        const activeStyle = isActive ? 'outline:2px solid #fff; transform:scale(1.03);' : 'opacity:0.9;';
+        const platIcon = g.plat === 'ios' ? '&#x1F34E; ' : (g.plat === 'android' ? '&#x1F916; ' : '');
+        pillsHtml += `<button type="button" class="badge ${badgeCls}" onclick="DosmanApp.setVersionFilter('${escapeJs(g.key)}')" style="cursor:pointer; font-size:0.74rem; padding:4px 10px; ${activeStyle}" title="Klik untuk memfilter versi ini">${platIcon}${escapeHtml(g.label)}: <strong>${g.count}</strong></button>`;
+      });
+
+      if (unknownCount > 0) {
+        const isActive = activeFilter === '__unknown__';
+        const activeStyle = isActive ? 'outline:2px solid #fff;' : 'opacity:0.75;';
+        pillsHtml += `<button type="button" class="badge badge-secondary" onclick="DosmanApp.setVersionFilter('__unknown__')" style="cursor:pointer; font-size:0.74rem; padding:4px 10px; ${activeStyle}" title="Siswa belum login dengan versi pelapor terbaru">Belum tercatat: <strong>${unknownCount}</strong></button>`;
+      }
+
+      if (activeFilter) {
+        pillsHtml += `<button type="button" class="btn btn-secondary btn-sm" onclick="DosmanApp.setVersionFilter('')" style="padding:2px 8px; font-size:0.72rem; margin-left:auto;">&#x2715; Reset Filter Versi</button>`;
+      }
+
+      summaryBar.innerHTML = pillsHtml;
+      summaryBar.style.display = 'flex';
+    }
+  }
+
+  function setVersionFilter(val) {
+    const versionSelect = document.getElementById('filter-version');
+    if (!versionSelect) return;
+    versionSelect.value = (versionSelect.value === val) ? '' : val;
+    rebuildVersionFilterAndSummary();
     renderLiveMonitorTable();
   }
 
@@ -420,6 +625,10 @@
     const platformSelect = document.getElementById('filter-platform');
     const selectedPlatform = platformSelect ? platformSelect.value : '';
 
+    const versionSelect = document.getElementById('filter-version');
+    const selectedVersion = versionSelect ? versionSelect.value : '';
+    const latestByPlatform = computeLatestBuildByPlatform(state.liveUsers);
+
     return state.liveUsers.filter(u => {
       // 0. Mode Filter (Sedang Login / Live vs Semua Akun Terdaftar)
       if (state.listMode === 'live') {
@@ -429,8 +638,21 @@
 
       // 1. Platform filter
       if (selectedPlatform) {
-        if (selectedPlatform === 'android' && u.client_type !== 'android') return false;
-        if (selectedPlatform === 'ios' && u.client_type !== 'ios') return false;
+        const effPlat = getEffectivePlatform(u);
+        if (selectedPlatform === 'android' && effPlat !== 'android') return false;
+        if (selectedPlatform === 'ios' && effPlat !== 'ios') return false;
+      }
+
+      // 1b. App version filter
+      if (selectedVersion) {
+        const vKey = getVersionKey(u);
+        if (selectedVersion === '__outdated__') {
+          if (!isOutdatedVersion(u, latestByPlatform)) return false;
+        } else if (selectedVersion === '__unknown__') {
+          if (vKey !== 'unknown') return false;
+        } else if (vKey !== selectedVersion) {
+          return false;
+        }
       }
 
       // 2. Grade (Tingkat) filter
@@ -500,6 +722,9 @@
         const cohortNames = (u.cohort_names || '').toLowerCase();
         const gradeName = (u.grade || '').toLowerCase();
         const tahunMasuk = (u.tahun_masuk || '').toLowerCase();
+        const appVer = (u.app_version || '').toLowerCase();
+        const appBuildStr = u.app_build ? String(u.app_build) : '';
+        const deviceModel = (u.device_model || '').toLowerCase();
 
         const cleanQ = q.replace(/[\s\-_.,]+/g, '');
         const cleanStudent = studentName.replace(/[\s\-_.,]+/g, '');
@@ -522,7 +747,10 @@
                         className.includes(q) ||
                         cohortNames.includes(q) ||
                         gradeName.includes(q) ||
-                        tahunMasuk.includes(q);
+                        tahunMasuk.includes(q) ||
+                        appVer.includes(q) ||
+                        (appBuildStr && appBuildStr.includes(q)) ||
+                        deviceModel.includes(q);
 
         if (!matches) return false;
       }
@@ -582,6 +810,7 @@
     }
 
     let rowsHtml = '';
+    const latestByPlatform = computeLatestBuildByPlatform(state.liveUsers);
     filtered.forEach((u, idx) => {
       const isBlocked = u.lock_status === 2;
       const isPaused = u.lock_status === 3;
@@ -611,7 +840,8 @@
         statusBadge = '<span class="badge badge-secondary" style="opacity:0.55;">&#x26AA; Belum Login</span>';
       }
 
-      // Platform Badge: Tampilkan iOS/Android saat siswa online atau masih tercatat aktif/tidak merespons
+      // Platform Badge: Tampilkan iOS/Android saat online, atau perangkat terakhir di direktori
+      const effPlat = getEffectivePlatform(u);
       let platformBadge = '';
       if (hasClient) {
         if (isIOS) {
@@ -623,9 +853,27 @@
         } else {
           platformBadge = '<span class="badge badge-secondary" style="opacity:0.55;">&#x1F4F1; Tidak diketahui</span>';
         }
+      } else if (effPlat === 'ios') {
+        platformBadge = '<span class="badge badge-ios" style="opacity:0.65;" title="Perangkat terakhir saat offline">&#x1F34E; iOS (Offline)</span>';
+      } else if (effPlat === 'android') {
+        platformBadge = '<span class="badge badge-android" style="opacity:0.65;" title="Perangkat terakhir saat offline">&#x1F916; Android (Offline)</span>';
       } else {
         platformBadge = '<span class="badge badge-secondary" style="opacity:0.5;">— (Offline)</span>';
       }
+
+      const versionBadgeHtml = (hasClient || u.app_version || u.app_build > 0)
+        ? renderAppVersionBadge(u.app_version, u.app_build, effPlat, latestByPlatform)
+        : '';
+      const deviceModelHtml = u.device_model
+        ? `<span style="font-size:0.71rem; color:var(--text-dim); max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="Model HP: ${escapeHtml(u.device_model)}">${escapeHtml(u.device_model)}</span>`
+        : '';
+      const deviceCellHtml = `
+        <div style="display:flex; flex-direction:column; align-items:flex-start; gap:4px;">
+          ${platformBadge}
+          ${versionBadgeHtml}
+          ${deviceModelHtml}
+        </div>
+      `;
 
       // Pisahkan 4 Komponen Data: No Absen, Nama Bersih, Kelas, dan Tahun Masuk
       let noAbsen = (u.no_absen || '').trim();
@@ -751,7 +999,7 @@
               </div>
             </div>
           </td>
-          <td>${platformBadge}</td>
+          <td>${deviceCellHtml}</td>
           <td>${statusBadge}</td>
           <td>${quizHtml}</td>
           <td>
@@ -850,12 +1098,16 @@
     }
 
     let html = '';
+    const latestByPlatform = computeLatestBuildByPlatform(state.liveUsers);
     state.deviceBlocked.forEach((d, idx) => {
       const name = `${d.firstname || ''} ${d.lastname || ''}`.trim() || d.username || 'Siswa';
       const reason = d.block_reason || 'Terdeteksi keluar dari aplikasi / minimize';
       const timeStr = d.blocked_at ? new Date(d.blocked_at * 1000).toLocaleTimeString('id-ID') : '—';
       const escSecs = d.seconds_until_escalation ?? 0;
       const escalateText = escSecs > 0 ? `Auto-suspend dalam ${Math.ceil(escSecs / 60)} mnt` : 'Siap eskalasi';
+      const verBadge = (d.app_version || d.app_build > 0)
+        ? renderAppVersionBadge(d.app_version, d.app_build, d.platform, latestByPlatform)
+        : '';
 
       html += `
         <tr>
@@ -864,6 +1116,7 @@
             <div class="student-meta">
               <span class="student-name">${escapeHtml(name)}</span>
               <span class="student-sub">ID: ${d.userid} &bull; Model: ${escapeHtml(d.model || 'Unknown Device')}</span>
+              ${verBadge ? `<div style="margin-top:4px;">${verBadge}</div>` : ''}
             </div>
           </td>
           <td>
@@ -925,6 +1178,7 @@
     }
 
     let html = '';
+    const latestByPlatform = computeLatestBuildByPlatform(state.liveUsers);
     filtered.forEach((s, idx) => {
       const name = `${s.firstname || ''} ${s.lastname || ''}`.trim() || s.username;
       const isSelected = state.selectedSuspendedIds.has(s.userid);
@@ -933,6 +1187,10 @@
       const platBadge = s.platform
         ? `<span style="display:inline-block; margin-left:6px; padding:1px 6px; font-size:0.7rem; border-radius:4px; background:rgba(148,163,184,0.18); color:#cbd5e1; text-transform:uppercase;">${escapeHtml(s.platform)}</span>`
         : '';
+      const verBadge = (s.app_version || s.app_build > 0)
+        ? renderAppVersionBadge(s.app_version, s.app_build, s.platform, latestByPlatform)
+        : '';
+      const modelSub = s.device_model ? ` &bull; ${escapeHtml(s.device_model)}` : '';
 
       html += `
         <tr>
@@ -943,7 +1201,8 @@
           <td>
             <div class="student-meta">
               <span class="student-name">${escapeHtml(name)}</span>
-              <span class="student-sub">@${escapeHtml(s.username || '')} &bull; ${escapeHtml(s.department || '')}</span>
+              <span class="student-sub">@${escapeHtml(s.username || '')} &bull; ${escapeHtml(s.department || '')}${modelSub}</span>
+              ${verBadge ? `<div style="margin-top:4px;">${verBadge}</div>` : ''}
             </div>
           </td>
           <td>
@@ -1836,6 +2095,7 @@
     unblockDevice: unblockDevice,
     toggleSuspendedSelect: toggleSuspendedSelect,
     setListMode: setListMode,
+    setVersionFilter: setVersionFilter,
     onGradeChange: function() {
       rebuildClassFilterOptions();
       renderLiveMonitorTable();
@@ -1844,6 +2104,7 @@
       renderLiveMonitorTable();
     },
     onFilterChange: function() {
+      rebuildVersionFilterAndSummary();
       renderLiveMonitorTable();
     },
     refreshData: function() {
