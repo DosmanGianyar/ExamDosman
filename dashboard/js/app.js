@@ -1105,9 +1105,13 @@
       const timeStr = d.blocked_at ? new Date(d.blocked_at * 1000).toLocaleTimeString('id-ID') : '—';
       const escSecs = d.seconds_until_escalation ?? 0;
       const escalateText = escSecs > 0 ? `Auto-suspend dalam ${Math.ceil(escSecs / 60)} mnt` : 'Siap eskalasi';
-      const verBadge = (d.app_version || d.app_build > 0)
-        ? renderAppVersionBadge(d.app_version, d.app_build, d.platform, latestByPlatform)
-        : '';
+      const dPlat = (d.platform || '').toLowerCase();
+      const dPlatBadge = dPlat === 'ios'
+        ? '<span class="badge badge-ios">&#x1F34E; iOS</span>'
+        : (dPlat === 'android'
+          ? '<span class="badge badge-android">&#x1F916; Android</span>'
+          : '<span class="badge badge-secondary" style="opacity:0.6;">&#x1F4F1; Perangkat</span>');
+      const verBadge = renderAppVersionBadge(d.app_version, d.app_build, dPlat, latestByPlatform);
 
       html += `
         <tr>
@@ -1116,7 +1120,10 @@
             <div class="student-meta">
               <span class="student-name">${escapeHtml(name)}</span>
               <span class="student-sub">ID: ${d.userid} &bull; Model: ${escapeHtml(d.model || 'Unknown Device')}</span>
-              ${verBadge ? `<div style="margin-top:4px;">${verBadge}</div>` : ''}
+              <div style="margin-top:4px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                ${dPlatBadge}
+                ${verBadge}
+              </div>
             </div>
           </td>
           <td>
@@ -1157,7 +1164,12 @@
       const uname = (s.username || '').toLowerCase();
       const email = (s.email || '').toLowerCase();
       const reason = (s.reason || '').toLowerCase();
-      return name.includes(q) || uname.includes(q) || email.includes(q) || reason.includes(q);
+      const appVer = (s.app_version || '').toLowerCase();
+      const appBuild = s.app_build ? String(s.app_build) : '';
+      const plat = (s.platform || '').toLowerCase();
+      const model = (s.device_model || '').toLowerCase();
+      return name.includes(q) || uname.includes(q) || email.includes(q) || reason.includes(q)
+        || appVer.includes(q) || (appBuild && appBuild.includes(q)) || plat.includes(q) || model.includes(q);
     });
 
     if (countEl) countEl.textContent = `${filtered.length} akun`;
@@ -1165,7 +1177,7 @@
     if (filtered.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="7">
+          <td colspan="8">
             <div class="empty-state">
               <div class="empty-icon">&#x1F389;</div>
               <div class="empty-title">Tidak Ada Siswa Tersuspend</div>
@@ -1184,13 +1196,16 @@
       const isSelected = state.selectedSuspendedIds.has(s.userid);
       const timeStr = s.timemodified ? new Date(s.timemodified * 1000).toLocaleString('id-ID') : '—';
       const reasonText = (s.reason || '').trim() || 'Disuspend oleh pengawas / sistem';
-      const platBadge = s.platform
-        ? `<span style="display:inline-block; margin-left:6px; padding:1px 6px; font-size:0.7rem; border-radius:4px; background:rgba(148,163,184,0.18); color:#cbd5e1; text-transform:uppercase;">${escapeHtml(s.platform)}</span>`
+      const sPlat = (s.platform || '').toLowerCase();
+      const platBadge = sPlat === 'ios'
+        ? '<span class="badge badge-ios">&#x1F34E; iOS / Apple</span>'
+        : (sPlat === 'android'
+          ? '<span class="badge badge-android">&#x1F916; Android</span>'
+          : '<span class="badge badge-secondary" style="opacity:0.55;">— Tidak diketahui</span>');
+      const verBadge = renderAppVersionBadge(s.app_version, s.app_build, sPlat, latestByPlatform);
+      const modelHtml = s.device_model
+        ? `<span style="font-size:0.71rem; color:var(--text-dim); max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="Model HP: ${escapeHtml(s.device_model)}">${escapeHtml(s.device_model)}</span>`
         : '';
-      const verBadge = (s.app_version || s.app_build > 0)
-        ? renderAppVersionBadge(s.app_version, s.app_build, s.platform, latestByPlatform)
-        : '';
-      const modelSub = s.device_model ? ` &bull; ${escapeHtml(s.device_model)}` : '';
 
       html += `
         <tr>
@@ -1201,14 +1216,20 @@
           <td>
             <div class="student-meta">
               <span class="student-name">${escapeHtml(name)}</span>
-              <span class="student-sub">@${escapeHtml(s.username || '')} &bull; ${escapeHtml(s.department || '')}${modelSub}</span>
-              ${verBadge ? `<div style="margin-top:4px;">${verBadge}</div>` : ''}
+              <span class="student-sub">@${escapeHtml(s.username || '')} &bull; ${escapeHtml(s.department || '')}</span>
+            </div>
+          </td>
+          <td>
+            <div style="display:flex; flex-direction:column; align-items:flex-start; gap:4px;">
+              ${platBadge}
+              ${verBadge}
+              ${modelHtml}
             </div>
           </td>
           <td>
             <span style="display:inline-block; padding:4px 8px; border-radius:6px; background:rgba(239,68,68,0.14); border:1px solid rgba(239,68,68,0.3); color:#fca5a5; font-size:0.78rem; line-height:1.35;">
               ${escapeHtml(reasonText)}
-            </span>${platBadge}
+            </span>
           </td>
           <td><span style="font-size:0.825rem; color:var(--text-muted);">${escapeHtml(s.email || '—')}</span></td>
           <td style="font-size:0.825rem; font-family:'JetBrains Mono'; color:var(--text-muted);">${timeStr}</td>

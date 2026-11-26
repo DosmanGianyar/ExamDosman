@@ -70,9 +70,11 @@ try {
                        AND l.eventtype IN ('account_suspended', 'device_blocked_tier1', 'violation_ignored_pre_quiz')
                      ORDER BY l.timecreated DESC, l.id DESC LIMIT 1) AS log_eventdata,
                    COALESCE(
-                       (SELECT d2.platform FROM {$prefix}local_dosman_ujian_devices d2
-                         WHERE d2.userid = u.id
-                         ORDER BY d2.last_seen DESC, d2.id DESC LIMIT 1),
+                       NULLIF((SELECT d2.platform FROM {$prefix}local_dosman_ujian_devices d2
+                                WHERE d2.userid = u.id
+                                ORDER BY d2.last_seen DESC, d2.id DESC LIMIT 1), ''),
+                       NULLIF((SELECT a2.platform FROM {$prefix}local_dosman_ujian_appstatus a2
+                                WHERE a2.userid = u.id LIMIT 1), ''),
                        ''
                    ) AS platform,
                    COALESCE(
@@ -82,15 +84,19 @@ try {
                        ''
                    ) AS device_model,
                    COALESCE(
-                       (SELECT d4.app_version FROM {$prefix}local_dosman_ujian_devices d4
-                         WHERE d4.userid = u.id
-                         ORDER BY d4.last_seen DESC, d4.id DESC LIMIT 1),
+                       NULLIF((SELECT d4.app_version FROM {$prefix}local_dosman_ujian_devices d4
+                                WHERE d4.userid = u.id AND d4.app_version IS NOT NULL AND d4.app_version <> ''
+                                ORDER BY d4.last_seen DESC, d4.id DESC LIMIT 1), ''),
+                       NULLIF((SELECT a3.app_version FROM {$prefix}local_dosman_ujian_appstatus a3
+                                WHERE a3.userid = u.id LIMIT 1), ''),
                        ''
                    ) AS app_version,
                    COALESCE(
-                       (SELECT d5.app_build FROM {$prefix}local_dosman_ujian_devices d5
-                         WHERE d5.userid = u.id
-                         ORDER BY d5.last_seen DESC, d5.id DESC LIMIT 1),
+                       NULLIF((SELECT d5.app_build FROM {$prefix}local_dosman_ujian_devices d5
+                                WHERE d5.userid = u.id AND d5.app_build > 0
+                                ORDER BY d5.last_seen DESC, d5.id DESC LIMIT 1), 0),
+                       (SELECT IFNULL(a4.app_build, 0) FROM {$prefix}local_dosman_ujian_appstatus a4
+                         WHERE a4.userid = u.id LIMIT 1),
                        0
                    ) AS app_build
               FROM {$prefix}user u
