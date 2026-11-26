@@ -155,39 +155,48 @@ try {
         exit;
     }
 
-    // Penegakan versi minimum APK Android (opsional, dikontrol via min_android_build di plugin settings)
-    // Tidak mengubah status perangkat di DB sehingga langsung bisa login begitu siswa update APK.
-    if ($platform === 'android') {
-        $stmtCfg = $pdo->prepare(
-            "SELECT name, value FROM {$prefix}config_plugins
-              WHERE plugin = 'local_dosman_ujian'
-                AND name IN ('min_android_build', 'android_download_url')"
-        );
-        $stmtCfg->execute();
-        $pluginCfg = [];
-        while ($rowCfg = $stmtCfg->fetch(PDO::FETCH_ASSOC)) {
-            $pluginCfg[$rowCfg['name']] = (string)$rowCfg['value'];
-        }
-        $minAndroidBuild = (int)($pluginCfg['min_android_build'] ?? 0);
-        $downloadUrl     = trim((string)($pluginCfg['android_download_url'] ?? ''));
+    // Penegakan versi minimum aplikasi Android & iOS (opsional, dikontrol via plugin settings)
+    // Tidak mengubah status perangkat di DB sehingga langsung bisa login begitu siswa update dari Store.
+    $stmtCfg = $pdo->prepare(
+        "SELECT name, value FROM {$prefix}config_plugins
+          WHERE plugin = 'local_dosman_ujian'
+            AND name IN ('min_android_build', 'android_download_url', 'min_ios_build', 'ios_download_url')"
+    );
+    $stmtCfg->execute();
+    $pluginCfg = [];
+    while ($rowCfg = $stmtCfg->fetch(PDO::FETCH_ASSOC)) {
+        $pluginCfg[$rowCfg['name']] = (string)$rowCfg['value'];
+    }
 
-        if ($minAndroidBuild > 0 && $appBuild < $minAndroidBuild) {
-            $verInfo = $appVersion !== '' ? " (versi Anda: v{$appVersion} / build {$appBuild})" : ' (versi lama)';
-            $reason  = "Aplikasi EXAM DOSMAN{$verInfo} tidak lagi didukung. Wajib update ke APK terbaru (build {$minAndroidBuild}+) sebelum mengikuti ujian.";
-            if ($downloadUrl !== '') {
-                $reason .= "\n\nUnduh APK terbaru di: {$downloadUrl}";
-            }
-            echo json_encode([
-                'success'         => true,
-                'device_blocked'  => true,
-                'update_required' => true,
-                'min_build'       => $minAndroidBuild,
-                'download_url'    => $downloadUrl,
-                'block_reason'    => $reason,
-                'blocked_at'      => $now,
-            ]);
-            exit;
+    if ($platform === 'ios') {
+        $minBuild    = (int)($pluginCfg['min_ios_build'] ?? 0);
+        $downloadUrl = trim((string)($pluginCfg['ios_download_url'] ?? ''));
+        if ($downloadUrl === '') {
+            $downloadUrl = 'https://apps.apple.com/id/app/exam-dosman/id6823572758';
         }
+        $storeLabel = 'App Store';
+    } else {
+        $minBuild    = (int)($pluginCfg['min_android_build'] ?? 0);
+        $downloadUrl = trim((string)($pluginCfg['android_download_url'] ?? ''));
+        if ($downloadUrl === '') {
+            $downloadUrl = 'https://play.google.com/store/apps/details?id=com.dosman.dosman_ujian';
+        }
+        $storeLabel = 'Google Play Store';
+    }
+
+    if ($minBuild > 0 && $appBuild < $minBuild) {
+        $verInfo = $appVersion !== '' ? " (versi Anda: v{$appVersion} / build {$appBuild})" : ' (versi lama)';
+        $reason  = "Aplikasi EXAM DOSMAN{$verInfo} tidak lagi didukung. Wajib update ke versi terbaru (build {$minBuild}+) melalui {$storeLabel} sebelum mengikuti ujian:\n\n{$downloadUrl}";
+        echo json_encode([
+            'success'         => true,
+            'device_blocked'  => true,
+            'update_required' => true,
+            'min_build'       => $minBuild,
+            'download_url'    => $downloadUrl,
+            'block_reason'    => $reason,
+            'blocked_at'      => $now,
+        ]);
+        exit;
     }
 
     // Setelah upsert: baca status terkini untuk cek blokir

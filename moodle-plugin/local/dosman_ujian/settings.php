@@ -38,17 +38,35 @@ if ($hassiteconfig) {
     $settings->add(new admin_setting_configtext(
         'local_dosman_ujian/min_android_build',
         'Build Minimum APK Android',
-        'Isi angka build minimum APK Android yang diizinkan login (mis. 152 untuk v2.8.0+152). Isi 0 untuk menonaktifkan kewajiban update. APK lama otomatis ditolak tanpa memblokir permanen perangkat.',
+        'Isi angka build minimum APK Android yang diizinkan login (mis. 159 untuk Play Store v2.8.7+159). Isi 0 untuk menonaktifkan kewajiban update. APK lama otomatis ditolak tanpa memblokir permanen perangkat.',
         '0',
         PARAM_INT
     ));
 
-    // Tautan download APK Android terbaru (opsional)
+    // Tautan Google Play Store / unduhan APK Android terbaru
     $settings->add(new admin_setting_configtext(
         'local_dosman_ujian/android_download_url',
-        'Link Download APK Android Terbaru',
-        'Opsional. URL unduhan APK terbaru yang ditampilkan pada pesan wajib update di HP siswa.',
-        '',
+        'Link Google Play Store Android Terbaru',
+        'URL Google Play Store resmi (atau link unduhan APK) yang ditampilkan pada pesan wajib update di HP Android siswa.',
+        'https://play.google.com/store/apps/details?id=com.dosman.dosman_ujian',
+        PARAM_RAW_TRIMMED
+    ));
+
+    // Versi build minimum Aplikasi iOS (0 = tidak wajib update)
+    $settings->add(new admin_setting_configtext(
+        'local_dosman_ujian/min_ios_build',
+        'Build Minimum Aplikasi iOS',
+        'Isi angka build minimum aplikasi iOS yang diizinkan login (mis. 159 untuk rilis terbaru App Store). Isi 0 untuk menonaktifkan kewajiban update. Versi lama otomatis ditolak tanpa memblokir permanen perangkat.',
+        '0',
+        PARAM_INT
+    ));
+
+    // Tautan App Store iOS terbaru
+    $settings->add(new admin_setting_configtext(
+        'local_dosman_ujian/ios_download_url',
+        'Link App Store iOS Terbaru',
+        'URL App Store resmi Exam Dosman yang ditampilkan pada pesan wajib update di iPhone/iPad siswa.',
+        'https://apps.apple.com/id/app/exam-dosman/id6823572758',
         PARAM_RAW_TRIMMED
     ));
 
