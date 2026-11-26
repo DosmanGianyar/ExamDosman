@@ -115,7 +115,8 @@ class _CourseListScreenState extends State<CourseListScreen> {
     final pending = await OfflineQuizService.findPendingPackages(userId);
     if (pending.isEmpty || !mounted) return;
     final pkg = pending.first;
-    final answered = pkg.questions.where((q) => q.selectedValue != null).length;
+    final answered = pkg.answeredCount;
+    final isLockedPending = pkg.submissionStatus == OfflineSubmissionStatus.lockedPending;
 
     final resume = await showDialog<bool>(
       context: context,
@@ -126,21 +127,28 @@ class _CourseListScreenState extends State<CourseListScreen> {
           borderRadius: BorderRadius.circular(16),
           side: const BorderSide(color: Color(0xFFF59E0B), width: 1.5),
         ),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Color(0xFFFBBF24), size: 24),
-            SizedBox(width: 8),
+            Icon(
+              isLockedPending ? Icons.lock_clock_rounded : Icons.warning_amber_rounded,
+              color: const Color(0xFFFBBF24),
+              size: 24,
+            ),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Jawaban Belum Terkirim',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+                isLockedPending ? 'Jawaban Terkunci Belum Terkirim' : 'Jawaban Belum Terkirim',
+                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
               ),
             ),
           ],
         ),
         content: Text(
-          'Ditemukan jawaban ujian "${pkg.quizName}" ($answered/${pkg.questions.length} soal) yang belum dikirim ke server.\n\n'
-          'Silakan lanjutkan dan tekan "Selesai" untuk mengirim jawaban Anda.',
+          isLockedPending
+              ? 'Ditemukan jawaban ujian "${pkg.quizName}" ($answered/${pkg.questions.length} soal) yang sudah dikunci dan tersimpan permanen di HP ini.\n\n'
+                  'Tekan "Kirim Sekarang" untuk mengirim jawaban Anda ke server Moodle.'
+              : 'Ditemukan jawaban ujian "${pkg.quizName}" ($answered/${pkg.questions.length} soal) yang belum dikirim ke server.\n\n'
+                  'Silakan lanjutkan dan tekan "Selesai" untuk mengirim jawaban Anda.',
           style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.5),
         ),
         actions: [
@@ -151,8 +159,8 @@ class _CourseListScreenState extends State<CourseListScreen> {
           ElevatedButton.icon(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
-            icon: const Icon(Icons.play_arrow_rounded, size: 18),
-            label: const Text('Lanjutkan & Kirim'),
+            icon: Icon(isLockedPending ? Icons.send_rounded : Icons.play_arrow_rounded, size: 18),
+            label: Text(isLockedPending ? 'Kirim Sekarang' : 'Lanjutkan & Kirim'),
           ),
         ],
       ),

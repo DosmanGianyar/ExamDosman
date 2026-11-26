@@ -21,6 +21,39 @@ enum SubmitErrorAction {
   retryableNetwork,
 }
 
+enum OfflineSubmissionStatus {
+  inProgress,
+  lockedPending,
+  submittedVerified,
+  serverEmptyWarning;
+
+  String toWireString() {
+    switch (this) {
+      case OfflineSubmissionStatus.inProgress:
+        return 'in_progress';
+      case OfflineSubmissionStatus.lockedPending:
+        return 'locked_pending';
+      case OfflineSubmissionStatus.submittedVerified:
+        return 'submitted_verified';
+      case OfflineSubmissionStatus.serverEmptyWarning:
+        return 'server_empty_warning';
+    }
+  }
+
+  static OfflineSubmissionStatus fromWireString(String? raw) {
+    switch ((raw ?? '').trim().toLowerCase()) {
+      case 'locked_pending':
+        return OfflineSubmissionStatus.lockedPending;
+      case 'submitted_verified':
+        return OfflineSubmissionStatus.submittedVerified;
+      case 'server_empty_warning':
+        return OfflineSubmissionStatus.serverEmptyWarning;
+      default:
+        return OfflineSubmissionStatus.inProgress;
+    }
+  }
+}
+
 class OfflineOption {
   final String value;
   final String labelLetter; // A, B, C, D, E
@@ -109,6 +142,10 @@ class OfflineQuizPackage {
   final int endTimeEpochSec; // 0 jika tanpa batas waktu
   final int parserVersion;
   int serverClockOffsetSec;
+  final OfflineSubmissionStatus submissionStatus;
+  final int lockedAtEpochSec;
+  final int submittedAtEpochSec;
+  final int? serverConfirmedAnswered;
   final List<OfflineQuestion> questions;
 
   OfflineQuizPackage({
@@ -121,7 +158,22 @@ class OfflineQuizPackage {
     required this.questions,
     this.parserVersion = 1,
     this.serverClockOffsetSec = 0,
+    this.submissionStatus = OfflineSubmissionStatus.inProgress,
+    this.lockedAtEpochSec = 0,
+    this.submittedAtEpochSec = 0,
+    this.serverConfirmedAnswered,
   });
+
+  bool get isLocked => submissionStatus != OfflineSubmissionStatus.inProgress;
+  bool get needsSubmission =>
+      submissionStatus == OfflineSubmissionStatus.inProgress ||
+      submissionStatus == OfflineSubmissionStatus.lockedPending;
+  bool get isArchived =>
+      submissionStatus == OfflineSubmissionStatus.submittedVerified ||
+      submissionStatus == OfflineSubmissionStatus.serverEmptyWarning;
+  int get answeredCount => questions
+      .where((q) => q.selectedValue != null && q.selectedValue!.isNotEmpty)
+      .length;
 
   Map<String, dynamic> toJson() => {
         'quizId': quizId,
@@ -132,6 +184,11 @@ class OfflineQuizPackage {
         'endTimeEpochSec': endTimeEpochSec,
         'parserVersion': parserVersion,
         'serverClockOffsetSec': serverClockOffsetSec,
+        'submissionStatus': submissionStatus.toWireString(),
+        'lockedAtEpochSec': lockedAtEpochSec,
+        'submittedAtEpochSec': submittedAtEpochSec,
+        if (serverConfirmedAnswered != null)
+          'serverConfirmedAnswered': serverConfirmedAnswered,
         'questions': questions.map((q) => q.toJson()).toList(),
       };
 
@@ -144,6 +201,12 @@ class OfflineQuizPackage {
         endTimeEpochSec: (j['endTimeEpochSec'] as num?)?.toInt() ?? 0,
         parserVersion: (j['parserVersion'] as num?)?.toInt() ?? 1,
         serverClockOffsetSec: (j['serverClockOffsetSec'] as num?)?.toInt() ?? 0,
+        submissionStatus: OfflineSubmissionStatus.fromWireString(
+          j['submissionStatus'] as String?,
+        ),
+        lockedAtEpochSec: (j['lockedAtEpochSec'] as num?)?.toInt() ?? 0,
+        submittedAtEpochSec: (j['submittedAtEpochSec'] as num?)?.toInt() ?? 0,
+        serverConfirmedAnswered: (j['serverConfirmedAnswered'] as num?)?.toInt(),
         questions: (j['questions'] as List<dynamic>? ?? [])
             .whereType<Map<String, dynamic>>()
             .map(OfflineQuestion.fromJson)
@@ -169,6 +232,9 @@ class OfflineQuizService {
 
   static String? _cachedBaseDir;
 
+  @visibleForTesting
+  static void resetStorageDirCacheForTesting() => _cachedBaseDir = null;
+
   /// Gunakan direktori permanen aplikasi (filesDir) agar tidak ikut terhapus
   /// oleh fitur pembersih cache bawaan HP (Xiaomi/Oppo/Vivo).
   static Future<String> _getStorageDir() async {
@@ -190,6 +256,29 @@ class OfflineQuizService {
     return File('$dir/dosman_offline_pkg_${userId}_$quizId.json');
   }
 
+  static Map<String, dynamic>? _extractSavedAnswersMap(
+    String? raw,
+    int expectedAttemptId,
+  ) {
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final decoded = json.decode(raw);
+      if (decoded is! Map<String, dynamic>) return null;
+      if (decoded.containsKey('slots') && decoded['slots'] is Map) {
+        final savedAttId = (decoded['_attemptId'] as num?)?.toInt() ?? 0;
+        if (savedAttId > 0 &&
+            expectedAttemptId > 0 &&
+            savedAttId != expectedAttemptId) {
+          return null;
+        }
+        return (decoded['slots'] as Map).cast<String, dynamic>();
+      }
+      return decoded;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Cek apakah sudah ada paket soal tersimpan untuk [userId] & [quizId].
   static Future<OfflineQuizPackage?> loadSavedPackage({
     required int userId,
@@ -204,10 +293,10 @@ class OfflineQuizService {
         json.decode(raw) as Map<String, dynamic>,
       );
 
-      // Pulihkan jawaban & flag terbaru dari SecureStorage jika ada
+      // Pulihkan jawaban & flag terbaru dari SecureStorage jika ada (hanya untuk attempt yang cocok)
       final ansRaw = await _storage.read(key: _answersKey(userId, quizId));
-      if (ansRaw != null && ansRaw.isNotEmpty) {
-        final ansMap = json.decode(ansRaw) as Map<String, dynamic>;
+      final ansMap = _extractSavedAnswersMap(ansRaw, pkg.attemptId);
+      if (ansMap != null) {
         for (final q in pkg.questions) {
           final saved = ansMap['${q.slot}'];
           if (saved is Map<String, dynamic>) {
@@ -234,21 +323,120 @@ class OfflineQuizService {
   /// Simpan jawaban & status ragu-ragu secara instan ke SecureStorage.
   static Future<void> saveAnswersState(OfflineQuizPackage pkg) async {
     try {
-      final map = <String, dynamic>{};
+      final slotsMap = <String, dynamic>{};
       for (final q in pkg.questions) {
-        map['${q.slot}'] = {
+        slotsMap['${q.slot}'] = {
           'v': q.selectedValue,
           'f': q.isFlagged,
         };
       }
       await _storage.write(
         key: _answersKey(pkg.userId, pkg.quizId),
-        value: json.encode(map),
+        value: json.encode({
+          '_attemptId': pkg.attemptId,
+          'slots': slotsMap,
+        }),
       );
     } catch (_) {}
   }
 
-  /// Hapus paket soal & jawaban lokal setelah berhasil disubmit ke server.
+  /// Buang HTML soal & gambar agar tidak tersimpan di HP setelah terkunci/selesai,
+  /// namun tetap mempertahankan slot, pilihan jawaban siswa, dan field submit Moodle.
+  static OfflineQuizPackage stripQuestionContentForArchive(
+    OfflineQuizPackage pkg, {
+    OfflineSubmissionStatus? submissionStatus,
+    int? lockedAtEpochSec,
+    int? submittedAtEpochSec,
+    int? serverConfirmedAnswered,
+  }) {
+    final cleanQuestions = pkg.questions
+        .map(
+          (q) => OfflineQuestion(
+            slot: q.slot,
+            number: q.number,
+            type: q.type,
+            questionHtml: '',
+            answerFieldName: q.answerFieldName,
+            sequenceCheckName: q.sequenceCheckName,
+            sequenceCheckValue: q.sequenceCheckValue,
+            options: q.options
+                .map(
+                  (o) => OfflineOption(
+                    value: o.value,
+                    labelLetter: o.labelLetter,
+                    html: '',
+                  ),
+                )
+                .toList(),
+            selectedValue: q.selectedValue,
+            isFlagged: q.isFlagged,
+          ),
+        )
+        .toList();
+
+    return OfflineQuizPackage(
+      quizId: pkg.quizId,
+      courseId: pkg.courseId,
+      attemptId: pkg.attemptId,
+      userId: pkg.userId,
+      quizName: pkg.quizName,
+      endTimeEpochSec: pkg.endTimeEpochSec,
+      parserVersion: pkg.parserVersion,
+      serverClockOffsetSec: pkg.serverClockOffsetSec,
+      submissionStatus: submissionStatus ?? pkg.submissionStatus,
+      lockedAtEpochSec: lockedAtEpochSec ?? pkg.lockedAtEpochSec,
+      submittedAtEpochSec: submittedAtEpochSec ?? pkg.submittedAtEpochSec,
+      serverConfirmedAnswered:
+          serverConfirmedAnswered ?? pkg.serverConfirmedAnswered,
+      questions: cleanQuestions,
+    );
+  }
+
+  /// Kunci jawaban secara permanen saat waktu habis atau siswa konfirmasi Selesai,
+  /// lalu hapus konten HTML soal agar soal tidak tersisa di HP.
+  static Future<OfflineQuizPackage> lockPackageForSubmission(
+    OfflineQuizPackage pkg,
+  ) async {
+    final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final locked = stripQuestionContentForArchive(
+      pkg,
+      submissionStatus: OfflineSubmissionStatus.lockedPending,
+      lockedAtEpochSec: pkg.lockedAtEpochSec > 0 ? pkg.lockedAtEpochSec : nowSec,
+    );
+    await savePackage(locked);
+    return locked;
+  }
+
+  /// Arsipkan jawaban secara permanen di HP (tidak dihapus otomatis setelah submit)
+  /// sampai siswa sendiri memilih menghapus saat mengulang kuis atau uninstall app.
+  static Future<OfflineQuizPackage> archiveSubmittedPackage(
+    OfflineQuizPackage pkg, {
+    required bool serverVerifiedOk,
+    int? serverConfirmedAnswered,
+  }) async {
+    final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final archived = stripQuestionContentForArchive(
+      pkg,
+      submissionStatus: serverVerifiedOk
+          ? OfflineSubmissionStatus.submittedVerified
+          : OfflineSubmissionStatus.serverEmptyWarning,
+      lockedAtEpochSec: pkg.lockedAtEpochSec > 0 ? pkg.lockedAtEpochSec : nowSec,
+      submittedAtEpochSec: nowSec,
+      serverConfirmedAnswered: serverConfirmedAnswered,
+    );
+    await savePackage(archived);
+    return archived;
+  }
+
+  /// Deteksi ketidaksesuaian jika siswa menjawab di lokal namun server mencatat 0 terjawab.
+  static bool isServerSaveMismatch({
+    required int localAnswered,
+    required bool verifyReachable,
+    required int serverAnsweredSlots,
+  }) =>
+      verifyReachable && localAnswered > 0 && serverAnsweredSlots == 0;
+
+  /// Hapus paket soal & jawaban lokal secara eksplisit (mis. saat siswa memilih hapus jawaban lama).
   static Future<void> clearSavedPackage({
     required int userId,
     required int quizId,
@@ -260,8 +448,8 @@ class OfflineQuizService {
     } catch (_) {}
   }
 
-  /// Cari paket ujian lokal milik [userId] yang belum disubmit (untuk auto-recovery).
-  static Future<List<OfflineQuizPackage>> findPendingPackages(int userId) async {
+  /// Cari seluruh paket tersimpan milik [userId] (baik yang belum terkirim maupun arsip).
+  static Future<List<OfflineQuizPackage>> findAllSavedPackages(int userId) async {
     final result = <OfflineQuizPackage>[];
     if (userId <= 0) return result;
     try {
@@ -285,6 +473,12 @@ class OfflineQuizService {
     return result;
   }
 
+  /// Cari paket ujian lokal milik [userId] yang belum selesai dikirim (inProgress / lockedPending).
+  static Future<List<OfflineQuizPackage>> findPendingPackages(int userId) async {
+    final all = await findAllSavedPackages(userId);
+    return all.where((pkg) => pkg.needsSubmission).toList();
+  }
+
   /// Download paket soal dari Moodle tepat saat siswa klik Start Quiz.
   static Future<OfflineQuizPackage> downloadQuizPackage({
     required int quizId,
@@ -294,9 +488,22 @@ class OfflineQuizService {
     required int timeLimitSec,
     required int timeCloseEpochSec,
     String? quizPassword,
+    bool discardExistingSavedAnswers = false,
     void Function(String status, double progress)? onProgress,
   }) async {
     onProgress?.call('Menyiapkan ujian...', 0.05);
+
+    if (discardExistingSavedAnswers) {
+      await clearSavedPackage(userId: userId, quizId: quizId);
+    } else {
+      final lockedExisting = await loadSavedPackage(userId: userId, quizId: quizId);
+      if (lockedExisting != null &&
+          lockedExisting.submissionStatus == OfflineSubmissionStatus.lockedPending &&
+          lockedExisting.questions.isNotEmpty) {
+        onProgress?.call('Menyiapkan pengiriman jawaban terkunci...', 1.0);
+        return lockedExisting;
+      }
+    }
 
     // 1. Cek apakah ada attempt inprogress yang bisa dilanjutkan
     Map<String, dynamic>? activeAttempt;
@@ -305,7 +512,11 @@ class OfflineQuizService {
       attempts = await ApiService.getUserQuizAttempts(quizId, userId);
     } on NetworkException {
       final offlineExisting = await loadSavedPackage(userId: userId, quizId: quizId);
-      if (offlineExisting != null && offlineExisting.questions.isNotEmpty) {
+      if (offlineExisting != null &&
+          offlineExisting.questions.isNotEmpty &&
+          (offlineExisting.needsSubmission ||
+              offlineExisting.submissionStatus ==
+                  OfflineSubmissionStatus.serverEmptyWarning)) {
         onProgress?.call('Melanjutkan sesi ujian tersimpan (mode offline)...', 1.0);
         return offlineExisting;
       }
@@ -320,17 +531,23 @@ class OfflineQuizService {
 
     // Jika paket lokal untuk attempt inprogress tersebut sudah ada & parser masih terkini, langsung pakai!
     Map<int, ({String? v, bool f})>? preservedAnswers;
-    if (activeAttempt != null) {
+    if (activeAttempt != null && !discardExistingSavedAnswers) {
       final attId = (activeAttempt['id'] as num?)?.toInt() ?? 0;
       final existing = await loadSavedPackage(userId: userId, quizId: quizId);
       if (existing != null && existing.attemptId == attId && existing.questions.isNotEmpty) {
-        if (existing.parserVersion >= kCurrentParserVersion) {
+        if (existing.submissionStatus == OfflineSubmissionStatus.lockedPending ||
+            existing.parserVersion >= kCurrentParserVersion) {
           if (ApiService.hasServerClockSync &&
               existing.serverClockOffsetSec != ApiService.serverClockOffsetSec) {
             existing.serverClockOffsetSec = ApiService.serverClockOffsetSec;
             await savePackage(existing);
           }
-          onProgress?.call('Melanjutkan sesi ujian...', 1.0);
+          onProgress?.call(
+            existing.submissionStatus == OfflineSubmissionStatus.lockedPending
+                ? 'Menyiapkan pengiriman jawaban terkunci...'
+                : 'Melanjutkan sesi ujian...',
+            1.0,
+          );
           return existing;
         }
         // Paket berasal dari parser versi lama: simpan jawaban & flag lalu re-download & re-parse.
@@ -467,21 +684,23 @@ class OfflineQuizService {
       }
     }
 
-    // Pulihkan juga dari SecureStorage bila ada jawaban terbaru yang tersimpan
-    try {
-      final ansRaw = await _storage.read(key: _answersKey(userId, quizId));
-      if (ansRaw != null && ansRaw.isNotEmpty) {
-        final ansMap = json.decode(ansRaw) as Map<String, dynamic>;
-        for (final q in parsed) {
-          final saved = ansMap['${q.slot}'];
-          if (saved is Map<String, dynamic>) {
-            final v = saved['v'] as String?;
-            if (v != null && v.isNotEmpty) q.selectedValue = v;
-            if (saved['f'] == true) q.isFlagged = true;
+    // Pulihkan juga dari SecureStorage bila ada jawaban terbaru yang tersimpan untuk attempt ini
+    if (!discardExistingSavedAnswers) {
+      try {
+        final ansRaw = await _storage.read(key: _answersKey(userId, quizId));
+        final ansMap = _extractSavedAnswersMap(ansRaw, attemptId);
+        if (ansMap != null) {
+          for (final q in parsed) {
+            final saved = ansMap['${q.slot}'];
+            if (saved is Map<String, dynamic>) {
+              final v = saved['v'] as String?;
+              if (v != null && v.isNotEmpty) q.selectedValue = v;
+              if (saved['f'] == true) q.isFlagged = true;
+            }
           }
         }
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
 
     final pkg = OfflineQuizPackage(
       quizId: quizId,

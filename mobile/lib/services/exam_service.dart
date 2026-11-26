@@ -634,6 +634,49 @@ class ExamService {
     }
   }
 
+  /// Verifikasi jumlah soal terjawab yang benar-benar tersimpan di server Moodle
+  /// setelah [mod_quiz_process_attempt] untuk mencegah status kirim palsu saat terlambat.
+  static Future<({bool reachable, String state, int totalSlots, int answeredSlots})>
+      verifyAttemptSaved({required int attemptId}) async {
+    if (attemptId <= 0) {
+      return (reachable: false, state: '', totalSlots: 0, answeredSlots: 0);
+    }
+    try {
+      final token = (await AuthService.getToken()) ?? ApiService.currentToken ?? '';
+      if (token.isEmpty) {
+        return (reachable: false, state: '', totalSlots: 0, answeredSlots: 0);
+      }
+      final uri = Uri.parse(
+        '${AppConfig.moodleUrl}/local/dosman_ujian/verify_attempt_saved.php',
+      );
+      final resp = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({
+              'token': token,
+              'attempt_id': attemptId,
+            }),
+          )
+          .timeout(const Duration(seconds: 6));
+      if (resp.statusCode < 200 || resp.statusCode >= 300) {
+        return (reachable: false, state: '', totalSlots: 0, answeredSlots: 0);
+      }
+      final decoded = json.decode(resp.body);
+      if (decoded is Map<String, dynamic> && decoded['success'] == true) {
+        return (
+          reachable: true,
+          state: (decoded['state'] as String? ?? '').toLowerCase(),
+          totalSlots: (decoded['total_slots'] as num?)?.toInt() ?? 0,
+          answeredSlots: (decoded['answered_slots'] as num?)?.toInt() ?? 0,
+        );
+      }
+      return (reachable: false, state: '', totalSlots: 0, answeredSlots: 0);
+    } catch (_) {
+      return (reachable: false, state: '', totalSlots: 0, answeredSlots: 0);
+    }
+  }
+
   // ─── Helper: Build event data JSON ──────────────────────────────────────────
 
   /// Buat JSON string untuk eventdata dari map sederhana.

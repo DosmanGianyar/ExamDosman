@@ -8,6 +8,7 @@ import '../models/quiz.dart';
 import '../services/auth_service.dart';
 import '../services/exam_service.dart';
 import '../services/kiosk_controller.dart';
+import '../services/offline_quiz_service.dart';
 import 'offline_quiz_screen.dart';
 
 class ExamReadyScreen extends StatefulWidget {
@@ -128,6 +129,24 @@ class _ExamReadyScreenState extends State<ExamReadyScreen>
 
     setState(() => _isStarting = false);
 
+    // Cek apakah sudah ada jawaban tersimpan permanen di HP untuk kuis ini.
+    // Jawaban tidak pernah dihapus otomatis kecuali siswa memilih "Hapus Jawaban Lama".
+    var discardSavedAnswers = false;
+    final existing = await OfflineQuizService.loadSavedPackage(
+      userId: userId,
+      quizId: widget.quiz.id,
+    );
+    if (!mounted) return;
+    if (existing != null && existing.questions.isNotEmpty) {
+      final choice = await _showExistingPackageDialog(existing);
+      if (!mounted || choice == null) return;
+      if (choice == 'discard') {
+        final confirmDelete = await _confirmDiscardSavedAnswers();
+        if (!mounted || confirmDelete != true) return;
+        discardSavedAnswers = true;
+      }
+    }
+
     // Navigasi ke OfflineQuizScreen (Semi-Offline untuk Android & iOS)
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -135,7 +154,115 @@ class _ExamReadyScreenState extends State<ExamReadyScreen>
           quiz:     widget.quiz,
           courseId: widget.courseId,
           userId:   userId,
+          discardSavedAnswers: discardSavedAnswers,
         ),
+      ),
+    );
+  }
+
+  Future<String?> _showExistingPackageDialog(OfflineQuizPackage existing) {
+    final answered = existing.answeredCount;
+    final total = existing.questions.length;
+    final String statusLabel;
+    switch (existing.submissionStatus) {
+      case OfflineSubmissionStatus.lockedPending:
+        statusLabel = 'Terkunci & belum terkirim ke server';
+        break;
+      case OfflineSubmissionStatus.serverEmptyWarning:
+        statusLabel = 'Arsip tersimpan (belum masuk ke server)';
+        break;
+      case OfflineSubmissionStatus.submittedVerified:
+        statusLabel = 'Arsip jawaban sudah terkirim ke server';
+        break;
+      case OfflineSubmissionStatus.inProgress:
+        statusLabel = 'Sesi belum selesai';
+        break;
+    }
+
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.save_rounded, color: Color(0xFF60A5FA), size: 22),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Jawaban Tersimpan Ditemukan',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Terdapat jawaban tersimpan di HP untuk "${existing.quizName}" '
+          '($answered / $total soal).\nStatus: $statusLabel.\n\n'
+          'Jawaban lokal tetap disimpan permanen selama aplikasi tidak di-uninstall, '
+          'kecuali Anda memilih menghapusnya untuk mengerjakan ulang kuis ini.',
+          style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: Text(
+              existing.isArchived ? 'Batal (Pertahankan Jawaban Lama)' : 'Batal',
+              style: const TextStyle(color: Colors.white70),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'discard'),
+            child: const Text(
+              'Hapus Jawaban Lama & Kerjakan Baru',
+              style: TextStyle(color: Color(0xFFFCA5A5), fontWeight: FontWeight.w700),
+            ),
+          ),
+          if (existing.needsSubmission)
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, 'resume'),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
+              child: Text(
+                existing.submissionStatus == OfflineSubmissionStatus.lockedPending
+                    ? 'Kirim Jawaban Tersimpan'
+                    : 'Lanjutkan Jawaban Tersimpan',
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool?> _confirmDiscardSavedAnswers() {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF450A0A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFFF87171), width: 1.2),
+        ),
+        title: const Text(
+          'Hapus Jawaban Lama?',
+          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+        ),
+        content: const Text(
+          'Jawaban lokal yang tersimpan untuk kuis ini akan dihapus permanen agar Anda bisa mengerjakan kuis dari awal. Yakin lanjutkan?',
+          style: TextStyle(color: Color(0xFFFECACA), fontSize: 13, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+            child: const Text('Ya, Hapus Jawaban Lama'),
+          ),
+        ],
       ),
     );
   }
