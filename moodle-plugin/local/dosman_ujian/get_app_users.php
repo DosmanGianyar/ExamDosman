@@ -22,6 +22,8 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache');
 header('Access-Control-Allow-Origin: *');
 
+require_once __DIR__ . '/device_id_helper.inc.php';
+
 $token  = trim((string)($_GET['token'] ?? ''));
 $apiKey = trim((string)($_GET['apikey'] ?? ''));
 $validApiKey = 'dosman-exam-sman1gianyar-2024';
@@ -113,13 +115,15 @@ try {
         ];
     }
 
-    // Ambil setting minimum build dari plugin config untuk highlight versi usang di dashboard
-    $minAndroidBuild = 0;
-    $minIosBuild     = 0;
+    // Ambil setting minimum build & mode akses jaringan dari plugin config
+    $minAndroidBuild   = 0;
+    $minIosBuild       = 0;
+    $networkAccessMode = 'both';
+    $allowedLocalCidrs = dosman_default_local_cidrs();
     $stmtCfg = $pdo->prepare(
         "SELECT name, value FROM {$prefix}config_plugins
           WHERE plugin = 'local_dosman_ujian'
-            AND name IN ('min_android_build', 'min_ios_build')"
+            AND name IN ('min_android_build', 'min_ios_build', 'network_access_mode', 'allowed_local_cidrs')"
     );
     $stmtCfg->execute();
     while ($cfgRow = $stmtCfg->fetch(PDO::FETCH_ASSOC)) {
@@ -127,6 +131,16 @@ try {
             $minAndroidBuild = max(0, (int)$cfgRow['value']);
         } else if ($cfgRow['name'] === 'min_ios_build') {
             $minIosBuild = max(0, (int)$cfgRow['value']);
+        } else if ($cfgRow['name'] === 'network_access_mode') {
+            $modeVal = trim((string)$cfgRow['value']);
+            if ($modeVal === 'local_only' || $modeVal === 'both') {
+                $networkAccessMode = $modeVal;
+            }
+        } else if ($cfgRow['name'] === 'allowed_local_cidrs') {
+            $cidrVal = trim((string)$cfgRow['value']);
+            if ($cidrVal !== '') {
+                $allowedLocalCidrs = $cidrVal;
+            }
         }
     }
 
@@ -283,6 +297,10 @@ try {
         $finalAppVer   = ($rowAppVer !== '') ? $rowAppVer : ($devInfo['app_version'] ?? '');
         $finalAppBuild = ($rowAppBuild > 0) ? $rowAppBuild : (int)($devInfo['app_build'] ?? 0);
         $deviceModel   = $devInfo['model'] ?? '';
+        $ipAddr        = trim((string)($r->ipaddress ?? ''));
+        $networkType   = $ipAddr !== ''
+            ? (dosman_is_local_school_ip($ipAddr, $allowedLocalCidrs) ? 'local' : 'online')
+            : '';
 
         $users[] = [
             'userid'          => $uid,
@@ -303,7 +321,8 @@ try {
             'ping_age_sec'    => $pingAgeSec,
             'is_online'       => $isOnline,
             'is_unresponsive' => $isUnresponsive,
-            'ipaddress'       => $r->ipaddress ?? '',
+            'ipaddress'       => $ipAddr,
+            'network_type'    => $networkType,
             'current_quizid'  => $liveQuizId,
             'quiz_name'       => $liveQuizName,
             'client_type'     => $clientType,
@@ -328,8 +347,9 @@ try {
     $jsonOut = json_encode([
         'server_time'   => $now,
         'plugin_config' => [
-            'min_android_build' => $minAndroidBuild,
-            'min_ios_build'     => $minIosBuild,
+            'min_android_build'   => $minAndroidBuild,
+            'min_ios_build'       => $minIosBuild,
+            'network_access_mode' => $networkAccessMode,
         ],
         'users'         => $users,
     ]);

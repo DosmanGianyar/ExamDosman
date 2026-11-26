@@ -79,6 +79,27 @@ if ($hassiteconfig) {
         PARAM_RAW_TRIMMED
     ));
 
+    // Mode akses jaringan ujian (Lokal/Offline Saja vs Lokal & Online)
+    $settings->add(new admin_setting_configselect(
+        'local_dosman_ujian/network_access_mode',
+        'Mode Akses Jaringan Ujian',
+        'Kontrol apakah siswa boleh ujian dari Internet/Kuota atau dipaksa hanya melalui Wi-Fi lokal sekolah (EXAM DOSMAN / LAN). Guru, proktor, dan admin tetap dapat mengakses dari mana saja.',
+        'both',
+        [
+            'both'       => 'Lokal & Online (Wi-Fi Sekolah + Internet/Kuota)',
+            'local_only' => 'Lokal / Offline Saja (Hanya Wi-Fi EXAM DOSMAN / LAN Sekolah)',
+        ]
+    ));
+
+    // Daftar subnet/CIDR jaringan lokal sekolah yang diizinkan saat Mode Lokal / Offline Saja aktif
+    $settings->add(new admin_setting_configtext(
+        'local_dosman_ujian/allowed_local_cidrs',
+        'Daftar Subnet Lokal Sekolah (CIDR)',
+        'Daftar IP/CIDR jaringan lokal sekolah dipisah koma yang diizinkan ketika Mode Akses Jaringan disetel ke Lokal / Offline Saja.',
+        '10.50.0.0/22,192.168.50.0/24,192.168.100.0/24,100.64.0.0/10,127.0.0.1/32',
+        PARAM_RAW_TRIMMED
+    ));
+
     // Tautan ke dashboard monitor
     $settings->add(new admin_setting_heading(
         'local_dosman_ujian/monitor_link',

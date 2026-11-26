@@ -174,6 +174,9 @@
             </div>
 
             <div class="toolbar-right">
+              <button class="btn btn-secondary btn-sm" id="btn-network-mode-quick" onclick="DosmanApp.toggleNetworkModeQuick()" title="Atur akses ujian: Hanya Wi-Fi Lokal Sekolah (Offline) atau Lokal &amp; Online">
+                &#x1F310; Mode: Memuat...
+              </button>
               <button class="btn btn-warning btn-sm" id="btn-broadcast-open" onclick="DosmanApp.openBroadcastModal()" title="Kirim pengumuman kilat langsung ke layar HP seluruh siswa">
                 &#x1F4E2; Broadcast
               </button>
@@ -394,6 +397,35 @@
 
             <div id="rescue-code-status" style="font-size:0.85rem; font-family:'JetBrains Mono'; margin-top:0.25rem;">
               Memuat kode darurat proktor...
+            </div>
+          </div>
+        </div>
+
+        <!-- Network Access Mode Card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <h2 class="card-title">&#x1F310; Mode Akses Jaringan Ujian (Lokal/Offline vs Online)</h2>
+              <span class="card-subtitle">Atur apakah aplikasi Exam Dosman siswa hanya boleh mengakses Moodle lewat Wi-Fi lokal sekolah (<strong>EXAM DOSMAN</strong>) atau juga dari Internet/kuota seluler. Guru, Proktor, Admin, dan Dashboard tetap dapat diakses dari mana saja.</span>
+            </div>
+          </div>
+
+          <div class="password-control-box">
+            <label style="font-size:0.825rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em;">
+              Status Kebijakan Jaringan Saat Ini:
+            </label>
+
+            <div id="network-mode-status" style="font-size:0.9rem; font-family:'JetBrains Mono'; padding:10px 12px; border-radius:8px; background:rgba(15,23,42,0.55); border:1px solid rgba(255,255,255,0.08);">
+              Memuat status mode jaringan...
+            </div>
+
+            <div style="display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:0.35rem;">
+              <button type="button" class="btn btn-warning" id="btn-net-local-only">
+                &#x1F512; Paksa Lokal / Offline Saja (Wi-Fi EXAM DOSMAN)
+              </button>
+              <button type="button" class="btn btn-success" id="btn-net-both">
+                &#x1F310; Izinkan Lokal &amp; Online (Wi-Fi + Internet)
+              </button>
             </div>
           </div>
         </div>
@@ -619,6 +651,6 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="js/config.js?v=3.3.0"></script>
   <script src="js/auth.js?v=3.3.0"></script>
-  <script src="js/app.js?v=3.4.1"></script>
+  <script src="js/app.js?v=3.5.0"></script>
 </body>
 </html>

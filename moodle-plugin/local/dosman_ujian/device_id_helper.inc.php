@@ -421,3 +421,118 @@ function dosman_suspend_student_account(
 
     @unlink('/dev/shm/dosman_app_users_cache.json');
 }
+
+/**
+ * Daftar CIDR default jaringan lokal sekolah (Wi-Fi Ujian Ruijie, LAN, Lab 3, Tailscale).
+ */
+function dosman_default_local_cidrs(): string {
+    return '10.50.0.0/22,192.168.50.0/24,192.168.100.0/24,100.64.0.0/10,127.0.0.1/32';
+}
+
+/**
+ * Cek apakah sebuah IPv4 berada dalam rentang CIDR tertentu (atau IP tunggal).
+ */
+function dosman_ip_in_cidr(string $ip, string $cidr): bool {
+    $ip   = trim($ip);
+    $cidr = trim($cidr);
+    if ($ip === '' || $cidr === '') {
+        return false;
+    }
+
+    $ipLong = ip2long($ip);
+    if ($ipLong === false) {
+        return false;
+    }
+
+    if (strpos($cidr, '/') === false) {
+        $targetLong = ip2long($cidr);
+        return $targetLong !== false && $ipLong === $targetLong;
+    }
+
+    [$subnet, $prefixRaw] = explode('/', $cidr, 2);
+    $subnetLong = ip2long(trim($subnet));
+    if ($subnetLong === false || !is_numeric(trim($prefixRaw))) {
+        return false;
+    }
+
+    $prefixLen = (int)trim($prefixRaw);
+    if ($prefixLen < 0 || $prefixLen > 32) {
+        return false;
+    }
+
+    $mask = $prefixLen === 0 ? 0 : ((-1 << (32 - $prefixLen)) & 0xFFFFFFFF);
+    return (($ipLong & $mask) === ($subnetLong & $mask));
+}
+
+/**
+ * Cek apakah IP klien berasal dari jaringan lokal sekolah berdasarkan daftar CIDR.
+ */
+function dosman_is_local_school_ip(string $ip, string $cidrList = ''): bool {
+    $ip = trim($ip);
+    if ($ip === '') {
+        return false;
+    }
+    $raw = trim($cidrList) !== '' ? $cidrList : dosman_default_local_cidrs();
+    $cidrs = preg_split('/[\s,]+/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    foreach ($cidrs as $cidr) {
+        if (dosman_ip_in_cidr($ip, $cidr)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Ambil kebijakan mode akses jaringan ujian dari config_plugins.
+ * Returns ['mode' => 'local_only'|'both', 'allowed_cidrs' => string].
+ */
+function dosman_get_network_access_policy(PDO $pdo, string $prefix): array {
+    $mode  = 'both';
+    $cidrs = dosman_default_local_cidrs();
+
+    $stmt = $pdo->prepare(
+        "SELECT name, value FROM {$prefix}config_plugins
+          WHERE plugin = 'local_dosman_ujian'
+            AND name IN ('network_access_mode', 'allowed_local_cidrs')"
+    );
+    $stmt->execute();
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        if ($row['name'] === 'network_access_mode') {
+            $val = trim((string)$row['value']);
+            if ($val === 'local_only' || $val === 'both') {
+                $mode = $val;
+            }
+        } else if ($row['name'] === 'allowed_local_cidrs') {
+            $val = trim((string)$row['value']);
+            if ($val !== '') {
+                $cidrs = $val;
+            }
+        }
+    }
+
+    return [
+        'mode'          => $mode,
+        'allowed_cidrs' => $cidrs,
+    ];
+}
+
+/**
+ * Cek apakah user adalah Admin, Manager, Guru, atau Reviewer resmi (kebal pembatasan jaringan lokal).
+ */
+function dosman_is_teacher_or_admin_pdo(PDO $pdo, string $prefix, int $userid): bool {
+    if ($userid <= 0) {
+        return false;
+    }
+    if (dosman_is_protected_user($pdo, $prefix, $userid)) {
+        return true;
+    }
+
+    $stmtRole = $pdo->prepare(
+        "SELECT COUNT(*) FROM {$prefix}role_assignments ra
+           JOIN {$prefix}role r ON r.id = ra.roleid
+          WHERE ra.userid = ?
+            AND r.archetype IN ('manager','coursecreator','editingteacher','teacher')"
+    );
+    $stmtRole->execute([$userid]);
+    return (int)$stmtRole->fetchColumn() > 0;
+}

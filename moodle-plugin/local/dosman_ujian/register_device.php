@@ -169,6 +169,26 @@ try {
         exit;
     }
 
+    // Penegakan mode akses jaringan (Lokal / Offline Saja vs Lokal & Online)
+    // Diterapkan sebelum min_build agar langsung berlaku untuk semua versi aplikasi yang sudah beredar.
+    // Guru, Proktor, Admin, dan Reviewer selalu dikecualikan.
+    $netPolicy = dosman_get_network_access_policy($pdo, $prefix);
+    $clientIp  = trim((string)($_SERVER['REMOTE_ADDR'] ?? ''));
+    if ($netPolicy['mode'] === 'local_only'
+        && !dosman_is_teacher_or_admin_pdo($pdo, $prefix, $userid)
+        && !dosman_is_local_school_ip($clientIp, $netPolicy['allowed_cidrs'])) {
+        echo json_encode([
+            'success'            => true,
+            'device_blocked'     => true,
+            'update_required'    => true,
+            'network_restricted' => true,
+            'client_ip'          => $clientIp,
+            'block_reason'       => "Akses ujian saat ini dikunci khusus jaringan lokal sekolah (Wi-Fi EXAM DOSMAN / Offline).\n\nMatikan data seluler, sambungkan HP ke Wi-Fi EXAM DOSMAN, lalu login kembali. (IP Anda: {$clientIp})",
+            'blocked_at'         => $now,
+        ]);
+        exit;
+    }
+
     // Penegakan versi minimum aplikasi Android & iOS (opsional, dikontrol via plugin settings)
     // Tidak mengubah status perangkat di DB sehingga langsung bisa login begitu siswa update dari Store.
     $stmtCfg = $pdo->prepare(

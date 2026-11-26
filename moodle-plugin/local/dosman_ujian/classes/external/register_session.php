@@ -12,6 +12,8 @@ namespace local_dosman_ujian\external;
 
 defined('MOODLE_INTERNAL') || die();
 require_once($CFG->libdir . '/externallib.php');
+require_once(__DIR__ . '/../../device_id_helper.inc.php');
+require_once(__DIR__ . '/../../lib.php');
 
 use external_api;
 use external_value;
@@ -44,6 +46,22 @@ class register_session extends external_api {
         // Pastikan user yang request adalah user sendiri
         if ($USER->id != $params['userid'] && !is_siteadmin()) {
             return ['success' => false, 'status' => 'error', 'message' => 'Permission denied'];
+        }
+
+        // Penegakan mode akses jaringan (Lokal / Offline Saja vs Lokal & Online)
+        $netMode      = trim((string)(get_config('local_dosman_ujian', 'network_access_mode') ?: 'both'));
+        $allowedCidrs = (string)(get_config('local_dosman_ujian', 'allowed_local_cidrs') ?: '');
+        $clientIp     = $_SERVER['REMOTE_ADDR'] ?? '';
+        $isExempt     = is_siteadmin()
+            || local_dosman_ujian_is_teacher_or_above($params['userid'])
+            || dosman_is_reviewer_username((string)($USER->username ?? ''));
+        if ($netMode === 'local_only' && !$isExempt && !dosman_is_local_school_ip($clientIp, $allowedCidrs)) {
+            return [
+                'success'    => false,
+                'status'     => 'blocked',
+                'message'    => 'Akses ujian saat ini dikunci khusus Wi-Fi lokal sekolah (EXAM DOSMAN). Matikan data seluler, sambungkan HP ke Wi-Fi EXAM DOSMAN, lalu coba mulai ujian lagi.',
+                'session_id' => 0,
+            ];
         }
 
         $now = time();

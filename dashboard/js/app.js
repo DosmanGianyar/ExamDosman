@@ -18,7 +18,8 @@
     deviceBlocked: [],
     suspendedStudents: [],
     selectedSuspendedIds: new Set(),
-    pluginConfig: { min_android_build: 0, min_ios_build: 0 },
+    pluginConfig: { min_android_build: 0, min_ios_build: 0, network_access_mode: 'both' },
+    networkAccessMode: 'both',
     countdown: 10,
     countdownInterval: null,
     tickerInterval: null,
@@ -78,9 +79,10 @@
     // Setup Filters & Search
     setupFilters();
 
-    // Setup Exit Password & Proctor Rescue Code Controls
+    // Setup Exit Password, Proctor Rescue Code, & Network Access Mode Controls
     setupPasswordControls();
     setupRescueCodeControls();
+    setupNetworkModeControls();
 
     // Setup Bulk Actions
     setupBulkActions();
@@ -176,6 +178,7 @@
       } else if (tabId === 'security-password') {
         loadExitPassword();
         loadRescueCode();
+        loadNetworkMode();
       } else if (tabId === 'live-monitor') {
         loadLiveUsers();
       }
@@ -243,6 +246,7 @@
       } else if (state.activeTab === 'security-password') {
         await loadExitPassword();
         await loadRescueCode();
+        await loadNetworkMode();
       }
     } catch (err) {
       console.error('Refresh failed:', err);
@@ -275,10 +279,14 @@
 
       state.liveUsers = Array.isArray(data.users) ? data.users : [];
       if (data.plugin_config && typeof data.plugin_config === 'object') {
+        const netMode = data.plugin_config.network_access_mode === 'local_only' ? 'local_only' : 'both';
         state.pluginConfig = {
           min_android_build: parseInt(data.plugin_config.min_android_build || 0, 10) || 0,
           min_ios_build: parseInt(data.plugin_config.min_ios_build || 0, 10) || 0,
+          network_access_mode: netMode,
         };
+        state.networkAccessMode = netMode;
+        updateNetworkModeUI();
       }
 
       updateLiveKPI();
@@ -917,14 +925,19 @@
         : `<span style="color:var(--text-dim); font-size:0.8rem;">${isOnline ? 'Di Beranda Ujian' : 'Tidak Ada Ujian'}</span>`;
 
       // Live ping ticker (dot di luar .live-ticker-cell agar tidak tertimpa interval 1 detik)
+      const netBadgeHtml = (isOnline && u.network_type)
+        ? (u.network_type === 'local'
+          ? ' <span class="badge badge-success" style="font-size:0.65rem; padding:1px 6px;" title="Terhubung via Wi-Fi / LAN Sekolah">&#x1F4F6; Lokal</span>'
+          : ' <span class="badge badge-info" style="font-size:0.65rem; padding:1px 6px;" title="Terhubung via Internet / Kuota Seluler">&#x1F310; Online</span>')
+        : '';
       let pingHtml = '';
       if (isUnresponsive) {
         const lastSeenTxt = u.lastping > 0
           ? `<span class="live-ticker-cell" data-lastping="${u.lastping}">${formatLastSeen(u.lastping)}</span>`
           : 'Tidak ada ping';
-        pingHtml = `<span style="color:#fbbf24; font-weight:600; display:inline-flex; align-items:center; gap:5px;"><span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#f59e0b;"></span> ${lastSeenTxt}</span>`;
+        pingHtml = `<span style="color:#fbbf24; font-weight:600; display:inline-flex; align-items:center; gap:5px; flex-wrap:wrap;"><span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#f59e0b;"></span> ${lastSeenTxt}</span>`;
       } else if (isOnline) {
-        pingHtml = `<span style="color:#10b981; font-weight:600; display:inline-flex; align-items:center; gap:5px;"><span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#10b981; animation:pulse 1.5s infinite;"></span> <span class="live-ticker-cell" data-lastping="${u.lastping || 0}">${formatLastSeen(u.lastping)}</span></span>`;
+        pingHtml = `<span style="color:#10b981; font-weight:600; display:inline-flex; align-items:center; gap:5px; flex-wrap:wrap;"><span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#10b981; animation:pulse 1.5s infinite;"></span> <span class="live-ticker-cell" data-lastping="${u.lastping || 0}">${formatLastSeen(u.lastping)}</span>${netBadgeHtml}</span>`;
       } else if (u.lastping > 0) {
         pingHtml = `<span class="live-ticker-cell" data-lastping="${u.lastping}" style="color:var(--text-dim); font-size:0.8rem;">${formatLastSeen(u.lastping)}</span>`;
       } else {
@@ -1495,6 +1508,141 @@
           return;
         }
         saveRescueCode(val);
+      });
+    }
+  }
+
+  /* ─── NETWORK ACCESS MODE (LOKAL/OFFLINE VS ONLINE) ──────────────────────── */
+  function updateNetworkModeUI() {
+    const isLocalOnly = state.networkAccessMode === 'local_only';
+    const quickBtn = document.getElementById('btn-network-mode-quick');
+    if (quickBtn) {
+      if (isLocalOnly) {
+        quickBtn.className = 'btn btn-danger btn-sm';
+        quickBtn.innerHTML = '&#x1F512; Mode: Lokal/Offline Saja';
+        quickBtn.title = 'Klik untuk membuka akses agar bisa juga lewat Internet/Kuota (Online)';
+      } else {
+        quickBtn.className = 'btn btn-success btn-sm';
+        quickBtn.innerHTML = '&#x1F310; Mode: Lokal &amp; Online';
+        quickBtn.title = 'Klik untuk memaksa siswa hanya bisa akses lewat Wi-Fi EXAM DOSMAN (Lokal/Offline)';
+      }
+    }
+
+    const statusEl = document.getElementById('network-mode-status');
+    if (statusEl) {
+      if (isLocalOnly) {
+        statusEl.innerHTML = '<span style="color:#f87171;">&#x1F512; AKTIF: LOKAL / OFFLINE SAJA</span><div style="font-size:0.78rem; color:var(--text-muted); margin-top:4px; font-family:inherit;">Siswa hanya dapat login &amp; memulai ujian lewat Wi-Fi lokal sekolah (EXAM DOSMAN / LAN). Akses data seluler/luar ditolak.</div>';
+      } else {
+        statusEl.innerHTML = '<span style="color:#34d399;">&#x1F310; AKTIF: LOKAL &amp; ONLINE</span><div style="font-size:0.78rem; color:var(--text-muted); margin-top:4px; font-family:inherit;">Siswa dapat mengikuti ujian baik dari Wi-Fi lokal sekolah maupun dari Internet / kuota seluler.</div>';
+      }
+    }
+
+    const btnLocal = document.getElementById('btn-net-local-only');
+    const btnBoth = document.getElementById('btn-net-both');
+    if (btnLocal && btnBoth) {
+      btnLocal.style.outline = isLocalOnly ? '2px solid #fff' : 'none';
+      btnLocal.style.opacity = isLocalOnly ? '1' : '0.78';
+      btnBoth.style.outline = !isLocalOnly ? '2px solid #fff' : 'none';
+      btnBoth.style.opacity = !isLocalOnly ? '1' : '0.78';
+    }
+  }
+
+  async function loadNetworkMode() {
+    try {
+      const res = await fetch('../local/dosman_ujian/network_mode.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({
+          token: state.token,
+          action: 'get'
+        })
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data.success && (data.mode === 'local_only' || data.mode === 'both')) {
+        state.networkAccessMode = data.mode;
+        state.pluginConfig.network_access_mode = data.mode;
+        updateNetworkModeUI();
+      }
+    } catch (e) {
+      const statusEl = document.getElementById('network-mode-status');
+      if (statusEl) {
+        statusEl.innerHTML = `<span style="color:var(--danger);">&#x274C; Gagal memuat mode jaringan: ${escapeHtml(e.message)}</span>`;
+      }
+    }
+  }
+
+  async function saveNetworkMode(targetMode) {
+    const isLocalOnly = targetMode === 'local_only';
+    const confirmRes = await Swal.fire({
+      title: isLocalOnly ? 'Paksa Mode Lokal / Offline Saja?' : 'Izinkan Akses Lokal & Online?',
+      html: isLocalOnly
+        ? 'Siswa yang mengakses menggunakan <strong>data seluler / internet luar</strong> akan otomatis ditolak dan diminta menyambung ke Wi-Fi lokal sekolah (<strong>EXAM DOSMAN</strong>).<br><br><small style="color:#94a3b8;">Guru, Proktor, Admin, dan Dashboard tetap bisa diakses dari mana saja.</small>'
+        : 'Siswa akan kembali diizinkan login dan mengikuti ujian baik melalui <strong>Wi-Fi lokal sekolah</strong> maupun <strong>Internet / kuota seluler</strong>.',
+      icon: isLocalOnly ? 'warning' : 'question',
+      showCancelButton: true,
+      confirmButtonText: isLocalOnly ? 'Ya, Paksa Lokal Saja' : 'Ya, Izinkan Online & Lokal',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: isLocalOnly ? '#f59e0b' : '#10b981',
+      cancelButtonColor: '#475569',
+    });
+
+    if (!confirmRes.isConfirmed) return;
+
+    try {
+      const res = await fetch('../local/dosman_ujian/network_mode.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: state.token,
+          action: 'set',
+          mode: targetMode
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || `Gagal mengubah mode jaringan (HTTP ${res.status})`);
+      }
+
+      state.networkAccessMode = data.mode === 'local_only' ? 'local_only' : 'both';
+      state.pluginConfig.network_access_mode = state.networkAccessMode;
+      updateNetworkModeUI();
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Mode Jaringan Diperbarui!',
+        text: data.message || 'Pengaturan berhasil disimpan.',
+        timer: 2200,
+        showConfirmButton: false
+      });
+      loadLiveUsers();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Gagal Mengubah Mode',
+        text: e.message
+      });
+    }
+  }
+
+  function toggleNetworkModeQuick() {
+    const nextMode = state.networkAccessMode === 'local_only' ? 'both' : 'local_only';
+    saveNetworkMode(nextMode);
+  }
+
+  function setupNetworkModeControls() {
+    updateNetworkModeUI();
+    const btnLocal = document.getElementById('btn-net-local-only');
+    const btnBoth = document.getElementById('btn-net-both');
+    if (btnLocal) {
+      btnLocal.addEventListener('click', function () {
+        saveNetworkMode('local_only');
+      });
+    }
+    if (btnBoth) {
+      btnBoth.addEventListener('click', function () {
+        saveNetworkMode('both');
       });
     }
   }
@@ -2117,6 +2265,8 @@
     toggleSuspendedSelect: toggleSuspendedSelect,
     setListMode: setListMode,
     setVersionFilter: setVersionFilter,
+    toggleNetworkModeQuick: toggleNetworkModeQuick,
+    setNetworkMode: saveNetworkMode,
     onGradeChange: function() {
       rebuildClassFilterOptions();
       renderLiveMonitorTable();
