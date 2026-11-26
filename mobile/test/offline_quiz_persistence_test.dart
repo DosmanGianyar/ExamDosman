@@ -368,4 +368,79 @@ void main() {
       expect(fresh.questions[0].selectedValue, isNull);
     }, () => _NonClosingHttpClient(mockFresh));
   });
+
+  test('ExamService.rescueSubmitAttempt handles 200 success, 403 wrong code, 409 overwrite guard, and offline errors', () async {
+    final mockOk = MockClient((req) async {
+      expect(req.url.path, contains('/local/dosman_ujian/rescue_submit_attempt.php'));
+      final body = json.decode(req.body) as Map<String, dynamic>;
+      expect(body['attempt_id'], 38774);
+      expect(body['proctor_code'], '654321');
+      expect((body['data'] as List).isNotEmpty, isTrue);
+      return http.Response(
+        json.encode({
+          'success': true,
+          'attempt_id': 38774,
+          'state': 'finished',
+          'total_slots': 40,
+          'answered_slots': 39,
+          'message': 'Jawaban darurat berhasil disimpan & dinilai di Moodle.',
+        }),
+        200,
+      );
+    });
+
+    await http.runWithClient(() async {
+      final res = await ExamService.rescueSubmitAttempt(
+        attemptId: 38774,
+        proctorCode: '654321',
+        answerData: OfflineQuizService.buildSubmitPayload(makeSamplePkg()),
+        lockedAtEpochSec: 1795667800,
+      );
+      expect(res.success, isTrue);
+      expect(res.totalSlots, 40);
+      expect(res.answeredSlots, 39);
+    }, () => _NonClosingHttpClient(mockOk));
+
+    final mockWrongCode = MockClient((_) async => http.Response(
+          json.encode({'success': false, 'message': 'Kode Proktor salah.'}),
+          403,
+        ));
+    await http.runWithClient(() async {
+      final res = await ExamService.rescueSubmitAttempt(
+        attemptId: 38774,
+        proctorCode: '000000',
+        answerData: OfflineQuizService.buildSubmitPayload(makeSamplePkg()),
+      );
+      expect(res.success, isFalse);
+      expect(res.message, contains('Kode Proktor salah'));
+    }, () => _NonClosingHttpClient(mockWrongCode));
+
+    final mockOverwrite = MockClient((_) async => http.Response(
+          json.encode({
+            'success': false,
+            'message': 'Attempt ini sudah memiliki 35 jawaban tersimpan di server dan tidak dapat ditimpa.',
+          }),
+          409,
+        ));
+    await http.runWithClient(() async {
+      final res = await ExamService.rescueSubmitAttempt(
+        attemptId: 36662,
+        proctorCode: '654321',
+        answerData: OfflineQuizService.buildSubmitPayload(makeSamplePkg()),
+      );
+      expect(res.success, isFalse);
+      expect(res.message, contains('tidak dapat ditimpa'));
+    }, () => _NonClosingHttpClient(mockOverwrite));
+
+    final mockOffline = MockClient((_) async => throw const SocketException('offline'));
+    await http.runWithClient(() async {
+      final res = await ExamService.rescueSubmitAttempt(
+        attemptId: 38774,
+        proctorCode: '654321',
+        answerData: OfflineQuizService.buildSubmitPayload(makeSamplePkg()),
+      );
+      expect(res.success, isFalse);
+      expect(res.message, contains('Gagal menghubungi server'));
+    }, () => _NonClosingHttpClient(mockOffline));
+  });
 }

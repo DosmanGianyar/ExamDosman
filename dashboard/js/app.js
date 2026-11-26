@@ -23,6 +23,7 @@
     tickerInterval: null,
     isRefreshing: false,
     pwdVisible: false,
+    rescueCodeVisible: false,
   };
 
   const API_KEY = (typeof CONFIG !== 'undefined' && CONFIG.EXIT_PWD_API_KEY)
@@ -76,8 +77,9 @@
     // Setup Filters & Search
     setupFilters();
 
-    // Setup Exit Password Controls
+    // Setup Exit Password & Proctor Rescue Code Controls
     setupPasswordControls();
+    setupRescueCodeControls();
 
     // Setup Bulk Actions
     setupBulkActions();
@@ -172,6 +174,7 @@
         loadViolations();
       } else if (tabId === 'security-password') {
         loadExitPassword();
+        loadRescueCode();
       } else if (tabId === 'live-monitor') {
         loadLiveUsers();
       }
@@ -238,6 +241,7 @@
         }
       } else if (state.activeTab === 'security-password') {
         await loadExitPassword();
+        await loadRescueCode();
       }
     } catch (err) {
       console.error('Refresh failed:', err);
@@ -1094,6 +1098,123 @@
             saveExitPassword('');
           }
         });
+      });
+    }
+  }
+
+  /* ─── PROCTOR RESCUE CODE (TAB 3) ─────────────────────────────────────────── */
+  async function loadRescueCode() {
+    const input = document.getElementById('rescue-code-input');
+    const statusText = document.getElementById('rescue-code-status');
+    if (!input) return;
+
+    try {
+      if (statusText) statusText.textContent = 'Memuat kode darurat proktor...';
+      const res = await fetch('../local/dosman_ujian/rescue_code.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({
+          token: state.token,
+          action: 'get'
+        })
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      if (data.success && typeof data.code === 'string') {
+        input.value = data.code;
+        if (statusText) {
+          statusText.innerHTML = `<span style="color:var(--success);">&#x2705; Kode darurat aktif (${data.code.length} karakter) &bull; Klik ikon mata di atas untuk melihat.</span>`;
+        }
+      } else {
+        throw new Error(data.message || 'Gagal memuat kode darurat');
+      }
+    } catch (e) {
+      if (statusText) {
+        statusText.innerHTML = `<span style="color:var(--danger);">&#x274C; Gagal memuat kode darurat: ${escapeHtml(e.message)}</span>`;
+      }
+    }
+  }
+
+  async function saveRescueCode(newCode) {
+    const statusText = document.getElementById('rescue-code-status');
+    if (statusText) statusText.textContent = 'Menyimpan kode darurat ke server...';
+
+    try {
+      const res = await fetch('../local/dosman_ujian/rescue_code.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: state.token,
+          action: 'set',
+          code: newCode
+        })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Kode Darurat Tersimpan!',
+          text: `Kode Kirim Darurat Proktor diperbarui: "${newCode}"`,
+          timer: 2200,
+          showConfirmButton: false
+        });
+        loadRescueCode();
+      } else {
+        throw new Error(data.message || 'Gagal menyimpan kode darurat');
+      }
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Gagal Menyimpan Kode Darurat',
+        text: e.message
+      });
+      if (statusText) {
+        statusText.innerHTML = `<span style="color:var(--danger);">&#x274C; ${escapeHtml(e.message)}</span>`;
+      }
+    }
+  }
+
+  function setupRescueCodeControls() {
+    const toggleBtn = document.getElementById('btn-toggle-rescue');
+    const input = document.getElementById('rescue-code-input');
+    if (toggleBtn && input) {
+      toggleBtn.addEventListener('click', function () {
+        state.rescueCodeVisible = !state.rescueCodeVisible;
+        input.type = state.rescueCodeVisible ? 'text' : 'password';
+        toggleBtn.innerHTML = state.rescueCodeVisible ? '&#x1F648;' : '&#x1F441;';
+      });
+    }
+
+    const btnGen = document.getElementById('btn-rescue-random');
+    if (btnGen) {
+      btnGen.addEventListener('click', function () {
+        const randomNum = String(Math.floor(100000 + Math.random() * 900000));
+        if (input) {
+          input.value = randomNum;
+          input.type = 'text';
+          state.rescueCodeVisible = true;
+          if (toggleBtn) toggleBtn.innerHTML = '&#x1F648;';
+        }
+        saveRescueCode(randomNum);
+      });
+    }
+
+    const btnSave = document.getElementById('btn-rescue-save');
+    if (btnSave) {
+      btnSave.addEventListener('click', function () {
+        const val = input ? input.value.trim() : '';
+        if (val.length < 4) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Kode Terlalu Pendek',
+            text: 'Kode Kirim Darurat Proktor minimal 4 karakter.'
+          });
+          return;
+        }
+        saveRescueCode(val);
       });
     }
   }

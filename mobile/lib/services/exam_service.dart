@@ -677,6 +677,82 @@ class ExamService {
     }
   }
 
+  /// Kirim darurat dengan Kode Proktor untuk menyelamatkan jawaban terkunci di HP
+  /// saat attempt di Moodle telanjur ditutup dengan 0 terjawab setelah lewat grace period.
+  static Future<({bool success, int totalSlots, int answeredSlots, String message})>
+      rescueSubmitAttempt({
+    required int attemptId,
+    required String proctorCode,
+    required List<Map<String, String>> answerData,
+    int lockedAtEpochSec = 0,
+  }) async {
+    final cleanCode = proctorCode.trim();
+    if (attemptId <= 0 || cleanCode.isEmpty || answerData.isEmpty) {
+      return (
+        success: false,
+        totalSlots: 0,
+        answeredSlots: 0,
+        message: 'Data jawaban atau kode proktor belum lengkap.',
+      );
+    }
+    try {
+      final token = (await AuthService.getToken()) ?? ApiService.currentToken ?? '';
+      if (token.isEmpty) {
+        return (
+          success: false,
+          totalSlots: 0,
+          answeredSlots: 0,
+          message: 'Sesi login siswa tidak tersedia. Silakan login ulang.',
+        );
+      }
+      final uri = Uri.parse(
+        '${AppConfig.moodleUrl}/local/dosman_ujian/rescue_submit_attempt.php',
+      );
+      final resp = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({
+              'token': token,
+              'attempt_id': attemptId,
+              'proctor_code': cleanCode,
+              'data': answerData,
+              'locked_at': lockedAtEpochSec,
+            }),
+          )
+          .timeout(const Duration(seconds: 25));
+
+      final decoded = json.decode(resp.body);
+      if (decoded is Map<String, dynamic>) {
+        final ok = resp.statusCode >= 200 &&
+            resp.statusCode < 300 &&
+            decoded['success'] == true;
+        return (
+          success: ok,
+          totalSlots: (decoded['total_slots'] as num?)?.toInt() ?? 0,
+          answeredSlots: (decoded['answered_slots'] as num?)?.toInt() ?? 0,
+          message: decoded['message'] as String? ??
+              (ok
+                  ? 'Jawaban darurat berhasil disimpan & dinilai di Moodle.'
+                  : 'Gagal memproses kirim darurat (HTTP ${resp.statusCode}).'),
+        );
+      }
+      return (
+        success: false,
+        totalSlots: 0,
+        answeredSlots: 0,
+        message: 'Respon server tidak valid (HTTP ${resp.statusCode}).',
+      );
+    } catch (_) {
+      return (
+        success: false,
+        totalSlots: 0,
+        answeredSlots: 0,
+        message: 'Gagal menghubungi server Moodle. Periksa koneksi Wi-Fi sekolah.',
+      );
+    }
+  }
+
   // ─── Helper: Build event data JSON ──────────────────────────────────────────
 
   /// Buat JSON string untuk eventdata dari map sederhana.

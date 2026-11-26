@@ -356,6 +356,41 @@
           </div>
         </div>
 
+        <!-- Proctor Rescue Code Card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <h2 class="card-title">&#x1F6A8; Kode Kirim Darurat Proktor</h2>
+              <span class="card-subtitle">Kode rahasia <strong>KHUSUS PROKTOR</strong> untuk mengimpor paksa jawaban terkunci dari HP siswa yang terlambat kirim (&gt;30 menit) agar nilainya masuk ke Moodle. <strong>Jangan dibagikan ke siswa!</strong></span>
+            </div>
+          </div>
+
+          <div class="password-control-box">
+            <label style="font-size:0.825rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em;">
+              Kode Rahasia Proktor (Aktif):
+            </label>
+            <div class="password-input-group">
+              <div class="password-input-wrapper">
+                <input type="password" class="input-field" id="rescue-code-input" name="cbt_rescue_security_key" placeholder="Minimal 4 karakter..." autocomplete="new-password">
+                <button type="button" class="toggle-pwd-btn" id="btn-toggle-rescue" title="Tampilkan / Sembunyikan">&#x1F441;</button>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
+              <button type="button" class="btn btn-primary" id="btn-rescue-random">
+                &#x1F3B2; Acak + Simpan (6-Digit)
+              </button>
+              <button type="button" class="btn btn-success" id="btn-rescue-save">
+                &#x1F4BE; Simpan Manual
+              </button>
+            </div>
+
+            <div id="rescue-code-status" style="font-size:0.85rem; font-family:'JetBrains Mono'; margin-top:0.25rem;">
+              Memuat kode darurat proktor...
+            </div>
+          </div>
+        </div>
+
         <!-- Proctor Guidelines Card -->
         <div class="card">
           <div class="card-header">
@@ -387,6 +422,14 @@
               <div style="font-size:0.85rem; line-height:1.5;">
                 <strong style="color:var(--text-main); display:block; margin-bottom:0.15rem;">Aplikasi Native DosmanExam</strong>
                 Dashboard ini terhubung langsung ke aplikasi native iOS dan Android DosmanExam tanpa memerlukan Safe Exam Browser (SEB) pihak ketiga maupun kode QR.
+              </div>
+            </div>
+
+            <div class="guide-step-card">
+              <div class="guide-num">4</div>
+              <div style="font-size:0.85rem; line-height:1.5;">
+                <strong style="color:var(--text-main); display:block; margin-bottom:0.15rem;">Kirim Darurat (Kode Proktor)</strong>
+                Jika siswa terlambat kirim &gt;30 menit (nilai 0 di Moodle padahal jawaban tersimpan di HP), lihat <strong>Kode Kirim Darurat Proktor</strong> di atas lalu ketikkan langsung di HP siswa lewat tombol <strong>&ldquo;Kirim Darurat (Kode Proktor)&rdquo;</strong> tanpa perlu ujian ulang.
               </div>
             </div>
           </div>

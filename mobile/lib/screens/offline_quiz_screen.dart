@@ -20,6 +20,7 @@ import '../services/exam_service.dart';
 import '../services/kiosk_controller.dart';
 import '../services/offline_quiz_service.dart';
 import '../widgets/exit_password_dialog.dart';
+import '../widgets/proctor_rescue_dialog.dart';
 import 'blocked_screen.dart';
 
 class OfflineQuizScreen extends StatefulWidget {
@@ -932,6 +933,21 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
             ],
           ),
           actions: [
+            if (answeredCount > 0)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final rescued = await ProctorRescueDialog.show(ctx, pkg: pkg);
+                    if (rescued && ctx.mounted) {
+                      Navigator.pop(ctx);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD97706)),
+                  icon: const Icon(Icons.shield_rounded, color: Colors.white, size: 18),
+                  label: const Text('Kirim Darurat (Kode Proktor)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                ),
+              ),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -1767,7 +1783,29 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
               ),
             ),
             if (isLocked) ...[
-              const SizedBox(height: 10),
+              if (answeredCount > 0 && pkg != null) ...[
+                const SizedBox(height: 10),
+                TextButton.icon(
+                  onPressed: _isSubmitting
+                      ? null
+                      : () async {
+                          final rescued = await ProctorRescueDialog.show(context, pkg: pkg);
+                          if (rescued && mounted) {
+                            _submitRetryTimer?.cancel();
+                            _countdownTimer?.cancel();
+                            Navigator.of(context).popUntil(
+                              (route) => route.isFirst || route.settings.name == '/courses',
+                            );
+                          }
+                        },
+                  icon: const Icon(Icons.shield_rounded, color: Color(0xFFFBBF24), size: 18),
+                  label: const Text(
+                    'Kirim Darurat (Khusus Proktor)',
+                    style: TextStyle(color: Color(0xFFFBBF24), fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 4),
               TextButton(
                 onPressed: _isSubmitting
                     ? null

@@ -9,6 +9,7 @@ import '../services/auth_service.dart';
 import '../services/exam_service.dart';
 import '../services/kiosk_controller.dart';
 import '../services/offline_quiz_service.dart';
+import '../widgets/proctor_rescue_dialog.dart';
 import 'offline_quiz_screen.dart';
 
 class ExamReadyScreen extends StatefulWidget {
@@ -140,6 +141,10 @@ class _ExamReadyScreenState extends State<ExamReadyScreen>
     if (existing != null && existing.questions.isNotEmpty) {
       final choice = await _showExistingPackageDialog(existing);
       if (!mounted || choice == null) return;
+      if (choice == 'rescue') {
+        await ProctorRescueDialog.show(context, pkg: existing);
+        return;
+      }
       if (choice == 'discard') {
         final confirmDelete = await _confirmDiscardSavedAnswers();
         if (!mounted || confirmDelete != true) return;
@@ -219,6 +224,20 @@ class _ExamReadyScreenState extends State<ExamReadyScreen>
               style: TextStyle(color: Color(0xFFFCA5A5), fontWeight: FontWeight.w700),
             ),
           ),
+          if (existing.answeredCount > 0 &&
+              (existing.submissionStatus ==
+                      OfflineSubmissionStatus.serverEmptyWarning ||
+                  existing.submissionStatus ==
+                      OfflineSubmissionStatus.lockedPending))
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(ctx, 'rescue'),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD97706)),
+              icon: const Icon(Icons.shield_rounded, color: Colors.white, size: 17),
+              label: const Text(
+                'Kirim Darurat (Kode Proktor)',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+              ),
+            ),
           if (existing.needsSubmission)
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, 'resume'),

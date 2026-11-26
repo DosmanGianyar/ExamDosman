@@ -34,6 +34,15 @@ if ($hassiteconfig) {
         PARAM_RAW_TRIMMED
     ));
 
+    // Kode Kirim Darurat Proktor
+    $settings->add(new admin_setting_configtext(
+        'local_dosman_ujian/admin_rescue_password',
+        'Kode Kirim Darurat Proktor',
+        'Kode rahasia proktor/admin untuk mengimpor paksa jawaban terkunci dari HP siswa yang terlambat kirim (>30 menit) ke attempt kosong (0 terjawab) di Moodle. JANGAN dibagikan ke siswa (berbeda dari Password Keluar). Dapat juga diatur dari Dashboard Monitor → Tab Password Keluar & Keamanan.',
+        '',
+        PARAM_RAW_TRIMMED
+    ));
+
     // Versi build minimum APK Android (0 = tidak wajib update)
     $settings->add(new admin_setting_configtext(
         'local_dosman_ujian/min_android_build',
