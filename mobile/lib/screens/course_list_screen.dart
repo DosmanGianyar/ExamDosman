@@ -14,6 +14,7 @@ import '../services/kiosk_controller.dart';
 import '../services/offline_quiz_service.dart';
 import '../widgets/course_card.dart';
 import '../widgets/exit_password_dialog.dart';
+import '../widgets/proctor_rescue_dialog.dart';
 import 'quiz_list_screen.dart';
 import 'offline_quiz_screen.dart';
 import 'login_screen.dart';
@@ -34,6 +35,7 @@ class _CourseListScreenState extends State<CourseListScreen> {
   String       _department  = '';
   int          _userId      = 0;
   final Map<int, ({int finished, int inProgress})> _courseStats = {};
+  List<OfflineQuizPackage> _unsentPackages = [];
 
   final _searchCtrl = TextEditingController();
   Timer? _pingTimer;
@@ -110,15 +112,57 @@ class _CourseListScreenState extends State<CourseListScreen> {
     } catch (_) {}
   }
 
+  Future<void> _refreshUnsentPackages([int? uid]) async {
+    final effectiveId = (uid != null && uid > 0)
+        ? uid
+        : (_userId > 0 ? _userId : await AuthService.getUserId());
+    if (effectiveId <= 0) return;
+    final unsent = await OfflineQuizService.findUnsentPackages(effectiveId);
+    if (!mounted) return;
+    setState(() => _unsentPackages = unsent);
+  }
+
+  Future<void> _openOfflineQuizForPackage(OfflineQuizPackage pkg) async {
+    final dummyQuiz = Quiz(
+      id: pkg.quizId,
+      coursemodule: 0,
+      course: pkg.courseId,
+      name: pkg.quizName,
+      intro: '',
+      timeopen: 0,
+      timeclose: pkg.endTimeEpochSec,
+      timelimit: 0,
+      attempts: 1,
+      gradepass: 0,
+      grade: 100,
+      visible: true,
+    );
+    final effectiveId = pkg.userId > 0 ? pkg.userId : _userId;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => OfflineQuizScreen(
+          quiz: dummyQuiz,
+          courseId: pkg.courseId,
+          userId: effectiveId,
+        ),
+      ),
+    );
+    await _refreshUnsentPackages(effectiveId);
+  }
+
   Future<void> _checkPendingOfflineSubmissions(int userId) async {
     if (!mounted || userId <= 0) return;
-    final pending = await OfflineQuizService.findPendingPackages(userId);
-    if (pending.isEmpty || !mounted) return;
-    final pkg = pending.first;
+    final unsent = await OfflineQuizService.findUnsentPackages(userId);
+    if (!mounted) return;
+    setState(() => _unsentPackages = unsent);
+    if (unsent.isEmpty) return;
+
+    final pkg = unsent.first;
     final answered = pkg.answeredCount;
     final isLockedPending = pkg.submissionStatus == OfflineSubmissionStatus.lockedPending;
+    final isServerWarning = pkg.submissionStatus == OfflineSubmissionStatus.serverEmptyWarning;
 
-    final resume = await showDialog<bool>(
+    final actionChoice = await showDialog<String>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
@@ -130,66 +174,63 @@ class _CourseListScreenState extends State<CourseListScreen> {
         title: Row(
           children: [
             Icon(
-              isLockedPending ? Icons.lock_clock_rounded : Icons.warning_amber_rounded,
+              isLockedPending || isServerWarning
+                  ? Icons.lock_clock_rounded
+                  : Icons.warning_amber_rounded,
               color: const Color(0xFFFBBF24),
               size: 24,
             ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                isLockedPending ? 'Jawaban Terkunci Belum Terkirim' : 'Jawaban Belum Terkirim',
+                isLockedPending || isServerWarning
+                    ? 'Jawaban Terkunci Belum Terkirim'
+                    : 'Jawaban Belum Terkirim',
                 style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
               ),
             ),
           ],
         ),
         content: Text(
-          isLockedPending
-              ? 'Ditemukan jawaban ujian "${pkg.quizName}" ($answered/${pkg.questions.length} soal) yang sudah dikunci dan tersimpan permanen di HP ini.\n\n'
-                  'Tekan "Kirim Sekarang" untuk mengirim jawaban Anda ke server Moodle.'
-              : 'Ditemukan jawaban ujian "${pkg.quizName}" ($answered/${pkg.questions.length} soal) yang belum dikirim ke server.\n\n'
-                  'Silakan lanjutkan dan tekan "Selesai" untuk mengirim jawaban Anda.',
+          isServerWarning
+              ? 'Jawaban "${pkg.quizName}" ($answered/${pkg.questions.length} soal) tersimpan di HP ini, namun server Moodle mencatat 0 jawaban masuk.\n\n'
+                  'Gunakan "Kode Proktor" untuk mengirim jawaban darurat ke server.'
+              : isLockedPending
+                  ? 'Ditemukan jawaban ujian "${pkg.quizName}" ($answered/${pkg.questions.length} soal) yang sudah dikunci dan tersimpan permanen di HP ini.\n\n'
+                      'Anda dapat mengirim langsung atau memakai Kode Kirim Darurat Proktor.'
+                  : 'Ditemukan jawaban ujian "${pkg.quizName}" ($answered/${pkg.questions.length} soal) yang belum dikirim ke server.\n\n'
+                      'Lanjutkan ujian lalu tekan "Selesai", atau minta Proktor mengirimnya.',
           style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.5),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
+            onPressed: () => Navigator.pop(ctx, null),
             child: const Text('Nanti', style: TextStyle(color: Colors.white60)),
           ),
-          ElevatedButton.icon(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
-            icon: Icon(isLockedPending ? Icons.send_rounded : Icons.play_arrow_rounded, size: 18),
-            label: Text(isLockedPending ? 'Kirim Sekarang' : 'Lanjutkan & Kirim'),
-          ),
+          if (answered > 0)
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(ctx, 'rescue'),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD97706)),
+              icon: const Icon(Icons.shield_rounded, color: Colors.white, size: 17),
+              label: const Text('Kode Proktor', style: TextStyle(color: Colors.white)),
+            ),
+          if (pkg.needsSubmission)
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(ctx, 'direct'),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
+              icon: Icon(isLockedPending ? Icons.send_rounded : Icons.play_arrow_rounded, size: 18),
+              label: Text(isLockedPending ? 'Kirim Langsung' : 'Lanjutkan & Kirim'),
+            ),
         ],
       ),
     );
 
-    if (resume == true && mounted) {
-      final dummyQuiz = Quiz(
-        id: pkg.quizId,
-        coursemodule: 0,
-        course: pkg.courseId,
-        name: pkg.quizName,
-        intro: '',
-        timeopen: 0,
-        timeclose: pkg.endTimeEpochSec,
-        timelimit: 0,
-        attempts: 1,
-        gradepass: 0,
-        grade: 100,
-        visible: true,
-      );
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => OfflineQuizScreen(
-            quiz: dummyQuiz,
-            courseId: pkg.courseId,
-            userId: userId,
-          ),
-        ),
-      );
+    if (!mounted) return;
+    if (actionChoice == 'direct') {
+      await _openOfflineQuizForPackage(pkg);
+    } else if (actionChoice == 'rescue') {
+      await ProctorRescueDialog.show(context, pkg: pkg);
+      await _refreshUnsentPackages(userId);
     }
   }
 
@@ -220,6 +261,7 @@ class _CourseListScreenState extends State<CourseListScreen> {
         _isLoading = false;
       });
       _loadCourseStats(userId, courses);
+      _refreshUnsentPackages(userId);
     } on TokenExpiredException {
       await KioskController.instance.unlock();
       await AuthService.logout();
@@ -419,6 +461,7 @@ class _CourseListScreenState extends State<CourseListScreen> {
     if (_userId > 0 && _courses.isNotEmpty) {
       _loadCourseStats(_userId, _courses);
     }
+    _refreshUnsentPackages();
   }
 
   // ─── Build ────────────────────────────────────────────────────────────────────
@@ -583,10 +626,127 @@ class _CourseListScreenState extends State<CourseListScreen> {
   // ─── Body ─────────────────────────────────────────────────────────────────────
 
   Widget _buildBody() {
-    if (_isLoading)         return _buildLoading();
-    if (_errorMsg.isNotEmpty) return _buildError();
-    if (_courses.isEmpty)   return _buildEmpty();
-    return _buildCourseList();
+    final Widget mainContent;
+    if (_isLoading) {
+      mainContent = _buildLoading();
+    } else if (_errorMsg.isNotEmpty) {
+      mainContent = _buildError();
+    } else if (_courses.isEmpty) {
+      mainContent = _buildEmpty();
+    } else {
+      mainContent = _buildCourseList();
+    }
+
+    if (_unsentPackages.isEmpty) {
+      return mainContent;
+    }
+
+    return Column(
+      children: [
+        _buildUnsentAnswersBanner(),
+        Expanded(child: mainContent),
+      ],
+    );
+  }
+
+  Widget _buildUnsentAnswersBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: const BoxDecoration(
+        color: Color(0xFFFFFBEB),
+        border: Border(bottom: BorderSide(color: Color(0xFFF59E0B), width: 1.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: _unsentPackages.map((pkg) {
+          final answered = pkg.answeredCount;
+          final total = pkg.questions.length;
+          final isWarning =
+              pkg.submissionStatus == OfflineSubmissionStatus.serverEmptyWarning;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isWarning ? const Color(0xFFEF4444) : const Color(0xFFF59E0B),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      size: 18,
+                      color: isWarning ? const Color(0xFFDC2626) : const Color(0xFFD97706),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '${pkg.quizName} ($answered/$total soal tersimpan)',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    if (pkg.needsSubmission)
+                      ElevatedButton.icon(
+                        onPressed: () => _openOfflineQuizForPackage(pkg),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF16A34A),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        icon: const Icon(Icons.send_rounded, size: 14),
+                        label: Text(
+                          pkg.submissionStatus == OfflineSubmissionStatus.lockedPending
+                              ? 'Kirim Langsung'
+                              : 'Lanjutkan & Kirim',
+                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    if (answered > 0)
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          await ProctorRescueDialog.show(context, pkg: pkg);
+                          await _refreshUnsentPackages();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFD97706),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        icon: const Icon(Icons.shield_rounded, size: 14),
+                        label: const Text(
+                          'Kirim Kode Proktor',
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 
   // ─── Loading Skeleton ────────────────────────────────────────────────────────

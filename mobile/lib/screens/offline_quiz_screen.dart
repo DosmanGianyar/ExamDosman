@@ -169,6 +169,8 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
       _initCountdown();
       // Kirim ping dengan quizId agar dashboard pengawas tahu siswa mulai kuis
       ExamService.pingAppLogin(quizId: widget.quiz.id).ignore();
+      // Hangatkan cache password keluar selagi sinyal online agar pengawas tetap bisa membuka kunci saat offline
+      KioskController.instance.fetchExitPassword().ignore();
     } on ApiException catch (e) {
       if (!mounted) return;
       final msgLower = e.message.toLowerCase();
@@ -1500,6 +1502,85 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
   }
 
+  Future<void> _handleExitFromSubmitWait() async {
+    final pkg = _package;
+    final answered = pkg?.answeredCount ?? 0;
+    final total = pkg?.questions.length ?? 0;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFFF59E0B), width: 1.3),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.lock_open_rounded, color: Color(0xFFFBBF24), size: 24),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Keluar dengan Password Pengawas?',
+                style: TextStyle(color: Colors.white, fontSize: 15.5, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          pkg != null
+              ? 'Jawaban Anda ($answered / $total soal) TETAP tersimpan aman dan terkunci di HP ini (tidak dihapus).\n\n'
+                  'Setelah keluar atau login kembali nanti, Anda tetap dapat mengirimkannya langsung saat sinyal stabil atau memakai Kode Kirim Darurat Proktor.'
+              : 'Apakah Anda yakin ingin keluar dari layar pengiriman jawaban menggunakan Password Keluar?',
+          style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+            child: const Text('Masukkan Password Keluar'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    final fetch = await KioskController.instance.fetchExitPassword();
+    if (!fetch.success) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tidak dapat memverifikasi password keluar. Periksa sinyal Wi-Fi.'),
+          backgroundColor: Color(0xFFD97706),
+        ),
+      );
+      return;
+    }
+
+    if (fetch.password.isNotEmpty && mounted) {
+      final pwdOk = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const ExitPasswordDialog(),
+      );
+      if (pwdOk != true) return;
+    }
+
+    _submitRetryTimer?.cancel();
+    _countdownTimer?.cancel();
+    _pingTimer?.cancel();
+    await KioskController.instance.unlock();
+    await AuthService.saveBlockedStatus(false);
+    await AuthService.logout();
+    if (!mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+  }
+
   void _showZoomImageDialog(String src) {
     if (!mounted) return;
     Widget imgWidget;
@@ -1777,145 +1858,179 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
 
     return Container(
       color: const Color(0xFF0F172A),
-      padding: const EdgeInsets.all(28),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isAuthBlocked ? Icons.lock_clock_rounded : Icons.wifi_find_rounded,
-              color: isAuthBlocked ? const Color(0xFFF87171) : const Color(0xFFFBBF24),
-              size: 56,
+      child: LayoutBuilder(
+        builder: (_, constraints) => SingleChildScrollView(
+          padding: const EdgeInsets.all(28),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: (constraints.maxHeight - 56).clamp(0.0, double.infinity),
             ),
-            const SizedBox(height: 18),
-            Text(
-              isAuthBlocked
-                  ? 'Sesi Ditangguhkan — Menunggu Pengawas'
-                  : 'Menunggu Sinyal untuk Mengirim Jawaban',
-              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            if (pkg != null) ...[
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white12),
-                ),
-                child: Text(
-                  isLocked
-                      ? 'Jawaban terkunci: $answeredCount / $totalCount soal'
-                      : 'Jawaban tersimpan: $answeredCount / $totalCount soal',
-                  style: const TextStyle(
-                    color: Color(0xFF86EFAC),
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isAuthBlocked ? Icons.lock_clock_rounded : Icons.wifi_find_rounded,
+                    color: isAuthBlocked ? const Color(0xFFF87171) : const Color(0xFFFBBF24),
+                    size: 56,
                   ),
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-            Text(
-              isAuthBlocked
-                  ? 'Seluruh jawaban Anda sudah dikunci dan tersimpan permanen di HP ini selama aplikasi tidak di-uninstall. '
-                      'Setelah pengawas mengaktifkan kembali akun Anda, tekan tombol di bawah untuk mengirim jawaban.'
-                  : 'Seluruh jawaban Anda sudah dikunci (tidak dapat diubah) dan tersimpan permanen di HP ini selama aplikasi tidak di-uninstall. '
-                      'Aplikasi otomatis mencoba mengirim ulang begitu sinyal Wi-Fi terhubung.',
-              style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.55),
-              textAlign: TextAlign.center,
-            ),
-            if (_submitError.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Text(
-                _submitError,
-                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
-                textAlign: TextAlign.center,
-                maxLines: 3,
-              ),
-            ],
-            const SizedBox(height: 22),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _isSubmitting
-                    ? null
-                    : () {
-                        _submitRetryAttempt = 0;
-                        _submitQuiz(timeUp: _autoSubmittedOnTimeout);
-                      },
-                icon: const Icon(Icons.send_rounded),
-                label: Text(_isSubmitting ? 'Mengirim...' : 'Kirim Ulang Sekarang'),
-              ),
-            ),
-            if (isLocked) ...[
-              if (answeredCount > 0 && pkg != null) ...[
-                const SizedBox(height: 10),
-                TextButton.icon(
-                  onPressed: _isSubmitting
-                      ? null
-                      : () async {
-                          final rescued = await ProctorRescueDialog.show(context, pkg: pkg);
-                          if (rescued && mounted) {
-                            _submitRetryTimer?.cancel();
-                            _countdownTimer?.cancel();
-                            Navigator.of(context).popUntil(
-                              (route) => route.isFirst || route.settings.name == '/courses',
-                            );
-                          }
-                        },
-                  icon: const Icon(Icons.shield_rounded, color: Color(0xFFFBBF24), size: 18),
-                  label: const Text(
-                    'Kirim Darurat (Khusus Proktor)',
-                    style: TextStyle(color: Color(0xFFFBBF24), fontWeight: FontWeight.w700),
+                  const SizedBox(height: 18),
+                  Text(
+                    isAuthBlocked
+                        ? 'Sesi Ditangguhkan — Menunggu Pengawas'
+                        : 'Menunggu Sinyal untuk Mengirim Jawaban',
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+                    textAlign: TextAlign.center,
                   ),
-                ),
-              ],
-              const SizedBox(height: 4),
-              TextButton(
-                onPressed: _isSubmitting
-                    ? null
-                    : () async {
-                        final confirmLater = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            backgroundColor: const Color(0xFF1E293B),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            title: const Text(
-                              'Simpan & Kirim Nanti?',
-                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
-                            ),
-                            content: const Text(
-                              'Jawaban Anda sudah dikunci dan tersimpan permanen di HP ini. Anda dapat langsung mengirimkannya kembali saat sudah terhubung ke Wi-Fi sekolah.',
-                              style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.45),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text('Batal', style: TextStyle(color: Colors.white60)),
-                              ),
-                              ElevatedButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text('Simpan & Kembali'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (confirmLater == true && mounted) {
-                          _submitRetryTimer?.cancel();
-                          Navigator.of(context).popUntil(
-                            (route) => route.isFirst || route.settings.name == '/courses',
-                          );
-                        }
-                      },
-                child: const Text(
-                  'Simpan & Kirim Nanti',
-                  style: TextStyle(color: Color(0xFF93C5FD), fontWeight: FontWeight.w600),
-                ),
+                  const SizedBox(height: 12),
+                  if (pkg != null) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E293B),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Text(
+                        isLocked
+                            ? 'Jawaban terkunci: $answeredCount / $totalCount soal'
+                            : 'Jawaban tersimpan: $answeredCount / $totalCount soal',
+                        style: const TextStyle(
+                          color: Color(0xFF86EFAC),
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  Text(
+                    isAuthBlocked
+                        ? 'Seluruh jawaban Anda sudah dikunci dan tersimpan permanen di HP ini selama aplikasi tidak di-uninstall. '
+                            'Setelah pengawas mengaktifkan kembali akun Anda, tekan tombol di bawah untuk mengirim jawaban.'
+                        : 'Seluruh jawaban Anda sudah dikunci (tidak dapat diubah) dan tersimpan permanen di HP ini selama aplikasi tidak di-uninstall. '
+                            'Aplikasi otomatis mencoba mengirim ulang begitu sinyal Wi-Fi terhubung.',
+                    style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.55),
+                    textAlign: TextAlign.center,
+                  ),
+                  if (_submitError.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      _submitError,
+                      style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+                      textAlign: TextAlign.center,
+                      maxLines: 3,
+                    ),
+                  ],
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _isSubmitting
+                          ? null
+                          : () {
+                              _submitRetryAttempt = 0;
+                              _submitQuiz(timeUp: _autoSubmittedOnTimeout);
+                            },
+                      icon: const Icon(Icons.send_rounded),
+                      label: Text(_isSubmitting ? 'Mengirim...' : 'Kirim Ulang Sekarang'),
+                    ),
+                  ),
+                  if (answeredCount > 0 && pkg != null) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _isSubmitting
+                            ? null
+                            : () async {
+                                final rescued = await ProctorRescueDialog.show(context, pkg: pkg);
+                                if (rescued && mounted) {
+                                  _submitRetryTimer?.cancel();
+                                  _countdownTimer?.cancel();
+                                  Navigator.of(context).popUntil(
+                                    (route) => route.isFirst || route.settings.name == '/courses',
+                                  );
+                                }
+                              },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFFBBF24),
+                          side: const BorderSide(color: Color(0xFFF59E0B)),
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                        ),
+                        icon: const Icon(Icons.shield_rounded, color: Color(0xFFFBBF24), size: 18),
+                        label: const Text(
+                          'Kirim Darurat (Kode Proktor)',
+                          style: TextStyle(color: Color(0xFFFBBF24), fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (isLocked) ...[
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: _isSubmitting
+                          ? null
+                          : () async {
+                              final confirmLater = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  backgroundColor: const Color(0xFF1E293B),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  title: const Text(
+                                    'Simpan & Kirim Nanti?',
+                                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+                                  ),
+                                  content: const Text(
+                                    'Jawaban Anda sudah dikunci dan tersimpan permanen di HP ini. Anda dapat langsung mengirimkannya kembali saat sudah terhubung ke Wi-Fi sekolah.',
+                                    style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.45),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, false),
+                                      child: const Text('Batal', style: TextStyle(color: Colors.white60)),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text('Simpan & Kembali'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirmLater == true && mounted) {
+                                _submitRetryTimer?.cancel();
+                                Navigator.of(context).popUntil(
+                                  (route) => route.isFirst || route.settings.name == '/courses',
+                                );
+                              }
+                            },
+                      child: const Text(
+                        'Simpan & Kirim Nanti',
+                        style: TextStyle(color: Color(0xFF93C5FD), fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _isSubmitting ? null : _handleExitFromSubmitWait,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFFCA5A5),
+                        side: const BorderSide(color: Color(0xFFEF4444)),
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                      ),
+                      icon: const Icon(Icons.lock_open_rounded, size: 18),
+                      label: const Text(
+                        'Keluar Aplikasi (Password Keluar)',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ],
+            ),
+          ),
         ),
       ),
     );

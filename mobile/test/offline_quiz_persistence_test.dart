@@ -3,7 +3,9 @@ import 'dart:io';
 
 import 'package:dosman_ujian/config/app_config.dart';
 import 'package:dosman_ujian/services/api_service.dart';
+import 'package:dosman_ujian/services/auth_service.dart';
 import 'package:dosman_ujian/services/exam_service.dart';
+import 'package:dosman_ujian/services/kiosk_controller.dart';
 import 'package:dosman_ujian/services/offline_quiz_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -442,5 +444,51 @@ void main() {
       expect(res.success, isFalse);
       expect(res.message, contains('Gagal menghubungi server'));
     }, () => _NonClosingHttpClient(mockOffline));
+  });
+
+  test('AuthService.logout preserves unsent packages and findUnsentPackages returns all unconfirmed states', () async {
+    await AuthService.saveToken('tok_2373');
+    await AuthService.saveUserInfo(userId: 2373, username: '2373', fullname: 'Siswa Uji');
+
+    await OfflineQuizService.savePackage(
+      makeSamplePkg(quizId: 101, attemptId: 1, status: OfflineSubmissionStatus.lockedPending),
+    );
+    await OfflineQuizService.savePackage(
+      makeSamplePkg(quizId: 102, attemptId: 2, status: OfflineSubmissionStatus.serverEmptyWarning),
+    );
+    await OfflineQuizService.savePackage(
+      makeSamplePkg(quizId: 103, attemptId: 3, status: OfflineSubmissionStatus.submittedVerified),
+    );
+
+    await AuthService.logout();
+
+    final unsent = await OfflineQuizService.findUnsentPackages(2373);
+    expect(unsent.map((p) => p.quizId).toSet(), {101, 102});
+  });
+
+  test('KioskController.fetchExitPassword caches password online and falls back to cache when offline', () async {
+    await AuthService.saveUserInfo(userId: 2373, username: '2373', fullname: 'Siswa Uji');
+
+    // Tanpa cache & offline → harus fail closed (success = false)
+    final offlineEmpty = MockClient((_) async => throw const SocketException('offline'));
+    await http.runWithClient(() async {
+      final res = await KioskController.instance.fetchExitPassword();
+      expect(res.success, isFalse);
+    }, () => _NonClosingHttpClient(offlineEmpty));
+
+    // Saat online berhasil → otomatis tersimpan di cache
+    final onlineOk = MockClient((_) async => http.Response(json.encode({'password': 'keluar99'}), 200));
+    await http.runWithClient(() async {
+      final res = await KioskController.instance.fetchExitPassword();
+      expect(res.success, isTrue);
+      expect(res.password, 'keluar99');
+    }, () => _NonClosingHttpClient(onlineOk));
+
+    // Saat offline setelah itu → tetap bisa verifikasi dengan password cache
+    await http.runWithClient(() async {
+      final res = await KioskController.instance.fetchExitPassword();
+      expect(res.success, isTrue);
+      expect(res.password, 'keluar99');
+    }, () => _NonClosingHttpClient(offlineEmpty));
   });
 }

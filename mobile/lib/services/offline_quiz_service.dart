@@ -479,6 +479,18 @@ class OfflineQuizService {
     return all.where((pkg) => pkg.needsSubmission).toList();
   }
 
+  /// Cari seluruh paket ujian milik [userId] yang masih belum terkonfirmasi masuk server
+  /// (termasuk [inProgress], [lockedPending], dan [serverEmptyWarning]) agar siswa selalu bisa
+  /// mengirim ulang secara langsung atau memakai Kode Kirim Darurat Proktor.
+  static Future<List<OfflineQuizPackage>> findUnsentPackages(int userId) async {
+    final all = await findAllSavedPackages(userId);
+    return all
+        .where((pkg) =>
+            pkg.needsSubmission ||
+            pkg.submissionStatus == OfflineSubmissionStatus.serverEmptyWarning)
+        .toList();
+  }
+
   /// Download paket soal dari Moodle tepat saat siswa klik Start Quiz.
   static Future<OfflineQuizPackage> downloadQuizPackage({
     required int quizId,

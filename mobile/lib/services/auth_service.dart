@@ -29,6 +29,7 @@ class AuthService {
   static const _keyPassword = 'dosman_password'; // untuk auto-login WebView
   static const _keyBlockedStatus    = 'dosman_blocked_status';
   static const _keySuspendedByAdmin = 'dosman_suspended_by_admin';
+  static const _keyCachedExitPassword = 'dosman_cached_exit_password';
 
 
 
@@ -198,6 +199,29 @@ class AuthService {
   static Future<bool> getSuspendedByAdmin() async {
     final val = await _storage.read(key: _keySuspendedByAdmin);
     return val == '1';
+  }
+
+  /// Simpan cache password keluar terenkripsi untuk verifikasi saat sinyal Wi-Fi terputus.
+  /// Sengaja tidak dihapus saat [logout] agar pengawas tetap bisa membuka kunci saat offline.
+  static Future<void> saveCachedExitPassword(String password) async {
+    try {
+      final trimmed = password.trim();
+      if (trimmed.isEmpty) {
+        await _storage.delete(key: _keyCachedExitPassword);
+      } else {
+        await _storage.write(key: _keyCachedExitPassword, value: trimmed);
+      }
+    } catch (_) {}
+  }
+
+  static Future<String?> getCachedExitPassword() async {
+    try {
+      final val = await _storage.read(key: _keyCachedExitPassword);
+      if (val == null || val.trim().isEmpty) return null;
+      return val.trim();
+    } catch (_) {
+      return null;
+    }
   }
 
   // ─── Debug (hapus semua storage) ────────────────────────────────────────────

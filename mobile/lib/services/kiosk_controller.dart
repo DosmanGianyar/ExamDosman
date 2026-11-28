@@ -523,9 +523,10 @@ class KioskController {
   }
 
   /// Ambil password keluar dari endpoint Moodle (API key statis).
+  /// Jika gagal terhubung ke server (mis. Wi-Fi terputus), gunakan cache aman lokal jika ada.
   ///
-  /// Jika [success] false, jangan anggap password kosong — berarti gagal fetch
-  /// (jaringan, 401, 500, body bukan JSON).
+  /// Jika [success] false (belum ada cache & gagal fetch), jangan anggap password kosong —
+  /// tetap tolak demi keamanan.
   Future<ExitPasswordFetchResult> fetchExitPassword() async {
     try {
       final username = (await AuthService.getUsername()).toLowerCase().trim();
@@ -538,20 +539,24 @@ class KioskController {
         '${AppConfig.moodleUrl}/local/dosman_ujian/exitpwd.php?apikey=${Uri.encodeComponent(AppConfig.exitPwdApiKey)}&username=${Uri.encodeComponent(username)}',
       );
       final response = await http.get(uri).timeout(const Duration(seconds: 5));
-      if (response.statusCode != 200) {
-        return const ExitPasswordFetchResult(success: false);
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          final p = decoded['password'];
+          if (p is String) {
+            await AuthService.saveCachedExitPassword(p);
+            return ExitPasswordFetchResult(success: true, password: p);
+          }
+        }
       }
-      final decoded = json.decode(response.body);
-      if (decoded is! Map<String, dynamic>) {
-        return const ExitPasswordFetchResult(success: false);
-      }
-      final p = decoded['password'];
-      if (p is! String) {
-        return const ExitPasswordFetchResult(success: false);
-      }
-      return ExitPasswordFetchResult(success: true, password: p);
     } catch (_) {
-      return const ExitPasswordFetchResult(success: false);
+      // Fallback ke cache lokal di bawah bila tersedia.
     }
+
+    final cached = await AuthService.getCachedExitPassword();
+    if (cached != null && cached.isNotEmpty) {
+      return ExitPasswordFetchResult(success: true, password: cached);
+    }
+    return const ExitPasswordFetchResult(success: false);
   }
 }
