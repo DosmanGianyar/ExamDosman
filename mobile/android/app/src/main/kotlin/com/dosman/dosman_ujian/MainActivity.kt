@@ -620,6 +620,23 @@ class MainActivity : FlutterActivity() {
                 "openDndSettings" -> result.success(openDndSettingsWithFallback())
 
                 "openWifiSettings" -> {
+                    val releaseLockTask = call.argument<Boolean>("releaseLockTask") ?: false
+                    fun launchWifiPanel(): Boolean {
+                        val candidates = mutableListOf<Intent>()
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            candidates += Intent(Settings.Panel.ACTION_WIFI)
+                            candidates += Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY)
+                        }
+                        candidates += Intent(Settings.ACTION_WIFI_SETTINGS)
+                        for (intent in candidates) {
+                            try {
+                                startActivity(intent)
+                                return true
+                            } catch (_: Exception) {}
+                        }
+                        return false
+                    }
+
                     val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
                     val inLockTask = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         am.lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE
@@ -628,24 +645,18 @@ class MainActivity : FlutterActivity() {
                         am.isInLockTaskMode
                     }
                     if (inLockTask) {
-                        result.success(false)
-                    } else {
-                        try {
-                            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                Intent(Settings.Panel.ACTION_WIFI)
-                            } else {
-                                Intent(Settings.ACTION_WIFI_SETTINGS)
-                            }
-                            startActivity(intent)
-                            result.success(true)
-                        } catch (_: Exception) {
-                            try {
-                                startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
-                                result.success(true)
-                            } catch (_: Exception) {
-                                result.success(false)
-                            }
+                        if (!releaseLockTask || guardState.inExamMode) {
+                            result.success(false)
+                        } else {
+                            guardState.wasPinnedSuccessfully = false
+                            try { stopLockTask() } catch (_: Exception) {}
+                            mainHandler.postDelayed(
+                                { result.success(launchWifiPanel()) },
+                                300L,
+                            )
                         }
+                    } else {
+                        result.success(launchWifiPanel())
                     }
                 }
 

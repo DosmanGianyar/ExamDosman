@@ -112,11 +112,23 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     WidgetsBinding.instance.removeObserver(this);
     KioskController.instance.removeViolationListener(_onNativeViolation);
     KioskController.instance.exitExam();
+    KioskController.instance.setAllowUnpinnedForSubmit(false);
     _countdownTimer?.cancel();
     _pingTimer?.cancel();
     _blockTimer?.cancel();
     _submitRetryTimer?.cancel();
     super.dispose();
+  }
+
+  bool get _isLockedWaitingSubmit =>
+      _waitingSignalToSubmit && (_package?.isLocked == true);
+
+  void _enterLockedSubmitSafeMode() {
+    _blockTimer?.cancel();
+    _backgroundedAt = null;
+    _screenWasOff = false;
+    KioskController.instance.exitExam();
+    KioskController.instance.setAllowUnpinnedForSubmit(true);
   }
 
   // ─── Download Paket Soal Saat Start Quiz ─────────────────────────────────
@@ -158,6 +170,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
           _autoSubmittedOnTimeout = true;
           _currentIndex = 0;
         });
+        _enterLockedSubmitSafeMode();
         _submitQuiz(timeUp: true);
         return;
       }
@@ -899,6 +912,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
       _package = locked;
       _waitingSignalToSubmit = true;
     });
+    _enterLockedSubmitSafeMode();
     await _submitQuiz(timeUp: timeUp);
   }
 
@@ -1372,6 +1386,11 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
   }
 
   Future<void> _onAppPaused() async {
+    if (_isLockedWaitingSubmit) {
+      _blockTimer?.cancel();
+      _backgroundedAt = null;
+      return;
+    }
     if (_blockSent || (_blockTimer != null && _blockTimer!.isActive)) return;
     _backgroundedAt = DateTime.now();
     bool screenOn = true;
@@ -1407,6 +1426,16 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
   }
 
   Future<void> _onAppResumed() async {
+    if (_isLockedWaitingSubmit) {
+      _blockTimer?.cancel();
+      _backgroundedAt = null;
+      _screenWasOff = false;
+      if (mounted && !_isSubmitting && !_submitAuthBlocked) {
+        _submitRetryAttempt = 0;
+        _submitQuiz(timeUp: _autoSubmittedOnTimeout);
+      }
+      return;
+    }
     _blockTimer?.cancel();
     final wasOff = _screenWasOff;
     _screenWasOff = false;
@@ -1426,6 +1455,76 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
         userId: widget.userId,
       );
     }
+  }
+
+  Future<void> _handleSwitchWifiFromSubmitWait() async {
+    if (!_isLockedWaitingSubmit) return;
+    _enterLockedSubmitSafeMode();
+
+    final opened = await KioskController.instance.openWifiSettings(
+      releaseLockTask: true,
+    );
+    if (!mounted) return;
+
+    if (opened) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Pilih Wi-Fi / hotspot yang stabil lalu kembali ke aplikasi. Jawaban akan langsung dikirim otomatis.',
+          ),
+          backgroundColor: Color(0xFF0284C7),
+          duration: Duration(seconds: 5),
+        ),
+      );
+      return;
+    }
+
+    final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFF38BDF8), width: 1.3),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.wifi_rounded, color: Color(0xFF38BDF8), size: 22),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Cara Ganti Wi-Fi Tanpa Logout',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          isIOS
+              ? 'Di iPhone/iPad, Akses Terpadu (Guided Access) memblokir menu Wi-Fi dari dalam aplikasi:\n\n'
+                  '1. Tekan tombol Samping/Home 3x → masukkan PIN Akses Terpadu → ketuk "Akhiri".\n'
+                  '2. Tarik Control Center (atau buka Pengaturan > Wi-Fi) lalu pilih Wi-Fi / hotspot lain.\n'
+                  '3. Kembali ke ExamDosman — jawaban langsung dikirim otomatis.\n\n'
+                  'Catatan: Jawaban sudah terkunci aman, Anda TIDAK perlu logout dan TIDAK akan terkena suspend.'
+              : 'Jawaban Anda sudah terkunci aman dan mode pengawasan ujian sudah dinonaktifkan.\n\n'
+                  'Silakan tarik panel cepat (Quick Settings) dari atas layar atau buka Pengaturan Wi-Fi untuk mengganti jaringan, lalu kembali ke ExamDosman.\n\n'
+                  'Anda TIDAK perlu logout dan TIDAK akan terkena suspend; jawaban akan langsung dikirim otomatis.',
+          style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.5),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0284C7)),
+            child: const Text('Mengerti', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _handleExit() async {
@@ -1936,6 +2035,25 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
                       label: Text(_isSubmitting ? 'Mengirim...' : 'Kirim Ulang Sekarang'),
                     ),
                   ),
+                  if (isLocked) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _isSubmitting ? null : _handleSwitchWifiFromSubmitWait,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0284C7),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                        ),
+                        icon: const Icon(Icons.wifi_rounded, size: 18),
+                        label: const Text(
+                          'Ganti Wi-Fi (Tanpa Keluar Aplikasi)',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ],
                   if (answeredCount > 0 && pkg != null) ...[
                     const SizedBox(height: 10),
                     SizedBox(

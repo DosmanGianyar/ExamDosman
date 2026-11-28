@@ -130,6 +130,32 @@ void main() {
       expect(triggered, isFalse);
       expect(kiosk.isHandlingFatalViolation, isFalse);
     });
+
+    test('openWifiSettings blocks lock release while inExamMode and allows after exitExam', () async {
+      final invokedCalls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(lockdownChannel, (call) async {
+        invokedCalls.add(call);
+        return true;
+      });
+
+      final kiosk = KioskController.instance;
+      await kiosk.ensureLockedAndEnterExam(userId: 10);
+      expect(kiosk.inExamMode, isTrue);
+
+      invokedCalls.clear();
+      final blockedDuringExam = await kiosk.openWifiSettings(releaseLockTask: true);
+      expect(blockedDuringExam, isFalse);
+      expect(invokedCalls.where((c) => c.method == 'openWifiSettings'), isEmpty);
+
+      kiosk.exitExam();
+      expect(kiosk.inExamMode, isFalse);
+
+      final allowedAfterExit = await kiosk.openWifiSettings(releaseLockTask: true);
+      expect(allowedAfterExit, isTrue);
+      final wifiCall = invokedCalls.singleWhere((c) => c.method == 'openWifiSettings');
+      expect(wifiCall.arguments, equals({'releaseLockTask': true}));
+    });
   });
 
   group('DeviceService.isValidUniqueId', () {
@@ -216,6 +242,41 @@ void main() {
         await KioskController.instance.unlock();
         await tester.pump();
         expect(find.text('Mode Ujian Belum Terkunci'), findsNothing);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('suppresses unpinned overlay while allowUnpinnedForSubmit is true and restores when false', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: PinReminderLayer(
+              child: Scaffold(body: Text('Konten Kirim Jawaban')),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        await KioskController.instance.lock(userId: 10);
+        KioskController.instance.expirePinStartupGraceForTesting();
+        await tester.pump(const Duration(milliseconds: 900));
+        await tester.pump();
+        expect(find.text('Aplikasi Belum Disematkan'), findsOneWidget);
+
+        KioskController.instance.setAllowUnpinnedForSubmit(true);
+        await tester.pump();
+        expect(find.text('Aplikasi Belum Disematkan'), findsNothing);
+
+        KioskController.instance.setAllowUnpinnedForSubmit(false);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 900));
+        await tester.pump();
+        expect(find.text('Aplikasi Belum Disematkan'), findsOneWidget);
+
+        await KioskController.instance.unlock();
+        await tester.pump();
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }

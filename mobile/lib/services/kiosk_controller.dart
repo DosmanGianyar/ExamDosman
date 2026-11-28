@@ -127,6 +127,7 @@ class KioskController {
 
   bool _active = false;
   bool _inExamMode = false;
+  bool _allowUnpinnedForSubmit = false;
   bool _handlingFatalViolation = false;
   DateTime? _sessionStartedAt;
   DateTime? _lockedAt;
@@ -134,7 +135,16 @@ class KioskController {
 
   bool get active => _active;
   bool get inExamMode => _inExamMode;
+  bool get allowUnpinnedForSubmit => _allowUnpinnedForSubmit;
   bool get isHandlingFatalViolation => _handlingFatalViolation;
+
+  /// Izinkan aplikasi dilepas pinnya sementara khusus saat menunggu pengiriman
+  /// jawaban ujian yang sudah dikunci (soal sudah dihapus).
+  void setAllowUnpinnedForSubmit(bool allow) {
+    if (_allowUnpinnedForSubmit == allow) return;
+    _allowUnpinnedForSubmit = allow;
+    _notify();
+  }
 
   /// Atur handler suspend tiruan khusus untuk unit test deterministik.
   @visibleForTesting
@@ -171,6 +181,7 @@ class KioskController {
   void resetForTesting() {
     _active = false;
     _inExamMode = false;
+    _allowUnpinnedForSubmit = false;
     _isReviewer = false;
     _handlingFatalViolation = false;
     _sessionStartedAt = null;
@@ -243,6 +254,22 @@ class KioskController {
   Future<bool> requestScreenPinAgain() async {
     try {
       final res = await _channel.invokeMethod<bool>('requestScreenPin');
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Buka panel pengaturan Wi-Fi perangkat.
+  /// Jika [releaseLockTask] true, hanya diizinkan saat [_inExamMode] == false
+  /// (misalnya di layar "Menunggu Sinyal" setelah jawaban dikunci & soal dihapus).
+  Future<bool> openWifiSettings({bool releaseLockTask = false}) async {
+    if (releaseLockTask && _inExamMode) return false;
+    try {
+      final res = await _channel.invokeMethod<bool>(
+        'openWifiSettings',
+        {'releaseLockTask': releaseLockTask},
+      );
       return res ?? false;
     } catch (_) {
       return false;
@@ -420,6 +447,7 @@ class KioskController {
     try { await _channel.invokeMethod('clearScreenOn'); } catch (_) {}
     _active = false;
     _inExamMode = false;
+    _allowUnpinnedForSubmit = false;
     _handlingFatalViolation = false;
     _sessionStartedAt = null;
     _lockedAt = null;
@@ -429,6 +457,7 @@ class KioskController {
   /// Tandai sedang di dalam layar kuis aktif.
   void enterExam() {
     _inExamMode = true;
+    _allowUnpinnedForSubmit = false;
     _handlingFatalViolation = false;
     _channel.invokeMethod('setExamMode', {'active': true}).catchError((_) {});
     _channel.invokeMethod('keepScreenOn').catchError((_) {});

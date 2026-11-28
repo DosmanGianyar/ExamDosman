@@ -62,6 +62,7 @@ class _PinReminderLayerState extends State<PinReminderLayer>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (defaultTargetPlatform != TargetPlatform.android) return;
     if (_kiosk.active &&
+        !_kiosk.allowUnpinnedForSubmit &&
         (state == AppLifecycleState.inactive ||
             state == AppLifecycleState.paused)) {
       _triggerBottomMask();
@@ -69,7 +70,7 @@ class _PinReminderLayerState extends State<PinReminderLayer>
   }
 
   void _onKioskChanged() {
-    if (_kiosk.isReviewer || !_kiosk.active) {
+    if (_kiosk.isReviewer || !_kiosk.active || _kiosk.allowUnpinnedForSubmit) {
       _maskTimer?.cancel();
       if (mounted && _showBottomMask) {
         setState(() => _showBottomMask = false);
@@ -96,7 +97,11 @@ class _PinReminderLayerState extends State<PinReminderLayer>
     _pollTimer = null;
     final isMobile = defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
-    if (kIsWeb || !isMobile || _kiosk.isReviewer || !_kiosk.active) {
+    if (kIsWeb ||
+        !isMobile ||
+        _kiosk.isReviewer ||
+        !_kiosk.active ||
+        _kiosk.allowUnpinnedForSubmit) {
       if (mounted &&
           (!_pinned ||
               _inStartupGrace ||
@@ -120,7 +125,7 @@ class _PinReminderLayerState extends State<PinReminderLayer>
   Future<void> _pollPinned() async {
     final isMobile = defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
-    if (kIsWeb || !isMobile || _kiosk.isReviewer) {
+    if (kIsWeb || !isMobile || _kiosk.isReviewer || _kiosk.allowUnpinnedForSubmit) {
       if (mounted && !_pinned) setState(() => _pinned = true);
       return;
     }
@@ -132,7 +137,12 @@ class _PinReminderLayerState extends State<PinReminderLayer>
     if (isAndroid && !ok) {
       pinningEnabled = await _kiosk.isScreenPinningEnabled();
     }
-    if (!mounted || !_kiosk.active || _kiosk.isReviewer) return;
+    if (!mounted ||
+        !_kiosk.active ||
+        _kiosk.isReviewer ||
+        _kiosk.allowUnpinnedForSubmit) {
+      return;
+    }
     final inGrace = _kiosk.isInPinStartupGrace;
     if (ok != _pinned ||
         inGrace != _inStartupGrace ||
@@ -277,6 +287,7 @@ class _PinReminderLayerState extends State<PinReminderLayer>
     }
 
     final showBanner = _kiosk.active &&
+        !_kiosk.allowUnpinnedForSubmit &&
         !_pinned &&
         !_inStartupGrace &&
         !_showingExitDialog;
