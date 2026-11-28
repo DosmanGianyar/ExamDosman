@@ -388,6 +388,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     line-height: 1.55;
     color: #1D2125;
     text-align: left;
+    overflow-wrap: anywhere;
   }
   .q-content p, .opt-body p {
     margin: 0 0 0.6em 0;
@@ -476,29 +477,74 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
   }
   .moodle-table-wrap {
     width: 100%;
+    max-width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     margin: 10px 0;
     border-radius: 8px;
+    border: 1px solid #CBD5E1;
+    background: #FFFFFF;
   }
   .q-card table, .opt-body table {
     display: table;
-    border-collapse: collapse;
-    width: auto !important;
-    min-width: 100%;
-    font-size: 13.5px;
+    border-collapse: collapse !important;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 !important;
+    font-size: 13px;
     line-height: 1.4;
     background: #FFFFFF;
+  }
+  .q-card tr, .opt-body tr {
+    height: auto !important;
   }
   .q-card th, .opt-body th {
     background: #F1F5F9;
     font-weight: 700;
   }
   .q-card td, .q-card th, .opt-body td, .opt-body th {
-    border: 1px solid #CBD5E1;
-    padding: 6px 9px;
+    border: 1px solid #CBD5E1 !important;
+    padding: 6px 7px !important;
+    width: auto !important;
+    height: auto !important;
     vertical-align: top;
     text-align: left;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .q-card td p, .q-card th p, .opt-body td p, .opt-body th p {
+    margin: 0 !important;
+    line-height: 1.4 !important;
+  }
+  .moodle-table-wrap.table-compact table {
+    font-size: 11.5px;
+    line-height: 1.32;
+  }
+  .moodle-table-wrap.table-compact td, .moodle-table-wrap.table-compact th {
+    padding: 4px 5px !important;
+  }
+  .moodle-table-wrap.table-scroll table {
+    width: max-content !important;
+    min-width: 100%;
+    max-width: none !important;
+  }
+  .moodle-table-wrap.table-scroll td, .moodle-table-wrap.table-scroll th {
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+    max-width: 210px;
+  }
+  .table-scroll-hint {
+    font-size: 11px;
+    font-weight: 600;
+    color: #1E40AF;
+    background: #EFF6FF;
+    border: 1px solid #DBEAFE;
+    border-radius: 6px;
+    padding: 4px 8px;
+    margin: -4px 0 10px 0;
+    text-align: center;
   }
   .q-card tr[height="0"], .opt-body tr[height="0"] {
     display: none;
@@ -551,7 +597,7 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
     line-height: 1.5;
     text-align: left;
     word-wrap: break-word;
-    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
   }
   .opt-check {
     flex-shrink: 0;
@@ -646,6 +692,27 @@ class _OfflineQuizScreenState extends State<OfflineQuizScreen>
           });
         } catch (e) {}
       }
+      function fitTables() {
+        var wraps = document.querySelectorAll('.moodle-table-wrap');
+        for (var i = 0; i < wraps.length; i++) {
+          var wrap = wraps[i];
+          var tbl = wrap.querySelector('table');
+          if (!tbl || wrap.clientWidth <= 0) continue;
+          if (tbl.scrollWidth > wrap.clientWidth + 2) {
+            wrap.classList.add('table-compact');
+          }
+          if (tbl.scrollWidth > wrap.clientWidth + 2) {
+            wrap.classList.add('table-scroll');
+            if (!wrap.nextElementSibling || !wrap.nextElementSibling.classList.contains('table-scroll-hint')) {
+              var hint = document.createElement('div');
+              hint.className = 'table-scroll-hint';
+              hint.innerHTML = '&#8592; Geser tabel ke kiri/kanan untuk melihat semua kolom &#8594;';
+              if (wrap.parentNode) wrap.parentNode.insertBefore(hint, wrap.nextSibling);
+            }
+          }
+        }
+      }
+      fitTables();
     });
   </script>
 </body>

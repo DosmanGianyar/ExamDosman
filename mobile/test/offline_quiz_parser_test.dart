@@ -121,5 +121,58 @@ void main() {
       expect(sanitized, '<div class="WordSection1"><p>6-etil-7-metil-oktuna</p></div>');
       _expectDivBalanced(sanitized);
     });
+
+    test('QID 23745 (Queue MS Word table): strips inline sizing/borders while preserving content & center align', () {
+      const wordTableHtml = '''
+<p class="MsoNormal" style="text-align: justify;"><span>Di laboratorium komputer SMAN 1 Gianyar:</span></p>
+<table class="MsoTableGrid" style="border-collapse: collapse; height: 400px; width: 46.2886%; border: medium none currentcolor;" border="1" cellspacing="0" cellpadding="0">
+<tbody>
+<tr style="height: 38.6667px;">
+<td style="border: 1pt solid windowtext; padding: 0cm 5.4pt; width: 26.0994%;" valign="top">
+<p align="center" style="text-align: center;"><strong><span>Langkah</span></strong></p>
+</td>
+<td style="width: 24.6654%; border-width: 1pt 1pt 1pt medium; border-style: solid solid solid none; border-color: windowtext windowtext windowtext currentcolor; padding: 0cm 5.4pt;" valign="top" width="151">
+<p align="center" style="text-align: center;"><strong><span>Operasi</span></strong></p>
+</td>
+<td style="width: 49.3308%; border-width: 1pt 1pt 1pt medium; padding: 0cm 5.4pt;" valign="top" width="66">
+<p align="center" style="text-align: center;"><strong><span>Dokumen</span></strong></p>
+</td>
+</tr>
+<tr style="height: 38.6667px;">
+<td style="border-width: medium 1pt 1pt; padding: 0cm 5.4pt; width: 26.0994%;" valign="top"><p><span>1</span></p></td>
+<td style="width: 24.6654%; padding: 0cm 5.4pt;" valign="top" width="151"><p><span>Enqueue</span></p></td>
+<td style="width: 49.3308%; padding: 0cm 5.4pt;" valign="top" width="66"><p><span>Laporan_Biologi</span></p></td>
+</tr>
+<tr style="height: 52px;">
+<td style="width: 26.0994%;" valign="top"><p><span>8</span></p></td>
+<td style="width: 24.6654%;" valign="top"><p><span>Enqueue</span></p></td>
+<td style="width: 49.3308%;" valign="top"><p><span>Laporan_Praktikum</span></p></td>
+</tr>
+</tbody>
+</table>
+''';
+
+      final sanitized = OfflineQuizService.sanitizeFragmentHtml(wordTableHtml);
+      expect(sanitized, contains('<div class="moodle-table-wrap"><table class="MsoTableGrid" border="1" cellspacing="0" cellpadding="0">'));
+      expect(sanitized, isNot(contains('height: 400px')));
+      expect(sanitized, isNot(contains('height: 38.6667px')));
+      expect(sanitized, isNot(contains('width: 46.2886%')));
+      expect(sanitized, isNot(contains('width: 26.0994%')));
+      expect(sanitized, isNot(contains('width="151"')));
+      expect(sanitized, isNot(contains('padding: 0cm 5.4pt')));
+      expect(sanitized, isNot(contains('border-style: solid solid solid none')));
+      expect(sanitized, contains('text-align: left'));
+      expect(sanitized, contains('text-align: center'));
+      expect(sanitized, contains('Langkah'));
+      expect(sanitized, contains('Operasi'));
+      expect(sanitized, contains('Dokumen'));
+      expect(sanitized, contains('Laporan_Biologi'));
+      expect(sanitized, contains('Laporan_Praktikum'));
+      _expectDivBalanced(sanitized);
+
+      // Pastikan tidak double-wrap bila dipanggil ulang
+      final twice = OfflineQuizService.sanitizeFragmentHtml(sanitized);
+      expect(RegExp(r'moodle-table-wrap').allMatches(twice).length, 1);
+    });
   });
 }

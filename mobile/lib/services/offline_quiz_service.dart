@@ -1087,9 +1087,86 @@ class OfflineQuizService {
       (_) => ' ',
     );
 
-    // 5. Bungkus <table> tingkat atas dengan <div class="moodle-table-wrap"> bila belum terbungkus.
+    // 5. Bersihkan style/atribut width, height, border, padding MS Word pada elemen tabel.
+    out = _normalizeTableElements(out);
+
+    // 6. Bungkus <table> tingkat atas dengan <div class="moodle-table-wrap"> bila belum terbungkus.
     out = _wrapTopLevelTables(out);
     return out;
+  }
+
+  static const Set<String> _tableTagNames = <String>{
+    'table', 'tr', 'td', 'th', 'col', 'colgroup',
+  };
+
+  static const Set<String> _strippedTableCssProps = <String>{
+    'width', 'min-width', 'max-width',
+    'height', 'min-height', 'max-height',
+    'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+    'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+    'border', 'border-width', 'border-style', 'border-color',
+    'border-top', 'border-right', 'border-bottom', 'border-left',
+    'border-collapse',
+  };
+
+  static String _normalizeTableElements(String html) {
+    if (!html.toLowerCase().contains('<table')) {
+      return html;
+    }
+    final buf = StringBuffer();
+    var lastIdx = 0;
+
+    for (final m in _htmlTagScanRegex.allMatches(html)) {
+      final rawTag = m.group(2);
+      final isClose = m.group(1) == '/';
+      if (isClose || rawTag == null || !_tableTagNames.contains(rawTag.toLowerCase())) {
+        continue;
+      }
+
+      buf.write(html.substring(lastIdx, m.start));
+      lastIdx = m.end;
+
+      final attrs = m.group(3) ?? '';
+      final selfClose = m.group(4) == '/' ? ' /' : '';
+      final cleanedAttrs = _cleanTableTagAttrs(attrs);
+      buf.write('<$rawTag$cleanedAttrs$selfClose>');
+    }
+
+    if (lastIdx < html.length) {
+      buf.write(html.substring(lastIdx));
+    }
+    return buf.toString();
+  }
+
+  static String _cleanTableTagAttrs(String attrs) {
+    var out = attrs.replaceAll(
+      RegExp(r'''\s+(?:width|height)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)''', caseSensitive: false),
+      '',
+    );
+
+    out = out.replaceAllMapped(
+      RegExp(r'''\bstyle\s*=\s*(["'])([\s\S]*?)\1''', caseSensitive: false),
+      (m) {
+        final rawStyle = m.group(2) ?? '';
+        final kept = <String>[];
+        for (final decl in rawStyle.split(';')) {
+          final colonIdx = decl.indexOf(':');
+          if (colonIdx <= 0) continue;
+          final prop = decl.substring(0, colonIdx).trim().toLowerCase();
+          final val = decl.substring(colonIdx + 1).trim();
+          if (prop.isEmpty || val.isEmpty) continue;
+          if (prop.startsWith('mso-') || _strippedTableCssProps.contains(prop)) {
+            continue;
+          }
+          kept.add('$prop: $val');
+        }
+        if (kept.isEmpty) return '';
+        return 'style="${kept.join('; ')}"';
+      },
+    );
+
+    out = out.replaceAll(RegExp(r'\s{2,}'), ' ').trim();
+    return out.isEmpty ? '' : ' $out';
   }
 
   static String _wrapTopLevelTables(String html) {
